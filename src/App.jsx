@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, ShoppingBag, ArrowRight } from 'lucide-react';
+import { Check, ShoppingBag, ArrowRight, Clock, UtensilsCrossed } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import Categories from './components/Categories';
@@ -17,7 +17,7 @@ import AccountModal from './components/AccountModal';
 import AccountPage from './components/AccountPage';
 import OrderStatusPage from './components/OrderStatusPage';
 import AdminPanel from './components/AdminPanel';
-import { saveActiveOrder, playOrderChime, supabase, createOrder } from './lib/supabaseClient';
+import { saveActiveOrder, playOrderChime, supabase, createOrder, subscribeToStoreSettings } from './lib/supabaseClient';
 import { sendOrderConfirmationEmail } from './lib/emailService';
 import { getSumUpCheckoutStatus } from './lib/sumupService';
 
@@ -91,9 +91,23 @@ export default function App() {
   const [trackingOrder, setTrackingOrder] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [isStoreOpen, setIsStoreOpen] = useState(true);
+  const [isClosedModalOpen, setIsClosedModalOpen] = useState(false);
+
+  // Subscribe to live store open/closed settings from database
+  useEffect(() => {
+    const unsub = subscribeToStoreSettings((open) => {
+      setIsStoreOpen(open);
+    });
+    return () => unsub();
+  }, []);
 
   // Reorder items from previous orders in Account Modal
   const handleReorder = (orderItems) => {
+    if (!isStoreOpen) {
+      setIsClosedModalOpen(true);
+      return;
+    }
     if (!orderItems || orderItems.length === 0) return;
     const newCartItems = orderItems.map((item, idx) => ({
       id: `reorder-${Date.now()}-${idx}`,
@@ -237,6 +251,10 @@ export default function App() {
 
   // Add Item to Cart
   const handleAddToCart = (item) => {
+    if (!isStoreOpen) {
+      setIsClosedModalOpen(true);
+      return;
+    }
     setCartItems((prev) => {
       const existing = prev.find((i) => i.id === item.id);
       if (existing) {
@@ -354,6 +372,57 @@ export default function App() {
         onNavigate={handleNavigate}
       />
 
+      {/* Top Notification Strip when Online Ordering is Closed */}
+      {!isStoreOpen && (
+        <div style={{
+          background: 'linear-gradient(90deg, #991b1b, #7f1d1d)',
+          color: '#ffffff',
+          padding: '10px 16px',
+          fontSize: '13px',
+          fontWeight: '700',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '12px',
+          flexWrap: 'wrap',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.25)',
+          position: 'sticky',
+          top: '72px',
+          zIndex: 998
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{
+              display: 'inline-block',
+              width: '9px',
+              height: '9px',
+              borderRadius: '50%',
+              background: '#fca5a5',
+              boxShadow: '0 0 6px #fca5a5'
+            }} />
+            <span>Wir haben derzeit geschlossen – Online-Bestellungen sind zurzeit pausiert.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setCurrentView('speisekarte');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            style={{
+              background: '#ffffff',
+              color: '#991b1b',
+              border: 'none',
+              borderRadius: '20px',
+              padding: '4px 14px',
+              fontSize: '12px',
+              fontWeight: '800',
+              cursor: 'pointer'
+            }}
+          >
+            Speisekarte ansehen
+          </button>
+        </div>
+      )}
+
       <main>
         {currentView === 'speisekarte' ? (
           /* Dedicated Full Menu Page View */
@@ -393,6 +462,10 @@ export default function App() {
             <Hero
               onAddToCart={handleAddToCart}
               onOrderClick={() => {
+                if (!isStoreOpen) {
+                  setIsClosedModalOpen(true);
+                  return;
+                }
                 const el = document.getElementById('angebote');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               }}
@@ -446,6 +519,10 @@ export default function App() {
             {/* Party- & Firmenservice Catering Banner */}
             <PartyCateringSection
               onInquiryClick={() => {
+                if (!isStoreOpen) {
+                  setIsClosedModalOpen(true);
+                  return;
+                }
                 setIsOrderModalOpen(true);
               }}
             />
@@ -512,7 +589,12 @@ export default function App() {
         cartItems={cartItems}
         onUpdateQty={handleUpdateQty}
         onRemoveItem={handleRemoveItem}
+        isStoreOpen={isStoreOpen}
         onCheckout={() => {
+          if (!isStoreOpen) {
+            setIsClosedModalOpen(true);
+            return;
+          }
           setIsCartOpen(false);
           setTrackingOrder(null);
           setIsOrderModalOpen(true);
@@ -537,6 +619,7 @@ export default function App() {
         cartItems={cartItems}
         onCompleteOrder={handleOrderCompleted}
         initialActiveOrder={trackingOrder}
+        isStoreOpen={isStoreOpen}
         onNavigateStatus={(order) => {
           setIsOrderModalOpen(false);
           handleNavigate('status', order);
@@ -562,6 +645,186 @@ export default function App() {
           handleNavigate('status', order);
         }}
       />
+
+      {/* Store Closed Informative Popup Modal */}
+      {isClosedModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 3500,
+            padding: '20px'
+          }}
+          onClick={() => setIsClosedModalOpen(false)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '24px',
+              maxWidth: '460px',
+              width: '100%',
+              padding: '36px 28px 28px 28px',
+              position: 'relative',
+              textAlign: 'center',
+              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.35)',
+              animation: 'fadeIn 0.2s ease-out'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setIsClosedModalOpen(false)}
+              aria-label="Schließen"
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: '#f1f5f9',
+                border: 'none',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: '#64748b',
+                fontSize: '16px',
+                fontWeight: '700'
+              }}
+            >
+              ✕
+            </button>
+
+            {/* Glowing Icon */}
+            <div style={{
+              width: '72px',
+              height: '72px',
+              borderRadius: '50%',
+              background: '#fef2f2',
+              border: '2px solid #fecaca',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 18px auto',
+              color: '#dc2626',
+              boxShadow: '0 4px 16px rgba(220, 38, 38, 0.15)'
+            }}>
+              <Clock size={36} />
+            </div>
+
+            <h3 style={{
+              fontSize: '22px',
+              fontWeight: '900',
+              color: '#0f172a',
+              margin: '0 0 8px 0',
+              letterSpacing: '-0.3px'
+            }}>
+              Wir haben derzeit geschlossen
+            </h3>
+
+            <div style={{
+              display: 'inline-block',
+              background: '#fee2e2',
+              color: '#991b1b',
+              fontSize: '12px',
+              fontWeight: '800',
+              padding: '4px 12px',
+              borderRadius: '20px',
+              marginBottom: '16px'
+            }}>
+              Online-Bestellungen sind zurzeit pausiert
+            </div>
+
+            <p style={{
+              fontSize: '14px',
+              color: '#475569',
+              lineHeight: '1.6',
+              margin: '0 0 20px 0'
+            }}>
+              Liebe Gäste, unser Restaurant nimmt im Moment keine Bestellungen entgegen.
+              Sie können sich jedoch sehr gerne in Ruhe unsere Speisekarte mit allen Spezialitäten und Preisen ansehen!
+            </p>
+
+            {/* Opening Hours Box */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '14px',
+              padding: '14px 16px',
+              textAlign: 'left',
+              marginBottom: '24px',
+              fontSize: '12.5px',
+              color: '#334155',
+              lineHeight: '1.55'
+            }}>
+              <div style={{ fontWeight: '800', color: '#0f172a', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Clock size={14} color="var(--red)" />
+                <span>Unsere regulären Öffnungszeiten:</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                <span>Montag – Freitag:</span>
+                <strong>10:30 – 14:30 &amp; 16:30 – 23:00</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Samstag, Sonntag &amp; Feiertage:</span>
+                <strong>10:30 – 23:00</strong>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsClosedModalOpen(false);
+                  setCurrentView('speisekarte');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                style={{
+                  background: 'var(--red)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '12px',
+                  padding: '13px 20px',
+                  fontSize: '14px',
+                  fontWeight: '800',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(225, 29, 72, 0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                <UtensilsCrossed size={17} />
+                <span>Speisekarte ansehen</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsClosedModalOpen(false)}
+                style={{
+                  background: 'transparent',
+                  color: '#64748b',
+                  border: 'none',
+                  padding: '8px',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notice */}
       <div className={`toast-notice ${toastMessage ? 'show' : ''}`}>

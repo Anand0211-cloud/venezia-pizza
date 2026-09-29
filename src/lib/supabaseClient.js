@@ -1698,4 +1698,134 @@ export async function signOutAdminUser() {
   return { success: true };
 }
 
+// -------------------------------------------------------------
+// STORE ONLINE/OFFLINE STATUS SETTINGS
+// -------------------------------------------------------------
+
+export async function getStoreSettings() {
+  let isOpen = true;
+  try {
+    const cached = localStorage.getItem('venezia_store_is_open');
+    if (cached !== null) {
+      isOpen = cached === 'true';
+    }
+  } catch {}
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('store_settings')
+        .select('*')
+        .eq('id', 1)
+        .single();
+
+      if (!error && data) {
+        isOpen = data.is_open !== false;
+        try {
+          localStorage.setItem('venezia_store_is_open', isOpen ? 'true' : 'false');
+        } catch {}
+        return data;
+      }
+    } catch (err) {
+      console.warn('Error fetching store settings:', err);
+    }
+  }
+
+  return { id: 1, is_open: isOpen };
+}
+
+export async function updateStoreStatus(isOpen) {
+  try {
+    localStorage.setItem('venezia_store_is_open', isOpen ? 'true' : 'false');
+  } catch {}
+
+  // Broadcast locally immediately
+  try {
+    window.dispatchEvent(new CustomEvent('venezia_store_status_changed', {
+      detail: { is_open: isOpen }
+    }));
+  } catch {}
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('store_settings')
+        .update({ is_open: isOpen })
+        .eq('id', 1)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating store_settings:', error);
+        return { success: false, error: error.message, is_open: isOpen };
+      }
+      return { success: true, data, is_open: isOpen };
+    } catch (err) {
+      console.error('Exception updating store status:', err);
+      return { success: false, error: err.message, is_open: isOpen };
+    }
+  }
+
+  return { success: true, is_open: isOpen };
+}
+
+export function subscribeToStoreSettings(callback) {
+  // 1. Initial call
+  getStoreSettings().then((settings) => {
+    if (typeof callback === 'function') {
+      callback(settings?.is_open !== false);
+    }
+  });
+
+  // 2. Custom event listener (within same window/tabs)
+  const handleLocalChange = (e) => {
+    if (e?.detail && typeof e.detail.is_open === 'boolean') {
+      callback(e.detail.is_open);
+    }
+  };
+  window.addEventListener('venezia_store_status_changed', handleLocalChange);
+
+  // 3. Supabase Realtime channel
+  let channel = null;
+  if (supabase) {
+    try {
+      channel = supabase
+        .channel('store_settings_changes')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'store_settings' },
+          (payload) => {
+            if (payload?.new && typeof payload.new.is_open === 'boolean') {
+              try {
+                localStorage.setItem('venezia_store_is_open', payload.new.is_open ? 'true' : 'false');
+              } catch {}
+              callback(payload.new.is_open);
+            }
+          }
+        )
+        .subscribe();
+    } catch (e) {
+      console.warn('Realtime subscribe to store_settings error:', e);
+    }
+  }
+
+  // 4. Polling fallback (every 15 seconds)
+  const interval = setInterval(async () => {
+    try {
+      const settings = await getStoreSettings();
+      if (typeof callback === 'function') {
+        callback(settings?.is_open !== false);
+      }
+    } catch {}
+  }, 15000);
+
+  return () => {
+    window.removeEventListener('venezia_store_status_changed', handleLocalChange);
+    clearInterval(interval);
+    if (channel && supabase) {
+      supabase.removeChannel(channel);
+    }
+  };
+}
+
 

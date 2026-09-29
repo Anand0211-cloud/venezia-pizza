@@ -66,6 +66,7 @@ export default function CheckoutModal({
   cartItems,
   onCompleteOrder,
   initialActiveOrder = null,
+  isStoreOpen = true,
   onNavigateStatus,
   onNavigateAccount
 }) {
@@ -317,11 +318,11 @@ export default function CheckoutModal({
 
   // Pricing calculations
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  const pickupDiscount = orderType === 'pickup' ? subtotal * 0.10 : 0; // 10% discount on pickup
+  const pickupDiscount = 0; // No discount on pickup
   const voucherDiscount = appliedVoucher
     ? appliedVoucher.discountAmount || (subtotal * (appliedVoucher.discountPercent / 100))
     : 0;
-  const totalDiscount = pickupDiscount + voucherDiscount;
+  const totalDiscount = voucherDiscount;
   const effectiveSubtotal = Math.max(0, subtotal - totalDiscount);
 
   // Postcode-based Delivery Zone & Fee Detection
@@ -447,6 +448,10 @@ export default function CheckoutModal({
   // Step 1 Validation & Proceed to Payment (Strict Authentication & Account Enforcement)
   const handleProceedToPayment = async (e) => {
     e.preventDefault();
+    if (!isStoreOpen) {
+      alert('Unser Restaurant hat zurzeit geschlossen. Online-Bestellungen sind pausiert.');
+      return;
+    }
     if (!formData.name.trim()) {
       alert('Bitte geben Sie Ihren Namen an.');
       return;
@@ -632,6 +637,11 @@ export default function CheckoutModal({
 
   // Place Order Action (Production: Real SumUp Redirection or COD)
   const handlePlaceOrder = async () => {
+    if (!isStoreOpen) {
+      alert('Unser Restaurant hat zurzeit geschlossen. Online-Bestellungen sind pausiert.');
+      setIsProcessing(false);
+      return;
+    }
     setIsProcessing(true);
     setProcessingStatusText('Bestelldaten werden vorbereitet...');
 
@@ -1149,17 +1159,6 @@ export default function CheckoutModal({
                       color: orderType === 'pickup' ? 'var(--red)' : '#0f172a'
                     }}>
                       Selbstabholung
-                    </span>
-                    <span style={{
-                      background: '#16a34a',
-                      color: '#ffffff',
-                      fontSize: '10px',
-                      fontWeight: '800',
-                      padding: '1px 5px',
-                      borderRadius: '4px',
-                      marginLeft: 'auto'
-                    }}>
-                      -10%
                     </span>
                   </div>
                   <div style={{ fontSize: '11.5px', color: '#64748b', lineHeight: '1.4' }}>
@@ -2285,13 +2284,6 @@ export default function CheckoutModal({
                   <span>Zwischensumme:</span>
                   <span>{subtotal.toFixed(2).replace('.', ',')} €</span>
                 </div>
-
-                {pickupDiscount > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#16a34a', marginBottom: '6px' }}>
-                    <span>Selbstabholer-Rabatt (10%):</span>
-                    <span>-{pickupDiscount.toFixed(2).replace('.', ',')} €</span>
-                  </div>
-                )}
 
                 {voucherDiscount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#16a34a', marginBottom: '6px' }}>

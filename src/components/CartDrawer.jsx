@@ -2,7 +2,7 @@ import React from 'react';
 import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight, AlertCircle } from 'lucide-react';
 import { MIN_ORDER_DELIVERY } from '../lib/deliveryZones';
 
-export default function CartDrawer({ isOpen, onClose, cartItems, onUpdateQty, onRemoveItem, onCheckout }) {
+export default function CartDrawer({ isOpen, onClose, cartItems, onUpdateQty, onRemoveItem, onCheckout, isStoreOpen = true }) {
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const isBelowMinOrder = subtotal < MIN_ORDER_DELIVERY;
 
@@ -117,8 +117,34 @@ export default function CartDrawer({ isOpen, onClose, cartItems, onUpdateQty, on
               <span>{subtotal.toFixed(2).replace('.', ',')} €</span>
             </div>
 
-            <button className="checkout-btn" onClick={onCheckout}>
-              Zur Kasse gehen <ArrowRight size={17} />
+            {!isStoreOpen && (
+              <div style={{
+                background: '#fef2f2',
+                border: '1.5px solid #fecaca',
+                borderRadius: '10px',
+                padding: '10px 12px',
+                fontSize: '12px',
+                color: '#991b1b',
+                fontWeight: '700',
+                margin: '12px 0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <AlertCircle size={16} color="#dc2626" style={{ flexShrink: 0 }} />
+                <span>Unser Restaurant hat zurzeit geschlossen. Online-Bestellungen sind pausiert.</span>
+              </div>
+            )}
+
+            <button
+              className="checkout-btn"
+              onClick={onCheckout}
+              style={{
+                background: !isStoreOpen ? '#94a3b8' : 'var(--red)',
+                cursor: 'pointer'
+              }}
+            >
+              {!isStoreOpen ? 'Geschlossen • Speisekarte ansehen' : 'Zur Kasse gehen'} <ArrowRight size={17} />
             </button>
           </div>
         )}

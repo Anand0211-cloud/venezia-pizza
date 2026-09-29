@@ -67,7 +67,10 @@ import {
   updateOrderDetails,
   playOrderChime,
   getAdminSession,
-  signOutAdminUser
+  signOutAdminUser,
+  getStoreSettings,
+  updateStoreStatus,
+  subscribeToStoreSettings
 } from '../lib/supabaseClient';
 import AdminLogin from './AdminLogin';
 import {
@@ -1121,6 +1124,42 @@ export default function AdminPanel({ onBackToStore }) {
   const [newOrderAlert, setNewOrderAlert] = useState(null);
   const [menuSearch, setMenuSearch] = useState('');
   const [selectedCategoryTab, setSelectedCategoryTab] = useState('all');
+
+  // Store Online/Offline Open Status State
+  const [isStoreOpen, setIsStoreOpen] = useState(true);
+  const [isUpdatingStoreStatus, setIsUpdatingStoreStatus] = useState(false);
+  const [storeStatusNotice, setStoreStatusNotice] = useState('');
+
+  // Subscribe to live store status
+  useEffect(() => {
+    const unsub = subscribeToStoreSettings((open) => {
+      setIsStoreOpen(open);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleToggleStoreStatus = async () => {
+    const nextStatus = !isStoreOpen;
+    setIsUpdatingStoreStatus(true);
+    try {
+      const res = await updateStoreStatus(nextStatus);
+      if (res && res.success) {
+        setIsStoreOpen(nextStatus);
+        setStoreStatusNotice(
+          nextStatus
+            ? '✓ Online-Bestellungen AKTIV: Kunden können normal bestellen.'
+            : '⏸ Online-Bestellungen PAUSIERT: Kunden sehen den Hinweis "Geschlossen" und können nur die Speisekarte ansehen.'
+        );
+        setTimeout(() => setStoreStatusNotice(''), 6000);
+      } else {
+        alert('Fehler beim Aktualisieren des Shop-Status: ' + (res?.error || 'Unbekannt'));
+      }
+    } catch (err) {
+      alert('Fehler beim Aktualisieren: ' + (err.message || 'Netzwerkfehler'));
+    } finally {
+      setIsUpdatingStoreStatus(false);
+    }
+  };
 
   // Default size pricing configurations
   const DEFAULT_SIZES_CONFIG = {
@@ -2660,6 +2699,74 @@ export default function AdminPanel({ onBackToStore }) {
             </button>
           </div>
 
+          {/* Shop Online / Offline Toggle Control */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            background: isStoreOpen
+              ? (isLight ? '#f0fdf4' : 'rgba(22, 163, 74, 0.15)')
+              : (isLight ? '#fef2f2' : 'rgba(239, 68, 68, 0.15)'),
+            border: isStoreOpen
+              ? (isLight ? '1.5px solid #86efac' : '1.5px solid rgba(34, 197, 94, 0.4)')
+              : (isLight ? '1.5px solid #fca5a5' : '1.5px solid rgba(239, 68, 68, 0.4)'),
+            borderRadius: '10px',
+            padding: '5px 12px',
+            boxShadow: isStoreOpen ? '0 2px 8px rgba(34, 197, 94, 0.15)' : '0 2px 8px rgba(239, 68, 68, 0.15)',
+            transition: 'all 0.2s ease'
+          }}>
+            <div style={{
+              width: '9px',
+              height: '9px',
+              borderRadius: '50%',
+              background: isStoreOpen ? '#16a34a' : '#ef4444',
+              boxShadow: isStoreOpen ? '0 0 8px #22c55e' : '0 0 8px #ef4444'
+            }} />
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.2' }}>
+              <span style={{
+                fontSize: '11px',
+                fontWeight: '800',
+                color: isStoreOpen ? (isLight ? '#15803d' : '#4ade80') : (isLight ? '#b91c1c' : '#f87171'),
+                letterSpacing: '0.3px'
+              }}>
+                {isStoreOpen ? 'SHOP GEÖFFNET' : 'SHOP GESCHLOSSEN'}
+              </span>
+              <span style={{ fontSize: '9.5px', color: isLight ? '#64748b' : '#94a3b8' }}>
+                {isStoreOpen ? 'Bestellungen aktiv' : 'Nur Speisekarte'}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleToggleStoreStatus}
+              disabled={isUpdatingStoreStatus}
+              title={isStoreOpen ? 'Klicken, um Shop zu schließen (Pausieren)' : 'Klicken, um Shop zu öffnen'}
+              style={{
+                position: 'relative',
+                width: '42px',
+                height: '22px',
+                borderRadius: '11px',
+                background: isStoreOpen ? '#16a34a' : '#94a3b8',
+                border: 'none',
+                cursor: isUpdatingStoreStatus ? 'wait' : 'pointer',
+                transition: 'background 0.2s ease',
+                padding: '2px',
+                marginLeft: '4px',
+                opacity: isUpdatingStoreStatus ? 0.6 : 1
+              }}
+            >
+              <div style={{
+                width: '18px',
+                height: '18px',
+                borderRadius: '50%',
+                background: '#ffffff',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.25)',
+                transform: isStoreOpen ? 'translateX(20px)' : 'translateX(0px)',
+                transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+              }} />
+            </button>
+          </div>
+
           {/* Language Toggle DE / EN */}
           <div style={{
             background: isLight ? '#f1f5f9' : '#0b0f19',
@@ -2842,6 +2949,41 @@ export default function AdminPanel({ onBackToStore }) {
 
       {/* Main Container */}
       <main style={{ maxWidth: '1440px', margin: '0 auto', padding: '24px' }}>
+
+        {/* Store Status Change Notification Banner */}
+        {storeStatusNotice && (
+          <div style={{
+            background: isStoreOpen ? '#15803d' : '#991b1b',
+            color: '#ffffff',
+            borderRadius: '12px',
+            padding: '12px 18px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '13px',
+            fontWeight: '700',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            animation: 'fadeIn 0.2s ease-out'
+          }}>
+            <span>{storeStatusNotice}</span>
+            <button
+              type="button"
+              onClick={() => setStoreStatusNotice('')}
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                color: '#ffffff',
+                borderRadius: '6px',
+                padding: '3px 8px',
+                cursor: 'pointer',
+                fontWeight: '800'
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Live Audio-Visual New Order Alert Banner */}
         {newOrderAlert && (
