@@ -311,9 +311,21 @@ export function saveActiveOrder(order) {
         ...order,
         customer_email: email || order.customer_email || ''
       };
+      const existing = getActiveOrder();
+      if (
+        existing &&
+        existing.id === enriched.id &&
+        existing.status === enriched.status &&
+        existing.payment_status === enriched.payment_status &&
+        existing.updated_at === enriched.updated_at
+      ) {
+        return; // No change, do not trigger redundant storage events
+      }
       localStorage.setItem('venezia_active_order', JSON.stringify(enriched));
     } else {
-      localStorage.removeItem('venezia_active_order');
+      if (localStorage.getItem('venezia_active_order')) {
+        localStorage.removeItem('venezia_active_order');
+      }
     }
   } catch (err) {
     console.warn('Failed to save active order:', err);
@@ -932,6 +944,19 @@ export function getCachedCustomer() {
 export function saveCachedCustomer(user) {
   if (typeof window === 'undefined') return;
   try {
+    const existing = getCachedCustomer();
+    const isSame = (!existing && !user) || (
+      existing && user &&
+      existing.id === user.id &&
+      existing.email === user.email &&
+      existing.full_name === user.full_name &&
+      existing.phone === user.phone &&
+      existing.street === user.street &&
+      existing.zip_city === user.zip_city
+    );
+
+    if (isSame) return; // Prevent infinite event storms
+
     if (user && user.email?.toLowerCase() !== 'admin@veneziapizzas.de' && user.role !== 'admin') {
       localStorage.setItem(CUSTOMER_AUTH_KEY, JSON.stringify(user));
     } else {
@@ -1524,16 +1549,16 @@ export function subscribeToCustomerAuth(callback) {
           if (session.user.email?.toLowerCase() === 'admin@veneziapizzas.de' || session.user.user_metadata?.role === 'admin') {
             return;
           }
+          const cached = getCachedCustomer();
           const profile = {
             id: session.user.id,
             email: session.user.email,
-            full_name: session.user.user_metadata?.full_name || '',
-            phone: session.user.user_metadata?.phone || '',
-            street: session.user.user_metadata?.street || '',
-            zip_city: session.user.user_metadata?.zip_city || '08525 Plauen'
+            full_name: session.user.user_metadata?.full_name || cached?.full_name || '',
+            phone: session.user.user_metadata?.phone || cached?.phone || '',
+            street: session.user.user_metadata?.street || cached?.street || '',
+            zip_city: session.user.user_metadata?.zip_city || cached?.zip_city || '08525 Plauen'
           };
           saveCachedCustomer(profile);
-          if (callback) callback(profile);
         } else if (event === 'SIGNED_OUT') {
           saveCachedCustomer(null);
           saveActiveOrder(null);
@@ -1543,11 +1568,9 @@ export function subscribeToCustomerAuth(callback) {
               localStorage.removeItem('venezia_local_orders');
               localStorage.removeItem('venezia_pending_sumup_order');
             } catch (e) {}
-            window.dispatchEvent(new CustomEvent('venezia:auth-change', { detail: null }));
             window.dispatchEvent(new CustomEvent('venezia:order-update', { detail: null }));
             window.dispatchEvent(new CustomEvent('venezia:order-status-change', { detail: null }));
           }
-          if (callback) callback(null);
         }
       });
       authListener = data?.subscription;
@@ -1785,31 +1808,15 @@ export function subscribeToStoreSettings(callback) {
   };
   window.addEventListener('venezia_store_status_changed', handleLocalChange);
 
-  // 3. Supabase Realtime channel
-  let channel = null;
-  if (supabase) {
-    try {
-      channel = supabase
-        .channel('store_settings_changes')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'store_settings' },
-          (payload) => {
-            if (payload?.new && typeof payload.new.is_open === 'boolean') {
-              try {
-                localStorage.setItem('venezia_store_is_open', payload.new.is_open ? 'true' : 'false');
-              } catch {}
-              callback(payload.new.is_open);
-            }
-          }
-        )
-        .subscribe();
-    } catch (e) {
-      console.warn('Realtime subscribe to store_settings error:', e);
+  // 3. Storage event listener (multi-tab sync)
+  const handleStorageChange = (e) => {
+    if (e.key === 'venezia_store_is_open') {
+      callback(e.newValue !== 'false');
     }
-  }
+  };
+  window.addEventListener('storage', handleStorageChange);
 
-  // 4. Polling fallback (every 15 seconds)
+  // 4. Polling fallback (every 10 seconds, reliable, lightweight, zero-crash)
   const interval = setInterval(async () => {
     try {
       const settings = await getStoreSettings();
@@ -1817,14 +1824,12 @@ export function subscribeToStoreSettings(callback) {
         callback(settings?.is_open !== false);
       }
     } catch {}
-  }, 15000);
+  }, 10000);
 
   return () => {
     window.removeEventListener('venezia_store_status_changed', handleLocalChange);
+    window.removeEventListener('storage', handleStorageChange);
     clearInterval(interval);
-    if (channel && supabase) {
-      supabase.removeChannel(channel);
-    }
   };
 }
 

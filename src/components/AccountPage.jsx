@@ -38,7 +38,8 @@ import {
   subscribeToCustomerAuth,
   subscribeToOrders,
   getActiveOrder,
-  getOrderCustomerEmail
+  getOrderCustomerEmail,
+  getCachedCustomer
 } from '../lib/supabaseClient';
 
 export default function AccountPage({
@@ -105,11 +106,15 @@ export default function AccountPage({
   // Active order state
   const [activeOrder, setActiveOrder] = useState(null);
 
-  // Initialize customer user
+  // Initialize customer user (mount once)
   useEffect(() => {
     async function init() {
       const u = await getCurrentCustomerUser();
-      setUser(u);
+      setUser(prev => {
+        if (!prev && !u) return prev;
+        if (prev && u && prev.id === u.id && prev.email === u.email) return prev;
+        return u;
+      });
       if (u) {
         setProfileForm({
           full_name: u.full_name || '',
@@ -118,25 +123,16 @@ export default function AccountPage({
           zip_city: u.zip_city || '08525 Plauen'
         });
         setSettingsEmail(u.email || '');
-        const act = getActiveOrder();
-        if (act && u.email) {
-          const ordEmail = getOrderCustomerEmail(act);
-          if (ordEmail && ordEmail === u.email.toLowerCase().trim()) {
-            setActiveOrder(act);
-          } else {
-            setActiveOrder(null);
-          }
-        } else {
-          setActiveOrder(null);
-        }
-      } else {
-        setActiveOrder(null);
       }
     }
     init();
 
     const unsubAuth = subscribeToCustomerAuth((u) => {
-      setUser(u);
+      setUser(prev => {
+        if (!prev && !u) return prev;
+        if (prev && u && prev.id === u.id && prev.email === u.email) return prev;
+        return u;
+      });
       if (u) {
         setProfileForm({
           full_name: u.full_name || '',
@@ -145,11 +141,41 @@ export default function AccountPage({
           zip_city: u.zip_city || '08525 Plauen'
         });
         setSettingsEmail(u.email || '');
-        loadOrderHistory(u.email, u.phone);
       } else {
         setOrders([]);
+        setActiveOrder(null);
       }
     });
+
+    return () => {
+      unsubAuth();
+    };
+  }, []);
+
+  // Order history and status tracking (strictly depends on user email)
+  useEffect(() => {
+    if (!user?.email) {
+      setOrders([]);
+      setActiveOrder(null);
+      return;
+    }
+
+    const userEmail = user.email.toLowerCase().trim();
+
+    // Check active order for current user
+    const act = getActiveOrder();
+    if (act) {
+      const ordEmail = getOrderCustomerEmail(act);
+      if (ordEmail && ordEmail === userEmail) {
+        setActiveOrder(act);
+      } else {
+        setActiveOrder(null);
+      }
+    } else {
+      setActiveOrder(null);
+    }
+
+    loadOrderHistory(userEmail, user.phone);
 
     // Helper to immediately update order status in state
     const updateOrderInList = (orderId, newStatus, extra = {}) => {
@@ -171,10 +197,11 @@ export default function AccountPage({
     };
 
     const unsubOrders = subscribeToOrders((payload) => {
-      const act = getActiveOrder();
-      setActiveOrder(act);
+      const currentAct = getActiveOrder();
+      if (currentAct && getOrderCustomerEmail(currentAct) === userEmail) {
+        setActiveOrder(currentAct);
+      }
 
-      // 1. Immediately update matching order status in state
       if (payload) {
         const updated = payload.new || payload;
         const targetId = updated.order_number || updated.orderId || updated.id;
@@ -184,69 +211,46 @@ export default function AccountPage({
         }
       }
 
-      // 2. Also refresh full list from server
-      const cur = getCurrentCustomerUser();
-      if (cur?.email) {
-        loadOrderHistory(cur.email, cur.phone, false);
-      } else if (act) {
-        updateOrderInList(act.order_number || act.id, act.status, act);
+      // Also refresh full list from server
+      const cached = getCachedCustomer();
+      if (cached?.email) {
+        loadOrderHistory(cached.email, cached.phone, false);
       }
     });
-
-    // Directly listen to custom event for instantaneous status update (0ms sync)
-    const handleStatusEvent = (e) => {
-      const detail = e.detail;
-      if (!detail) return;
-      const targetId = detail.orderId || detail.id || (detail.order && (detail.order.order_number || detail.order.id));
-      const targetStatus = detail.status || (detail.order && detail.order.status);
-      if (targetId && targetStatus) {
-        updateOrderInList(targetId, targetStatus, detail.order || {});
-      }
-      const act = getActiveOrder();
-      if (act && user?.email) {
-        const ordEmail = getOrderCustomerEmail(act);
-        if (ordEmail && ordEmail === user.email.toLowerCase().trim()) {
-          setActiveOrder(act);
-        }
-      }
-    };
-    window.addEventListener('venezia:order-status-change', handleStatusEvent);
 
     // Listen to storage events (multi-tab sync)
     const handleStorage = (e) => {
       if (e.key === 'venezia_active_order' || e.key === 'venezia_last_status_event') {
-        const act = getActiveOrder();
-        if (act && user?.email) {
-          const ordEmail = getOrderCustomerEmail(act);
-          if (ordEmail && ordEmail === user.email.toLowerCase().trim()) {
-            setActiveOrder(act);
-            updateOrderInList(act.order_number || act.id, act.status, act);
+        const currentAct = getActiveOrder();
+        if (currentAct) {
+          const ordEmail = getOrderCustomerEmail(currentAct);
+          if (ordEmail && ordEmail === userEmail) {
+            setActiveOrder(currentAct);
+            updateOrderInList(currentAct.order_number || currentAct.id, currentAct.status, currentAct);
           }
         }
       }
     };
     window.addEventListener('storage', handleStorage);
 
-    // Periodic sync interval every 3 seconds to guarantee 100% sync
+    // Periodic sync interval every 4 seconds to guarantee sync
     const pollInterval = setInterval(() => {
-      const act = getActiveOrder();
-      if (act && user?.email) {
-        const ordEmail = getOrderCustomerEmail(act);
-        if (ordEmail && ordEmail === user.email.toLowerCase().trim()) {
-          setActiveOrder(act);
-          updateOrderInList(act.order_number || act.id, act.status, act);
+      const currentAct = getActiveOrder();
+      if (currentAct) {
+        const ordEmail = getOrderCustomerEmail(currentAct);
+        if (ordEmail && ordEmail === userEmail) {
+          setActiveOrder(currentAct);
+          updateOrderInList(currentAct.order_number || currentAct.id, currentAct.status, currentAct);
         }
       }
-    }, 3000);
+    }, 4000);
 
     return () => {
-      unsubAuth();
       unsubOrders();
-      window.removeEventListener('venezia:order-status-change', handleStatusEvent);
       window.removeEventListener('storage', handleStorage);
       clearInterval(pollInterval);
     };
-  }, [user]);
+  }, [user?.email, user?.phone]);
 
   const loadOrderHistory = async (email, phone, showSpinner = true) => {
     if (showSpinner) setIsLoadingOrders(true);

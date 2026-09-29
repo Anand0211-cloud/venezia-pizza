@@ -201,6 +201,7 @@ CREATE POLICY "Admin manage settings" ON store_settings FOR ALL USING (true) WIT
 ALTER PUBLICATION supabase_realtime ADD TABLE orders;
 ALTER PUBLICATION supabase_realtime ADD TABLE menu_items;
 ALTER PUBLICATION supabase_realtime ADD TABLE drivers;
+ALTER PUBLICATION supabase_realtime ADD TABLE store_settings;
 
 -- 13. Customer Account Email Verification RPC (Security Definer)
 CREATE OR REPLACE FUNCTION check_customer_email_exists(lookup_email text)

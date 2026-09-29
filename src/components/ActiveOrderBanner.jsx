@@ -130,47 +130,22 @@ export default function ActiveOrderBanner({ onOpenTracker }) {
       }
     });
 
-    // 5. Also listen to storage & custom events
+    // 5. Listen to storage events for cross-tab synchronization
     const handleStorage = (e) => {
-      if (e.key === 'venezia_active_order' || e.key === 'venezia_customer_user') {
+      if (e.key === 'venezia_active_order' || e.key === 'venezia_auth_customer') {
         const activeCustomer = getCachedCustomer();
         setCustomerUser(activeCustomer);
         const fresh = getVerifiedActiveOrder(activeCustomer);
         setActiveOrder(fresh);
       }
     };
-    const handleOrderUpdate = () => {
-      const activeCustomer = getCachedCustomer();
-      setCustomerUser(activeCustomer);
-      const fresh = getVerifiedActiveOrder(activeCustomer);
-      setActiveOrder(fresh);
-    };
-    const handleAuthChange = (e) => {
-      const user = e.detail || getCachedCustomer();
-      setCustomerUser(user);
-      if (!user?.email) {
-        setActiveOrder(null);
-      } else {
-        const fresh = getVerifiedActiveOrder(user);
-        setActiveOrder(fresh);
-      }
-    };
-
     window.addEventListener('storage', handleStorage);
-    window.addEventListener('venezia:order-status-change', handleOrderUpdate);
-    window.addEventListener('venezia:order-update', handleOrderUpdate);
-    window.addEventListener('venezia:new-order', handleOrderUpdate);
-    window.addEventListener('venezia:auth-change', handleAuthChange);
 
     return () => {
       clearInterval(pollInterval);
       unsubOrders();
       unsubAuth();
       window.removeEventListener('storage', handleStorage);
-      window.removeEventListener('venezia:order-status-change', handleOrderUpdate);
-      window.removeEventListener('venezia:order-update', handleOrderUpdate);
-      window.removeEventListener('venezia:new-order', handleOrderUpdate);
-      window.removeEventListener('venezia:auth-change', handleAuthChange);
     };
   }, []);
 

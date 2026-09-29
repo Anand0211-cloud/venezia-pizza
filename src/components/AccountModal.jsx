@@ -109,7 +109,11 @@ export default function AccountModal({
   useEffect(() => {
     async function initUser() {
       const u = await getCurrentCustomerUser();
-      setUser(u);
+      setUser(prev => {
+        if (!prev && !u) return prev;
+        if (prev && u && prev.id === u.id && prev.email === u.email) return prev;
+        return u;
+      });
       if (u) {
         setProfileForm({
           full_name: u.full_name || '',
@@ -118,7 +122,6 @@ export default function AccountModal({
           zip_city: u.zip_city || '08525 Plauen'
         });
         if (u.email) setSettingsEmail(u.email);
-        loadOrderHistory(u.email, u.phone);
       }
     }
     if (isOpen) {
@@ -126,7 +129,11 @@ export default function AccountModal({
     }
 
     const unsubAuth = subscribeToCustomerAuth((updated) => {
-      setUser(updated);
+      setUser(prev => {
+        if (!prev && !updated) return prev;
+        if (prev && updated && prev.id === updated.id && prev.email === updated.email) return prev;
+        return updated;
+      });
       if (updated) {
         setProfileForm({
           full_name: updated.full_name || '',
@@ -135,7 +142,6 @@ export default function AccountModal({
           zip_city: updated.zip_city || '08525 Plauen'
         });
         if (updated.email) setSettingsEmail(updated.email);
-        loadOrderHistory(updated.email, updated.phone);
       } else {
         setOrders([]);
       }
@@ -148,7 +154,13 @@ export default function AccountModal({
 
   // Subscribe to realtime orders updates so status changes in kitchen update customer view instantaneously
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !user?.email) {
+      if (!user?.email) setOrders([]);
+      return;
+    }
+
+    const userEmail = user.email.toLowerCase().trim();
+    loadOrderHistory(userEmail, user.phone);
 
     const updateOrderInList = (orderId, newStatus, extra = {}) => {
       if (!orderId) return;
@@ -177,28 +189,14 @@ export default function AccountModal({
           updateOrderInList(targetId, targetStatus, updated);
         }
       }
-      if (user?.email) {
-        loadOrderHistory(user.email, user.phone, false);
-      }
     });
 
-    const handleStatusEvent = (e) => {
-      const detail = e.detail;
-      if (!detail) return;
-      const targetId = detail.orderId || detail.id || (detail.order && (detail.order.order_number || detail.order.id));
-      const targetStatus = detail.status || (detail.order && detail.order.status);
-      if (targetId && targetStatus) {
-        updateOrderInList(targetId, targetStatus, detail.order || {});
-      }
-    };
-    window.addEventListener('venezia:order-status-change', handleStatusEvent);
-
     const handleStorage = (e) => {
-      if (e.key === 'venezia_active_order' || e.key === 'venezia_last_status_event') {
+      if (e.key === 'venezia_active_order') {
         const act = getActiveOrder();
-        if (act && user?.email) {
+        if (act) {
           const ordEmail = getOrderCustomerEmail(act);
-          if (ordEmail && ordEmail === user.email.toLowerCase().trim()) {
+          if (ordEmail && ordEmail === userEmail) {
             updateOrderInList(act.order_number || act.id, act.status, act);
           }
         }
@@ -208,21 +206,20 @@ export default function AccountModal({
 
     const pollInterval = setInterval(() => {
       const act = getActiveOrder();
-      if (act && user?.email) {
+      if (act) {
         const ordEmail = getOrderCustomerEmail(act);
-        if (ordEmail && ordEmail === user.email.toLowerCase().trim()) {
+        if (ordEmail && ordEmail === userEmail) {
           updateOrderInList(act.order_number || act.id, act.status, act);
         }
       }
-    }, 3000);
+    }, 4000);
 
     return () => {
       unsubOrders();
-      window.removeEventListener('venezia:order-status-change', handleStatusEvent);
       window.removeEventListener('storage', handleStorage);
       clearInterval(pollInterval);
     };
-  }, [isOpen, user]);
+  }, [isOpen, user?.email, user?.phone]);
 
   const loadOrderHistory = async (email, phone, showSpinner = true) => {
     if (showSpinner) setIsLoadingOrders(true);

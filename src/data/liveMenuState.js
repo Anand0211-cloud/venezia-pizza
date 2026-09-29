@@ -125,46 +125,72 @@ function getInitialLocalMenu() {
   return [...dealsFormatted, ...localMenuItems];
 }
 
-export function useLiveMenu() {
-  const [menuItems, setMenuItems] = useState(getInitialLocalMenu);
-  const [loading, setLoading] = useState(true);
+// Module-level singleton store for live menu
+let globalMenuItems = getInitialLocalMenu();
+let globalLoading = false;
+let hasInitialized = false;
+let activeFetchPromise = null;
+const subscribers = new Set();
 
-  const fetchLiveMenu = async () => {
+function notifySubscribers() {
+  subscribers.forEach(cb => cb({ menuItems: globalMenuItems, loading: globalLoading }));
+}
+
+async function fetchLiveMenuGlobal() {
+  if (activeFetchPromise) return activeFetchPromise;
+  activeFetchPromise = (async () => {
     try {
       const data = await getMenuItems();
       if (data && data.length > 0) {
         const fullLocalList = getInitialLocalMenu();
         const localMap = new Map(fullLocalList.map(i => [i.id, i]));
         const formatted = data.map(item => formatMenuItemFromDb(item, localMap));
-        setMenuItems(formatted);
+        globalMenuItems = formatted;
       }
     } catch (err) {
       console.warn('Could not fetch live menu from Supabase, using local fallback:', err);
     } finally {
-      setLoading(false);
+      globalLoading = false;
+      activeFetchPromise = null;
+      notifySubscribers();
     }
-  };
+  })();
+  return activeFetchPromise;
+}
+
+function initGlobalMenuListener() {
+  if (hasInitialized || typeof window === 'undefined') return;
+  hasInitialized = true;
+
+  fetchLiveMenuGlobal();
+
+  // Listen to in-window updates (e.g. from AdminPanel save)
+  window.addEventListener('venezia-menu-updated', () => {
+    fetchLiveMenuGlobal();
+  });
+
+  // Subscribe once to menu_items table
+  subscribeToMenuItems(() => {
+    fetchLiveMenuGlobal();
+  });
+}
+
+export function useLiveMenu() {
+  const [state, setState] = useState(() => {
+    initGlobalMenuListener();
+    return { menuItems: globalMenuItems, loading: globalLoading };
+  });
 
   useEffect(() => {
-    fetchLiveMenu();
-
-    // Subscribe to realtime changes on menu_items table
-    const unsubscribe = subscribeToMenuItems(() => {
-      fetchLiveMenu();
-    });
-
-    // Listen to in-window updates (e.g. from AdminPanel save)
-    const handleLocalUpdate = () => {
-      fetchLiveMenu();
-    };
-    window.addEventListener('venezia-menu-updated', handleLocalUpdate);
-
+    initGlobalMenuListener();
+    const handler = (newState) => setState(newState);
+    subscribers.add(handler);
     return () => {
-      if (unsubscribe) unsubscribe();
-      window.removeEventListener('venezia-menu-updated', handleLocalUpdate);
+      subscribers.delete(handler);
     };
   }, []);
 
-  return { menuItems, loading, refreshMenu: fetchLiveMenu };
+  return { menuItems: state.menuItems, loading: state.loading, refreshMenu: fetchLiveMenuGlobal };
 }
+
 
