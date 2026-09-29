@@ -444,7 +444,7 @@ export default function CheckoutModal({
     setTimeout(() => setResetNotice(''), 6000);
   };
 
-  // Step 1 Validation & Proceed to Payment
+  // Step 1 Validation & Proceed to Payment (Strict Authentication & Account Enforcement)
   const handleProceedToPayment = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
@@ -456,7 +456,7 @@ export default function CheckoutModal({
       return;
     }
     const effectiveEmail = (customerUser?.email || formData.email || '').toLowerCase().trim();
-    if (!effectiveEmail || !effectiveEmail.includes('@')) {
+    if (!effectiveEmail || !effectiveEmail.includes('@') || effectiveEmail.length < 5) {
       alert('Bitte geben Sie eine gültige E-Mail-Adresse für Ihr Kundenkonto an.');
       return;
     }
@@ -479,50 +479,155 @@ export default function CheckoutModal({
       }
     }
 
-    if (!customerUser) {
-      // 1. If email belongs to an existing customer account and user hasn't chosen guest mode:
-      if (existingAccount?.exists && !continueAsGuest) {
-        // If password was already typed in the box, log them in automatically
-        if (existingPassword) {
-          setIsInlineLoggingIn(true);
-          setExistingLoginError('');
-          try {
-            const res = await signInCustomerUser({
-              email: effectiveEmail,
-              password: existingPassword
-            });
-            if (res.success && res.user) {
-              setCustomerUser(res.user);
-              setExistingAccount(null);
-              setExistingPassword('');
-              setStep(2);
-              return;
-            } else {
-              setExistingLoginError(res.error || 'Ungültiges Passwort für dieses Kundenkonto.');
-              const pwdEl = document.getElementById('checkout-existing-password-input');
-              if (pwdEl) pwdEl.focus();
-              return;
-            }
-          } catch (err) {
-            setExistingLoginError(err.message || 'Anmeldung fehlgeschlagen.');
-            return;
-          } finally {
-            setIsInlineLoggingIn(false);
+    // 1. If user is already authenticated, directly proceed to payment
+    if (customerUser) {
+      setStep(2);
+      return;
+    }
+
+    // 2. User is NOT yet logged in. Check if email belongs to an existing account.
+    setIsInlineLoggingIn(true);
+    let isExisting = !!existingAccount?.exists;
+
+    if (!isExisting) {
+      try {
+        const checkRes = await checkCustomerAccountExists(effectiveEmail);
+        if (checkRes?.exists) {
+          isExisting = true;
+          setExistingAccount(checkRes);
+          if (checkRes.profile) {
+            setFormData(prev => ({
+              ...prev,
+              name: prev.name || checkRes.profile.full_name || '',
+              phone: prev.phone || checkRes.profile.phone || '',
+              street: prev.street || checkRes.profile.street || ''
+            }));
           }
         }
+      } catch (err) {
+        console.warn('Direct email account check notice:', err);
+      }
+    }
 
-        // If password is not yet entered, prompt them to login
-        setExistingLoginError('Unter dieser E-Mail existiert bereits ein Kundenkonto. Bitte melden Sie sich mit Ihrem Passwort an.');
+    // CASE A: EXISTING CUSTOMER ACCOUNT DETECTED
+    if (isExisting) {
+      if (!existingPassword || !existingPassword.trim()) {
+        setIsInlineLoggingIn(false);
+        setExistingLoginError('Unter dieser E-Mail existiert bereits ein Kundenkonto. Bitte geben Sie Ihr Passwort ein.');
         const pwdEl = document.getElementById('checkout-existing-password-input');
         if (pwdEl) {
           pwdEl.focus();
           pwdEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-        return;
+        return; // STRICT STOP: Do not advance to step 2 without password!
+      }
+
+      try {
+        const res = await signInCustomerUser({
+          email: effectiveEmail,
+          password: existingPassword.trim()
+        });
+
+        if (res.success && res.user) {
+          setCustomerUser(res.user);
+          setExistingAccount(null);
+          setExistingPassword('');
+          setExistingLoginError('');
+          setIsInlineLoggingIn(false);
+          setStep(2); // Proceed to payment
+          return;
+        } else {
+          setIsInlineLoggingIn(false);
+          setExistingLoginError(res.error || 'Ungültiges Passwort für dieses Kundenkonto.');
+          const pwdEl = document.getElementById('checkout-existing-password-input');
+          if (pwdEl) {
+            pwdEl.focus();
+            pwdEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          return; // STRICT STOP!
+        }
+      } catch (err) {
+        setIsInlineLoggingIn(false);
+        setExistingLoginError(err.message || 'Anmeldung fehlgeschlagen.');
+        return; // STRICT STOP!
       }
     }
 
-    setStep(2);
+    // CASE B: NEW CUSTOMER ACCOUNT (Password is mandatory, min 6 characters)
+    if (!accountPassword || accountPassword.trim().length < 6) {
+      setIsInlineLoggingIn(false);
+      alert('Bitte vergeben Sie ein sicheres Passwort für Ihr Kundenkonto (mindestens 6 Zeichen).');
+      const newPwdEl = document.getElementById('checkout-new-password-input');
+      if (newPwdEl) {
+        newPwdEl.focus();
+        newPwdEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return; // STRICT STOP: Do not advance without password!
+    }
+
+    try {
+      const fullStreetForAuth = orderType === 'delivery'
+        ? `${formData.street} ${formData.houseNr}`.trim()
+        : '';
+      const reg = await signUpCustomerUser({
+        email: effectiveEmail,
+        password: accountPassword.trim(),
+        full_name: formData.name,
+        phone: formData.phone,
+        street: fullStreetForAuth,
+        zip_city: formData.zipCity || '08525 Plauen'
+      });
+
+      if (reg.alreadyExists) {
+        // Email was already registered in Supabase Auth!
+        setExistingAccount({
+          exists: true,
+          profile: { email: effectiveEmail, full_name: formData.name }
+        });
+        // Test if the password entered by the user matches their account
+        const loginAttempt = await signInCustomerUser({
+          email: effectiveEmail,
+          password: accountPassword.trim()
+        });
+
+        if (loginAttempt.success && loginAttempt.user) {
+          setCustomerUser(loginAttempt.user);
+          setExistingAccount(null);
+          setExistingPassword('');
+          setIsInlineLoggingIn(false);
+          setStep(2); // Proceed to payment
+          return;
+        } else {
+          setIsInlineLoggingIn(false);
+          setExistingPassword(accountPassword);
+          setExistingLoginError('Unter dieser E-Mail existiert bereits ein Kundenkonto. Bitte geben Sie Ihr bestehendes Passwort ein.');
+          const pwdEl = document.getElementById('checkout-existing-password-input');
+          if (pwdEl) {
+            pwdEl.focus();
+            pwdEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          return; // STRICT STOP!
+        }
+      }
+
+      if (!reg.success) {
+        setIsInlineLoggingIn(false);
+        alert(reg.error || 'Fehler beim Erstellen des Kundenkontos. Bitte überprüfen Sie Ihre Daten.');
+        return; // STRICT STOP!
+      }
+
+      // Successful registration
+      if (reg.user) {
+        setCustomerUser(reg.user);
+      }
+      setIsInlineLoggingIn(false);
+      setStep(2);
+      return;
+    } catch (regErr) {
+      setIsInlineLoggingIn(false);
+      alert('Registrierungsfehler: ' + (regErr.message || 'Bitte versuchen Sie es erneut.'));
+      return; // STRICT STOP!
+    }
   };
 
   // Place Order Action (Production: Real SumUp Redirection or COD)
@@ -661,12 +766,6 @@ export default function CheckoutModal({
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  // Interactive Live Status Simulation for Demo
-  const handleSimulateStatusAdvance = async (newStatus) => {
-    if (!confirmedOrder?.id) return;
-    await updateOrderStatus(confirmedOrder.id, newStatus);
-    setConfirmedOrder(prev => ({ ...prev, status: newStatus }));
-  };
 
   // Print Order Receipt
   const handlePrint = () => {
@@ -1544,7 +1643,7 @@ export default function CheckoutModal({
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', fontSize: '11px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', marginTop: '12px', fontSize: '11px' }}>
                     <button
                       type="button"
                       onClick={() => handleQuickReset(formData.email)}
@@ -1560,24 +1659,6 @@ export default function CheckoutModal({
                     >
                       Passwort vergessen? Reset-Link per E-Mail senden
                     </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setContinueAsGuest(true);
-                        setExistingLoginError('');
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#64748b',
-                        cursor: 'pointer',
-                        padding: 0,
-                        textDecoration: 'underline'
-                      }}
-                    >
-                      {continueAsGuest ? '✓ Weiter als Gast gewählt' : 'Als Gast ohne Login fortfahren →'}
-                    </button>
                   </div>
                 </div>
               )}
@@ -1585,7 +1666,7 @@ export default function CheckoutModal({
               {!customerUser && !existingAccount?.exists && (
                 <div style={{
                   background: '#f8fafc',
-                  border: '1.5px solid #cbd5e1',
+                  border: '1.5px solid #002B49',
                   borderRadius: '12px',
                   padding: '14px 16px',
                   marginBottom: '20px'
@@ -1593,10 +1674,10 @@ export default function CheckoutModal({
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800', fontSize: '13px', color: '#0f172a' }}>
                       <Lock size={15} color="#002B49" />
-                      <span>Kundenkonto anlegen (optional)</span>
+                      <span>Kundenkonto erstellen</span>
                     </div>
                     <span style={{
-                      background: '#64748b',
+                      background: '#002B49',
                       color: '#ffffff',
                       fontSize: '10px',
                       fontWeight: '700',
@@ -1604,22 +1685,24 @@ export default function CheckoutModal({
                       borderRadius: '10px',
                       whiteSpace: 'nowrap'
                     }}>
-                      Neu hier
+                      Konto-Passwort *
                     </span>
                   </div>
                   <p style={{ margin: '0 0 12px 0', fontSize: '11.5px', color: '#64748b', lineHeight: '1.4' }}>
-                    Vergeben Sie ein Passwort, um Ihre Bestellung live zu verfolgen und für nächste Bestellungen gespeichert zu bleiben.
+                    Vergeben Sie ein sicheres Passwort für Ihr Kundenkonto, um Ihre Bestellung live zu verfolgen und bei zukünftigen Bestellungen Zeit zu sparen.
                   </p>
 
                   <div>
                     <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
-                      Passwort für neues Kundenkonto festlegen (optional, mind. 6 Zeichen)
+                      Passwort für Ihr Kundenkonto (mind. 6 Zeichen) *
                     </label>
                     <div style={{ position: 'relative', maxWidth: '340px' }}>
                       <input
+                        id="checkout-new-password-input"
                         type={showAccountPassword ? 'text' : 'password'}
+                        required
                         minLength={6}
-                        placeholder="Sicheres Passwort festlegen"
+                        placeholder="Sicheres Passwort (mind. 6 Zeichen) *"
                         value={accountPassword}
                         onChange={(e) => setAccountPassword(e.target.value)}
                         style={{
@@ -2520,68 +2603,6 @@ export default function CheckoutModal({
                   </strong>
                 </div>
 
-                {/* Live Demo Status Simulation Controls (Helpful for pairs/user testing) */}
-                <div style={{
-                  marginTop: '14px',
-                  paddingTop: '12px',
-                  borderTop: '1px dashed #cbd5e1',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                  gap: '8px'
-                }}>
-                  <span style={{ fontSize: '11px', color: '#64748b' }}>
-                    💡 <em>Admin-Simulation: Status live testen</em>
-                  </span>
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    <button
-                      type="button"
-                      onClick={() => handleSimulateStatusAdvance('preparing')}
-                      style={{
-                        padding: '3px 8px',
-                        borderRadius: '4px',
-                        fontSize: '10px',
-                        fontWeight: '700',
-                        background: '#fef3c7',
-                        color: '#92400e',
-                        border: '1px solid #fde68a'
-                      }}
-                    >
-                      In Steinofen
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSimulateStatusAdvance('out_for_delivery')}
-                      style={{
-                        padding: '3px 8px',
-                        borderRadius: '4px',
-                        fontSize: '10px',
-                        fontWeight: '700',
-                        background: '#e0f2fe',
-                        color: '#0369a1',
-                        border: '1px solid #bae6fd'
-                      }}
-                    >
-                      {(confirmedOrder.delivery_type === 'pickup' || orderType === 'pickup') ? 'Bereit zur Abholung' : 'Fahrer unterwegs'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSimulateStatusAdvance('delivered')}
-                      style={{
-                        padding: '3px 8px',
-                        borderRadius: '4px',
-                        fontSize: '10px',
-                        fontWeight: '700',
-                        background: '#dcfce7',
-                        color: '#166534',
-                        border: '1px solid #bbf7d0'
-                      }}
-                    >
-                      {(confirmedOrder.delivery_type === 'pickup' || orderType === 'pickup') ? 'Abgeholt' : 'Zugestellt'}
-                    </button>
-                  </div>
-                </div>
               </div>
 
               {/* Order Details & Summary Card */}

@@ -1131,6 +1131,29 @@ export async function signUpCustomerUser({ email, password, full_name, phone, st
       };
 
       saveCachedCustomer(profile);
+
+      // Persist customer profile to public orders table so checkCustomerAccountExists can immediately find it
+      if (supabase) {
+        try {
+          await supabase.from('orders').insert([{
+            order_number: `ACC-${Math.floor(100000 + Math.random() * 900000)}`,
+            customer_name: full_name || 'Kunde',
+            customer_phone: phone || '',
+            delivery_type: 'pickup',
+            street: street || 'Plauen',
+            zip_city: zip_city || '08525 Plauen',
+            note: `[E-Mail: ${normalizedEmail}] [Kundenkonto Registrierung]`,
+            subtotal: 0,
+            delivery_fee: 0,
+            total: 0,
+            status: 'completed',
+            estimated_delivery_minutes: 0
+          }]);
+        } catch (ordSyncErr) {
+          console.warn('Sync customer registration to orders notice:', ordSyncErr);
+        }
+      }
+
       // Clean any active order in browser storage belonging to another user
       try {
         const raw = localStorage.getItem('venezia_active_order');

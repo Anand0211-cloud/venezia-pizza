@@ -155,27 +155,38 @@ export default function App() {
           }
         }
 
-        // Verify if SumUp returned a failure
-        if (smpStatus === 'FAILED' || smpStatus === 'CANCELLED') {
-          alert('Die SumUp-Zahlung wurde abgebrochen oder ist fehlgeschlagen. Es wurde keine Bestellung aufgegeben.');
+        if (!checkoutId) {
           localStorage.removeItem('venezia_pending_sumup_order');
           return;
         }
 
-        if (checkoutId) {
-          try {
-            const statusRes = await getSumUpCheckoutStatus(checkoutId);
-            if (statusRes?.checkout) {
-              const status = (statusRes.checkout.status || '').toUpperCase();
-              if (status === 'FAILED' || status === 'CANCELLED') {
-                alert('Die SumUp-Zahlung wurde nicht autorisiert. Ihre Karte wurde nicht belastet.');
-                localStorage.removeItem('venezia_pending_sumup_order');
-                return;
-              }
-            }
-          } catch (chkErr) {
-            console.warn('SumUp status verification check notice:', chkErr);
+        // STRICT PAYMENT VERIFICATION:
+        // An order is ONLY placed if SumUp explicitly confirms the status as 'PAID'
+        // or a successful transaction exists in the checkout object.
+        let isPaymentSuccessful = false;
+        try {
+          const statusRes = await getSumUpCheckoutStatus(checkoutId);
+          const checkoutData = statusRes?.checkout;
+          const status = (checkoutData?.status || '').toUpperCase();
+          const hasSuccessfulTxn = Array.isArray(checkoutData?.transactions) &&
+            checkoutData.transactions.some(t => {
+              const txStatus = (t.status || '').toUpperCase();
+              return txStatus === 'SUCCESSFUL' || txStatus === 'PAID';
+            });
+
+          if (status === 'PAID' || hasSuccessfulTxn) {
+            isPaymentSuccessful = true;
+          } else {
+            console.warn('[SumUp Verification] Payment not completed. Checkout status:', status, checkoutData);
           }
+        } catch (chkErr) {
+          console.error('[SumUp Verification] Status check error:', chkErr);
+        }
+
+        if (!isPaymentSuccessful) {
+          alert('Die SumUp-Zahlung wurde nicht abgeschlossen oder abgebrochen. Ihre Bestellung wurde NICHT aufgegeben und Ihr Konto wurde nicht belastet.');
+          localStorage.removeItem('venezia_pending_sumup_order');
+          return;
         }
 
         if (orderPayload) {
