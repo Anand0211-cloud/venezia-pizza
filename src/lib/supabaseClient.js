@@ -978,6 +978,99 @@ export async function getCurrentCustomerUser() {
   return cached;
 }
 
+// Check if a customer email is already registered in the system (Auth, Orders, or Cache)
+export async function checkCustomerAccountExists(email) {
+  const normalizedEmail = (email || '').toLowerCase().trim();
+  if (!normalizedEmail || !normalizedEmail.includes('@') || normalizedEmail.length < 5) {
+    return { exists: false };
+  }
+
+  // 1. Check cached customer in browser
+  const cached = getCachedCustomer();
+  if (cached && cached.email?.toLowerCase() === normalizedEmail) {
+    return {
+      exists: true,
+      source: 'cached',
+      profile: cached
+    };
+  }
+
+  // 2. Query Supabase RPC or Database
+  if (supabase) {
+    // 2a. Fast RPC check in auth.users and orders
+    try {
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('check_customer_email_exists', {
+        lookup_email: normalizedEmail
+      });
+      if (!rpcErr && rpcRes && rpcRes.exists) {
+        return {
+          exists: true,
+          source: 'auth_rpc',
+          profile: {
+            email: normalizedEmail,
+            full_name: rpcRes.full_name || '',
+            phone: rpcRes.phone || '',
+            street: rpcRes.street || '',
+            zip_city: rpcRes.zip_city || '08525 Plauen'
+          }
+        };
+      }
+    } catch {
+      // RPC might not be executed in database yet, proceed to fallback checks
+    }
+
+    // 2b. Check in orders table by note pattern
+    try {
+      const { data: ordersData, error: ordersErr } = await supabase
+        .from('orders')
+        .select('id, customer_name, customer_phone, street, zip_city, note')
+        .ilike('note', `%${normalizedEmail}%`)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (!ordersErr && ordersData && ordersData.length > 0) {
+        const ord = ordersData[0];
+        return {
+          exists: true,
+          source: 'orders',
+          profile: {
+            email: normalizedEmail,
+            full_name: ord.customer_name || '',
+            phone: ord.customer_phone || '',
+            street: ord.street || '',
+            zip_city: ord.zip_city || '08525 Plauen'
+          }
+        };
+      }
+    } catch (e) {
+      console.warn('Orders lookup check notice:', e);
+    }
+  }
+
+  // 3. Check local orders in localStorage fallback
+  try {
+    const localOrders = getLocalOrders();
+    const foundLocal = localOrders.find((o) => getOrderCustomerEmail(o) === normalizedEmail);
+    if (foundLocal) {
+      return {
+        exists: true,
+        source: 'local_orders',
+        profile: {
+          email: normalizedEmail,
+          full_name: foundLocal.customer_name || '',
+          phone: foundLocal.customer_phone || '',
+          street: foundLocal.street || '',
+          zip_city: foundLocal.zip_city || '08525 Plauen'
+        }
+      };
+    }
+  } catch {
+    // ignore
+  }
+
+  return { exists: false };
+}
+
 export async function signUpCustomerUser({ email, password, full_name, phone, street, zip_city }) {
   const normalizedEmail = (email || '').toLowerCase().trim();
 
@@ -1008,7 +1101,23 @@ export async function signUpCustomerUser({ email, password, full_name, phone, st
       });
 
       if (error) {
-        return { success: false, error: error.message };
+        const isAlready = /already registered|already exists|unique constraint/i.test(error.message);
+        return {
+          success: false,
+          alreadyExists: isAlready,
+          error: isAlready
+            ? 'Unter dieser E-Mail-Adresse existiert bereits ein Kundenkonto. Bitte melden Sie sich an.'
+            : error.message
+        };
+      }
+
+      // Check if user already exists (Supabase returns empty identities array when email confirmation is enabled)
+      if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        return {
+          success: false,
+          alreadyExists: true,
+          error: 'Unter dieser E-Mail-Adresse existiert bereits ein Kundenkonto. Bitte melden Sie sich an.'
+        };
       }
 
       const profile = {
@@ -1036,7 +1145,14 @@ export async function signUpCustomerUser({ email, password, full_name, phone, st
       return { success: true, user: profile };
     } catch (err) {
       console.warn('Supabase auth signUp error:', err);
-      return { success: false, error: err.message || 'Registrierung fehlgeschlagen.' };
+      const isAlready = /already registered|already exists/i.test(err?.message || '');
+      return {
+        success: false,
+        alreadyExists: isAlready,
+        error: isAlready
+          ? 'Unter dieser E-Mail-Adresse existiert bereits ein Kundenkonto. Bitte melden Sie sich an.'
+          : (err.message || 'Registrierung fehlgeschlagen.')
+      };
     }
   }
 

@@ -202,6 +202,70 @@ ALTER PUBLICATION supabase_realtime ADD TABLE orders;
 ALTER PUBLICATION supabase_realtime ADD TABLE menu_items;
 ALTER PUBLICATION supabase_realtime ADD TABLE drivers;
 
+-- 13. Customer Account Email Verification RPC (Security Definer)
+CREATE OR REPLACE FUNCTION check_customer_email_exists(lookup_email text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_found boolean := false;
+  v_name text := '';
+  v_phone text := '';
+  v_street text := '';
+  v_zip_city text := '';
+BEGIN
+  -- 1. Check in auth.users
+  SELECT 
+    true,
+    COALESCE(raw_user_meta_data->>'full_name', ''),
+    COALESCE(raw_user_meta_data->>'phone', ''),
+    COALESCE(raw_user_meta_data->>'street', ''),
+    COALESCE(raw_user_meta_data->>'zip_city', '')
+  INTO v_found, v_name, v_phone, v_street, v_zip_city
+  FROM auth.users
+  WHERE lower(email) = lower(trim(lookup_email))
+  LIMIT 1;
+
+  IF v_found THEN
+    RETURN jsonb_build_object(
+      'exists', true,
+      'full_name', v_name,
+      'phone', v_phone,
+      'street', v_street,
+      'zip_city', v_zip_city
+    );
+  END IF;
+
+  -- 2. Check in orders table (note pattern [E-Mail: ...])
+  SELECT 
+    true,
+    COALESCE(customer_name, ''),
+    COALESCE(customer_phone, ''),
+    COALESCE(street, ''),
+    COALESCE(zip_city, '')
+  INTO v_found, v_name, v_phone, v_street, v_zip_city
+  FROM orders
+  WHERE note ILIKE '%' || lower(trim(lookup_email)) || '%'
+  ORDER BY created_at DESC
+  LIMIT 1;
+
+  IF v_found THEN
+    RETURN jsonb_build_object(
+      'exists', true,
+      'full_name', v_name,
+      'phone', v_phone,
+      'street', v_street,
+      'zip_city', v_zip_city
+    );
+  END IF;
+
+  RETURN jsonb_build_object('exists', false);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION check_customer_email_exists(text) TO anon, authenticated;
+
 -- ======================================================================
 -- SEED DATA INSERTION
 -- ======================================================================

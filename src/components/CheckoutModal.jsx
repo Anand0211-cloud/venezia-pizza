@@ -26,6 +26,8 @@ import {
   ChevronUp,
   AlertCircle,
   User,
+  UserCheck,
+  LogIn,
   Eye,
   EyeOff,
   ShoppingBag,
@@ -40,6 +42,7 @@ import {
   subscribeToOrders,
   updateOrderStatus,
   getCurrentCustomerUser,
+  checkCustomerAccountExists,
   signUpCustomerUser,
   signInCustomerUser,
   resetCustomerPassword,
@@ -94,6 +97,15 @@ export default function CheckoutModal({
   const [quickLoginPassword, setQuickLoginPassword] = useState('');
   const [quickLoginError, setQuickLoginError] = useState('');
   const [resetNotice, setResetNotice] = useState('');
+
+  // Existing Customer Account Detection & Inline Login State
+  const [existingAccount, setExistingAccount] = useState(null); // { exists: boolean, profile?: ... }
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+  const [existingPassword, setExistingPassword] = useState('');
+  const [showExistingPassword, setShowExistingPassword] = useState(false);
+  const [existingLoginError, setExistingLoginError] = useState('');
+  const [isInlineLoggingIn, setIsInlineLoggingIn] = useState(false);
+  const [continueAsGuest, setContinueAsGuest] = useState(false);
 
   // Payment Selection (Strictly 2 Production Options: SumUp & COD)
   const [paymentMethod, setPaymentMethod] = useState('sumup'); // 'sumup' or 'cash'
@@ -261,6 +273,46 @@ export default function CheckoutModal({
     };
   }, [confirmedOrder?.id, confirmedOrder?.order_number]);
 
+  // Automatically check if entered email belongs to an existing customer
+  useEffect(() => {
+    if (customerUser) {
+      setExistingAccount(null);
+      return;
+    }
+    const emailToTest = (formData.email || '').trim().toLowerCase();
+    if (!emailToTest || !emailToTest.includes('@') || emailToTest.length < 5) {
+      setExistingAccount(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsCheckingEmail(true);
+      try {
+        const res = await checkCustomerAccountExists(emailToTest);
+        if (res && res.exists) {
+          setExistingAccount(res);
+          setContinueAsGuest(false);
+          if (res.profile) {
+            setFormData((prev) => ({
+              ...prev,
+              name: prev.name ? prev.name : (res.profile.full_name || ''),
+              phone: prev.phone ? prev.phone : (res.profile.phone || ''),
+              street: prev.street ? prev.street : (res.profile.street || '')
+            }));
+          }
+        } else {
+          setExistingAccount(null);
+        }
+      } catch (err) {
+        console.warn('Check customer email error:', err);
+      } finally {
+        setIsCheckingEmail(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [formData.email, customerUser]);
+
   if (!isOpen) return null;
 
   // Pricing calculations
@@ -334,19 +386,66 @@ export default function CheckoutModal({
     }
   };
 
-  const handleQuickReset = async () => {
-    const targetEmail = quickLoginEmail || formData.email;
+  // Inline Login for recognized existing customer
+  const handleInlineExistingLogin = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setExistingLoginError('');
+    const targetEmail = (formData.email || '').trim().toLowerCase();
+    if (!targetEmail) {
+      setExistingLoginError('Bitte geben Sie Ihre E-Mail-Adresse ein.');
+      return;
+    }
+    if (!existingPassword) {
+      setExistingLoginError('Bitte geben Sie Ihr Passwort ein.');
+      const pwdEl = document.getElementById('checkout-existing-password-input');
+      if (pwdEl) pwdEl.focus();
+      return;
+    }
+    setIsInlineLoggingIn(true);
+    try {
+      const res = await signInCustomerUser({
+        email: targetEmail,
+        password: existingPassword
+      });
+      if (res.success && res.user) {
+        setCustomerUser(res.user);
+        setExistingAccount(null);
+        setExistingPassword('');
+        setFormData(prev => {
+          const zipParsed = res.user.street ? parseZipCity(res.user.zip_city) : { plz: prev.plz, city: prev.city };
+          return {
+            ...prev,
+            name: res.user.full_name || prev.name,
+            phone: res.user.phone || prev.phone,
+            street: res.user.street || prev.street,
+            plz: zipParsed.plz || prev.plz,
+            city: zipParsed.city || prev.city,
+            zipCity: res.user.zip_city || prev.zipCity
+          };
+        });
+      } else {
+        setExistingLoginError(res.error || 'Ungültiges Passwort. Bitte überprüfen Sie Ihre Eingabe.');
+      }
+    } catch (err) {
+      setExistingLoginError(err.message || 'Anmeldung fehlgeschlagen.');
+    } finally {
+      setIsInlineLoggingIn(false);
+    }
+  };
+
+  const handleQuickReset = async (overrideEmail = null) => {
+    const targetEmail = overrideEmail || quickLoginEmail || formData.email;
     if (!targetEmail) {
       setQuickLoginError('Bitte geben Sie Ihre E-Mail-Adresse ein.');
       return;
     }
     const res = await resetCustomerPassword(targetEmail);
     setResetNotice(res.message || 'Link zum Zurücksetzen wurde gesendet!');
-    setTimeout(() => setResetNotice(''), 5000);
+    setTimeout(() => setResetNotice(''), 6000);
   };
 
   // Step 1 Validation & Proceed to Payment
-  const handleProceedToPayment = (e) => {
+  const handleProceedToPayment = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
       alert('Bitte geben Sie Ihren Namen an.');
@@ -381,8 +480,44 @@ export default function CheckoutModal({
     }
 
     if (!customerUser) {
-      if (!accountPassword || accountPassword.trim().length < 6) {
-        alert('Bitte vergeben Sie ein Passwort (mindestens 6 Zeichen) für Ihr Kundenkonto.');
+      // 1. If email belongs to an existing customer account and user hasn't chosen guest mode:
+      if (existingAccount?.exists && !continueAsGuest) {
+        // If password was already typed in the box, log them in automatically
+        if (existingPassword) {
+          setIsInlineLoggingIn(true);
+          setExistingLoginError('');
+          try {
+            const res = await signInCustomerUser({
+              email: effectiveEmail,
+              password: existingPassword
+            });
+            if (res.success && res.user) {
+              setCustomerUser(res.user);
+              setExistingAccount(null);
+              setExistingPassword('');
+              setStep(2);
+              return;
+            } else {
+              setExistingLoginError(res.error || 'Ungültiges Passwort für dieses Kundenkonto.');
+              const pwdEl = document.getElementById('checkout-existing-password-input');
+              if (pwdEl) pwdEl.focus();
+              return;
+            }
+          } catch (err) {
+            setExistingLoginError(err.message || 'Anmeldung fehlgeschlagen.');
+            return;
+          } finally {
+            setIsInlineLoggingIn(false);
+          }
+        }
+
+        // If password is not yet entered, prompt them to login
+        setExistingLoginError('Unter dieser E-Mail existiert bereits ein Kundenkonto. Bitte melden Sie sich mit Ihrem Passwort an.');
+        const pwdEl = document.getElementById('checkout-existing-password-input');
+        if (pwdEl) {
+          pwdEl.focus();
+          pwdEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
         return;
       }
     }
@@ -433,8 +568,8 @@ export default function CheckoutModal({
       payment_id: paymentMethod === 'cash' ? `CASH-${Date.now()}` : `SUMUP_INIT`
     };
 
-    // Mandatory: create customer user account in Supabase Auth if not already logged in
-    if (!customerUser && effectiveEmail && accountPassword && accountPassword.trim().length >= 6) {
+    // Create customer user account in Supabase Auth if new user and password provided
+    if (!customerUser && effectiveEmail && !existingAccount?.exists && accountPassword && accountPassword.trim().length >= 6) {
       try {
         const fullStreetForAuth = orderType === 'delivery'
           ? `${formData.street} ${formData.houseNr}`.trim()
@@ -1087,6 +1222,25 @@ export default function CheckoutModal({
                       ✓ Angemeldet als {customerUser.email}
                     </div>
                   )}
+                  {!customerUser && isCheckingEmail && (
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                      Kundenkonto wird geprüft...
+                    </div>
+                  )}
+                  {!customerUser && existingAccount?.exists && (
+                    <div style={{
+                      fontSize: '11.5px',
+                      color: '#0284c7',
+                      fontWeight: '700',
+                      marginTop: '5px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px'
+                    }}>
+                      <UserCheck size={14} />
+                      <span>Bestehendes Kundenkonto erkannt – Bitte melden Sie sich unten an</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1275,8 +1429,160 @@ export default function CheckoutModal({
                 </div>
               )}
 
-              {/* Mandatory Customer Account Creation for New Customers */}
-              {!customerUser && (
+              {/* Dynamic Account Handler: If existing account detected -> prompt login, otherwise offer new account creation */}
+              {!customerUser && existingAccount?.exists && (
+                <div style={{
+                  background: '#f0f9ff',
+                  border: '2px solid #0284c7',
+                  borderRadius: '14px',
+                  padding: '16px 18px',
+                  marginBottom: '20px',
+                  boxShadow: '0 4px 16px rgba(2, 132, 199, 0.12)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800', fontSize: '13.5px', color: '#0369a1' }}>
+                      <UserCheck size={18} color="#0284c7" />
+                      <span>Kundenkonto bereits vorhanden!</span>
+                    </div>
+                    <span style={{
+                      background: '#0284c7',
+                      color: '#ffffff',
+                      fontSize: '10px',
+                      fontWeight: '800',
+                      padding: '3px 8px',
+                      borderRadius: '10px'
+                    }}>
+                      Bitte anmelden
+                    </span>
+                  </div>
+
+                  <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#0c4a6e', lineHeight: '1.45' }}>
+                    Unter <strong>{formData.email}</strong> existiert bereits ein Kundenkonto bei uns. Bitte geben Sie Ihr Passwort ein, um sich anzumelden und Ihre Bestellung aufzugeben:
+                  </p>
+
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', flex: '1 1 200px' }}>
+                      <input
+                        id="checkout-existing-password-input"
+                        type={showExistingPassword ? 'text' : 'password'}
+                        placeholder="Ihr bestehendes Passwort"
+                        value={existingPassword}
+                        onChange={(e) => {
+                          setExistingPassword(e.target.value);
+                          if (existingLoginError) setExistingLoginError('');
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleInlineExistingLogin();
+                          }
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 38px 10px 12px',
+                          borderRadius: '8px',
+                          border: existingLoginError ? '2px solid #ef4444' : '1.5px solid #0284c7',
+                          fontSize: '13px',
+                          outline: 'none',
+                          background: '#ffffff',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowExistingPassword(!showExistingPassword)}
+                        style={{
+                          position: 'absolute',
+                          right: '10px',
+                          top: '10px',
+                          background: 'none',
+                          border: 'none',
+                          color: '#64748b',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {showExistingPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleInlineExistingLogin}
+                      disabled={isInlineLoggingIn}
+                      style={{
+                        background: '#0284c7',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '10px 18px',
+                        fontSize: '13px',
+                        fontWeight: '800',
+                        cursor: isInlineLoggingIn ? 'wait' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
+                      }}
+                    >
+                      <LogIn size={15} />
+                      <span>{isInlineLoggingIn ? 'Wird angemeldet...' : 'Anmelden'}</span>
+                    </button>
+                  </div>
+
+                  {existingLoginError && (
+                    <div style={{
+                      color: '#dc2626',
+                      background: '#fef2f2',
+                      border: '1px solid #fecaca',
+                      borderRadius: '6px',
+                      padding: '6px 10px',
+                      fontSize: '11.5px',
+                      fontWeight: '600',
+                      marginTop: '10px'
+                    }}>
+                      ⚠️ {existingLoginError}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', fontSize: '11px', flexWrap: 'wrap', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickReset(formData.email)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#0284c7',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        padding: 0,
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      Passwort vergessen? Reset-Link per E-Mail senden
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setContinueAsGuest(true);
+                        setExistingLoginError('');
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#64748b',
+                        cursor: 'pointer',
+                        padding: 0,
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      {continueAsGuest ? '✓ Weiter als Gast gewählt' : 'Als Gast ohne Login fortfahren →'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!customerUser && !existingAccount?.exists && (
                 <div style={{
                   background: '#f8fafc',
                   border: '1.5px solid #cbd5e1',
@@ -1287,32 +1593,31 @@ export default function CheckoutModal({
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800', fontSize: '13px', color: '#0f172a' }}>
                       <Lock size={15} color="#002B49" />
-                      <span>Kundenkonto anlegen</span>
+                      <span>Kundenkonto anlegen (optional)</span>
                     </div>
                     <span style={{
-                      background: '#002B49',
+                      background: '#64748b',
                       color: '#ffffff',
-                      fontSize: '10.5px',
-                      fontWeight: '800',
-                      padding: '3px 8px',
+                      fontSize: '10px',
+                      fontWeight: '700',
+                      padding: '2px 8px',
                       borderRadius: '10px',
                       whiteSpace: 'nowrap'
                     }}>
-                      Erforderlich
+                      Neu hier
                     </span>
                   </div>
                   <p style={{ margin: '0 0 12px 0', fontSize: '11.5px', color: '#64748b', lineHeight: '1.4' }}>
-                    Für Ihre Bestellung wird ein persönliches Kundenkonto angelegt, damit Sie Ihre Bestellung live verfolgen können.
+                    Vergeben Sie ein Passwort, um Ihre Bestellung live zu verfolgen und für nächste Bestellungen gespeichert zu bleiben.
                   </p>
 
                   <div>
                     <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
-                      Passwort für Ihr Kundenkonto (min. 6 Zeichen) *
+                      Passwort für neues Kundenkonto festlegen (optional, mind. 6 Zeichen)
                     </label>
                     <div style={{ position: 'relative', maxWidth: '340px' }}>
                       <input
                         type={showAccountPassword ? 'text' : 'password'}
-                        required
                         minLength={6}
                         placeholder="Sicheres Passwort festlegen"
                         value={accountPassword}
@@ -1545,22 +1850,6 @@ export default function CheckoutModal({
                         Kreditkarte, Girocard, Apple Pay, Google Pay
                       </div>
                     </div>
-                    {paymentMethod === 'sumup' && (
-                      <span style={{
-                        position: 'absolute',
-                        top: '-9px',
-                        right: '12px',
-                        background: '#002B49',
-                        color: '#ffffff',
-                        fontSize: '9.5px',
-                        fontWeight: '800',
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        letterSpacing: '0.4px'
-                      }}>
-                        ECHTE ZAHLUNG
-                      </span>
-                    )}
                   </button>
 
                   {/* Option 2: Cash on Delivery (COD) */}
@@ -1667,8 +1956,8 @@ export default function CheckoutModal({
                       color: '#1e40af',
                       lineHeight: '1.5'
                     }}>
-                      <strong>Echte Zahlungsabwicklung:</strong><br />
-                      Beim Klick auf <strong>„🔒 Mit SumUp sicher bezahlen“</strong> werden Sie direkt zur offiziellen, geschützten SumUp-Zahlungsseite weitergeleitet. Dort autorisieren Sie die Abbuchung per <strong>3D-Secure (SMS-TAN, Visa Secure, Banking-App)</strong>. Der Betrag wird real von Ihrem Konto verbucht und Ihrer Bestellung zugeordnet.
+                      <strong>Sichere Online-Zahlung:</strong><br />
+                      Beim Klick auf <strong>„🔒 Mit SumUp sicher bezahlen“</strong> werden Sie direkt zur offiziellen, geschützten SumUp-Zahlungsseite weitergeleitet. Dort autorisieren Sie die Zahlung sicher per <strong>3D-Secure (SMS-TAN, Visa Secure, Banking-App)</strong>. Der Betrag wird über SumUp autorisiert und Ihrer Bestellung zugeordnet.
                     </div>
 
                     <div style={{
