@@ -1692,10 +1692,10 @@ img {
   }
 }
 
-@media (max-width: 580px) {
+@media (max-width: 768px) {
   .pizza-grid {
     grid-template-columns: 1fr;
-    gap: 18px;
+    gap: 16px;
   }
 }
 
@@ -2701,24 +2701,17 @@ img {
   }
 
   .pizza-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
 
   .pizza-card {
-    min-height: 270px;
-  }
-
-  .pizza-image {
-    height: 135px;
-  }
-
-  .pizza-image img {
-    width: 120px;
-    height: 120px;
+    min-height: auto;
   }
 
   .why-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .about-content {
@@ -2759,124 +2752,1372 @@ img {
   }
 }
 
-@media (max-width: 580px) {
-  .nav-right {
-    gap: 6px;
-  }
+/* ==========================================================================
+   PROFESSIONAL MOBILE VIEW EXPERIENCE (Max Width: 768px & Max Width: 480px)
+   Strictly preserves all functionality while perfecting margins, padding,
+   touch targets, and visual proportions on mobile viewports.
+   ========================================================================== */
 
-  .phone-link {
-    display: none;
-  }
+/* Prevent horizontal viewport overflow & layout shifting */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+  -webkit-tap-highlight-color: transparent;
+}
 
-  .order-button {
-    padding: 8px 14px;
-    font-size: 11px;
-  }
+.app-layout {
+  overflow-x: hidden;
+  width: 100%;
+}
 
-  .hero h1 {
-    font-size: 38px;
-    letter-spacing: -1.5px;
-  }
+/* Base Top Notification Strip for Store Closed */
+.store-closed-notification-strip {
+  background: linear-gradient(90deg, #991b1b, #7f1d1d);
+  color: #ffffff;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+  position: sticky;
+  top: 72px;
+  z-index: 998;
+}
 
-  .hero-subtitle {
-    font-size: 14px;
-  }
+/* Floating Bottom Quick Cart Bar */
+.floating-bottom-cart-bar {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1500;
+  width: calc(100% - 40px);
+  max-width: 480px;
+  background: #111827;
+  color: #ffffff;
+  border-radius: 50px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 12px 35px rgba(0,0,0,0.3);
+  cursor: pointer;
+  animation: fadeIn 0.2s ease-out;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
 
-  .hero-features {
-    gap: 16px;
-    flex-direction: column;
-    align-items: center;
-  }
+.floating-bottom-cart-bar:hover {
+  transform: translateX(-50%) translateY(-2px);
+}
 
-  .hero-image-area {
-    height: 300px;
-  }
-
-  .hero-pizza-wrap {
-    width: 420px;
-  }
-
-  .hero-script {
-    font-size: 24px;
-    top: 15px;
-    left: 8%;
-  }
-
-  .since-badge {
-    width: 80px;
-    height: 80px;
-    left: 6%;
-    bottom: 45px;
-  }
-
-  .since-badge div {
-    font-size: 10px;
-  }
-
-  .since-badge strong {
-    font-size: 20px;
+@media (max-width: 768px) {
+  /* Common Section Spacing */
+  .section {
+    padding: 38px 20px;
   }
 
   .section-heading {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
+    margin-bottom: 20px;
   }
 
   .section-heading h2,
-  .why-heading h2 {
+  .why-heading h2,
+  .about-text h2 {
     font-size: 26px;
+    letter-spacing: -0.6px;
   }
 
-  .pizza-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .section-heading p,
+  .why-heading p {
+    font-size: 13px;
+    margin-top: 4px;
+  }
+
+  /* Navbar */
+  .navbar {
+    height: 68px;
+  }
+
+  .nav-inner {
+    padding: 0 20px;
+    height: 68px;
+  }
+
+  .store-closed-notification-strip {
+    top: 68px;
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+
+  /* =========================================
+     HERO SECTION (Tablet <= 768px)
+  ========================================= */
+  .hero-custom {
+    padding: 24px 0 36px;
+    min-height: auto;
+    max-height: none;
+    overflow: hidden;
+  }
+
+  .hero-custom-container {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding: 0 20px;
+    text-align: center;
+  }
+
+  .hero-custom-left {
+    align-items: center;
+    text-align: center;
+    gap: 14px;
+    padding: 0;
+  }
+
+  .hero-custom-title {
+    font-size: clamp(30px, 6.5vw, 42px);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+
+  .hero-custom-desc {
+    font-size: 14.5px;
+    line-height: 1.55;
+    max-width: 440px;
+    margin: 0 auto 16px;
+    color: #64748b;
+  }
+
+  .hero-custom-action-row {
+    display: flex;
+    justify-content: center;
     gap: 12px;
+    width: 100%;
+    max-width: 360px;
+    margin: 0 auto;
+  }
+
+  .hero-order-pill-btn {
+    flex: 1.2;
+    padding: 12px 18px;
+    font-size: 13.5px;
+    font-weight: 800;
+    justify-content: center;
+    border-radius: 50px;
+  }
+
+  .hero-learn-more-btn {
+    flex: 1;
+    padding: 12px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    justify-content: center;
+    border-radius: 50px;
+    border: 1.5px solid #e2e8f0;
+    background: #ffffff;
+  }
+
+  .hero-custom-right {
+    min-height: auto;
+    height: auto;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-top: 14px;
+    padding-bottom: 84px;
+    width: 100%;
+  }
+
+  .hero-orange-arch {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: 280px;
+    height: 300px;
+    border-radius: 140px 140px 40px 40px;
+    background: linear-gradient(180deg, #f94116 0%, #ea380d 100%);
+    z-index: 1;
+    box-shadow: 0 16px 36px rgba(249, 65, 22, 0.22);
+    padding-right: 0;
+    justify-content: center;
+  }
+
+  .hero-social-sidebar {
+    display: none !important;
+  }
+
+  .hero-variety-pizza-wrap {
+    width: 250px;
+    height: 250px;
+    margin: 18px auto 0;
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .hero-variety-pizza-img {
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    padding: 12px;
+    background: #ffffff;
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.16);
+  }
+
+  .hero-burger-assembled-img {
+    width: 220px;
+    object-fit: contain;
+    filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.22));
+  }
+
+  .floating-order-card {
+    position: absolute !important;
+    top: auto !important;
+    bottom: -72px !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    width: max-content !important;
+    max-width: 90vw !important;
+    background: #ffffff !important;
+    border: 1.5px solid #f1f5f9 !important;
+    border-radius: 16px !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.09) !important;
+    padding: 10px 14px !important;
+    z-index: 10 !important;
+    animation: none !important;
+    cursor: pointer !important;
+  }
+
+  .floating-foodies-card {
+    position: absolute !important;
+    top: -10px !important;
+    right: 8px !important;
+    left: auto !important;
+    bottom: auto !important;
+    transform: scale(0.85) !important;
+    transform-origin: top right !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.9) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08) !important;
+    padding: 6px 12px 8px !important;
+    z-index: 10 !important;
+    animation: none !important;
+  }
+
+  .lettuce-decor {
+    display: none !important;
+  }
+
+  .hero-drink-container {
+    display: none !important;
+  }
+
+  .hero-bg-curve-left,
+  .hero-bg-curve-right {
+    display: none !important;
+  }
+
+  /* SINGLE CARDS ONLY for Popular Pizzas (<= 768px) */
+  .pizza-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
   }
 
   .pizza-card {
-    padding: 12px 10px 10px;
-    min-height: 240px;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    padding: 12px 14px !important;
+    gap: 14px !important;
+    min-height: auto !important;
+    border-radius: 16px !important;
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.04) !important;
   }
 
   .pizza-image {
-    height: 110px;
+    width: 110px !important;
+    height: 110px !important;
+    min-width: 110px !important;
+    border-radius: 12px !important;
+    background: #f8fafc !important;
+    position: relative !important;
+    overflow: hidden !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important;
   }
 
   .pizza-image img {
-    width: 95px;
-    height: 95px;
+    width: 96px !important;
+    height: 96px !important;
+    object-fit: cover !important;
+    border-radius: 8px !important;
   }
 
+  .pizza-badge {
+    top: 6px !important;
+    left: 6px !important;
+    font-size: 10px !important;
+    padding: 2px 7px !important;
+    border-radius: 6px !important;
+  }
+
+  .pizza-info {
+    flex: 1 !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    padding: 0 !important;
+    height: 100% !important;
+  }
+
+  .pizza-info h3 {
+    font-size: 15.5px !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    margin: 0 0 4px 0 !important;
+    line-height: 1.25 !important;
+  }
+
+  .pizza-info p {
+    font-size: 12px !important;
+    color: #64748b !important;
+    line-height: 1.4 !important;
+    margin-bottom: 8px !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+
+  .pizza-bottom {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding-top: 4px !important;
+    margin-top: auto !important;
+  }
+
+  .pizza-bottom strong {
+    font-size: 15.5px !important;
+    font-weight: 850 !important;
+    color: var(--red) !important;
+  }
+
+  .plus-button {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    border-radius: 10px !important;
+    background: var(--red) !important;
+    color: #ffffff !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 4px 12px rgba(227, 6, 19, 0.25) !important;
+    border: none !important;
+  }
+
+  /* SINGLE CARDS ONLY for Why Us (<= 768px) */
   .why-section {
-    padding: 28px 16px;
+    margin: 24px 20px;
+    padding: 32px 18px;
+    border-radius: 20px;
   }
 
   .why-grid {
-    gap: 10px;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
   }
 
   .why-card {
-    min-height: 120px;
-    padding: 14px 10px;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    text-align: left !important;
+    padding: 14px 16px !important;
+    gap: 16px !important;
+    border-radius: 14px !important;
+    min-height: auto !important;
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
   }
 
+  .why-icon {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    border-radius: 12px !important;
+    background: rgba(227, 6, 19, 0.08) !important;
+    color: var(--red) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    flex-shrink: 0 !important;
+  }
+
+  .why-card strong {
+    font-size: 14px !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    display: block !important;
+    margin-bottom: 2px !important;
+  }
+
+  .why-card span {
+    font-size: 12px !important;
+    color: #64748b !important;
+    display: block !important;
+    line-height: 1.35 !important;
+  }
+
+  /* SINGLE CARDS ONLY for Dishes Grid (<= 768px) */
+  .dishes-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+
+  .dish-card {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    padding: 12px 14px !important;
+    border-radius: 16px !important;
+    gap: 14px !important;
+    min-height: auto !important;
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  .dish-card-media {
+    width: 110px !important;
+    height: 110px !important;
+    min-width: 110px !important;
+    border-radius: 12px !important;
+    position: relative !important;
+    overflow: hidden !important;
+    flex-shrink: 0 !important;
+  }
+
+  .dish-card-media img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+
+  .dish-card-body {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+  }
+
+  .dish-title-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+    margin-bottom: 4px !important;
+  }
+
+  .dish-name {
+    font-size: 14.5px !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    line-height: 1.25 !important;
+    margin: 0 !important;
+  }
+
+  .dish-price {
+    font-size: 14.5px !important;
+    font-weight: 850 !important;
+    color: var(--red) !important;
+    white-space: nowrap !important;
+  }
+
+  .dish-desc {
+    font-size: 11.5px !important;
+    color: #64748b !important;
+    line-height: 1.35 !important;
+    margin-bottom: 8px !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+
+  .dish-card-footer {
+    margin-top: auto !important;
+    padding-top: 4px !important;
+  }
+
+  .add-to-cart-btn {
+    padding: 8px 14px !important;
+    font-size: 12.5px !important;
+    border-radius: 8px !important;
+  }
+
+  /* Categories Slider */
+  .categories-slider-section {
+    padding: 34px 0 38px;
+  }
+
+  .categories-slider-wrapper {
+    padding: 0 20px;
+  }
+
+  /* Catering Section */
+  .catering-section {
+    margin: 28px auto;
+    padding: 0 20px;
+  }
+
+  .catering-card-container {
+    grid-template-columns: 1fr;
+    padding: 28px 20px;
+    border-radius: 20px;
+    gap: 24px;
+  }
+
+  .catering-heading {
+    font-size: 25px;
+  }
+
+  /* About Section */
   .about-section {
-    padding: 36px 15px;
+    padding: 34px 20px;
+  }
+
+  .about-content {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  /* Footer */
+  .footer-main {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 32px;
+    padding: 36px 20px 24px;
+  }
+
+  /* Global Modals & Pages for <= 768px */
+  .order-status-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+}
+
+/* =========================================
+   MOBILE SCREENS (Max Width: 480px / 360px - 430px Smartphones)
+========================================= */
+@media (max-width: 480px) {
+  /* Consistent Page Padding */
+  .section {
+    padding: 24px 14px;
+  }
+
+  .section-heading {
+    margin-bottom: 14px;
+  }
+
+  .section-heading h2,
+  .why-heading h2,
+  .about-text h2 {
+    font-size: 22px;
+    letter-spacing: -0.4px;
+    line-height: 1.2;
+  }
+
+  .section-heading p,
+  .why-heading p {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .section-link {
+    font-size: 11.5px;
+    gap: 4px;
+  }
+
+  /* Mobile Navbar */
+  .navbar {
+    height: 62px;
+  }
+
+  .nav-inner {
+    padding: 0 14px;
+    height: 62px;
+  }
+
+  .logo-wrap svg {
+    max-width: 120px;
+    height: auto;
+  }
+
+  .nav-right {
+    gap: 8px;
+  }
+
+  .nav-cart-btn {
+    padding: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    justify-content: center;
+    border: 1.5px solid #e2e8f0;
+    background: #ffffff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  }
+
+  .nav-cart-total {
+    display: none !important;
+  }
+
+  .nav-cart-badge {
+    top: -3px;
+    right: -3px;
+    width: 17px;
+    height: 17px;
+    font-size: 9.5px;
+  }
+
+  .nav-account-btn {
+    padding: 0 !important;
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 50% !important;
+    justify-content: center !important;
+    gap: 0 !important;
+    border: 1.5px solid #e2e8f0 !important;
+  }
+
+  .nav-account-label {
+    display: none !important;
+  }
+
+  .nav-account-avatar {
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 50% !important;
+    background: transparent !important;
+  }
+
+  .mobile-menu-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .store-closed-notification-strip {
+    top: 62px;
+    padding: 7px 12px;
+    font-size: 11.5px;
+    gap: 8px;
+    line-height: 1.35;
+  }
+
+  .store-closed-notification-strip button {
+    padding: 3px 10px;
+    font-size: 10.5px;
+  }
+
+  /* Hero Section (Max Width: 480px) */
+  .hero-custom {
+    padding: 16px 0 24px;
+  }
+
+  .hero-custom-container {
+    padding: 0 14px;
+    gap: 18px;
+  }
+
+  .hero-custom-left {
+    gap: 10px;
+  }
+
+  .hero-custom-title {
+    font-size: clamp(26px, 7vw, 32px);
+    line-height: 1.16;
+    letter-spacing: -0.4px;
+    margin-bottom: 6px;
+  }
+
+  .hero-custom-desc {
+    font-size: 13px;
+    line-height: 1.48;
+    max-width: 310px;
+    margin: 0 auto 14px;
+  }
+
+  .hero-custom-action-row {
+    flex-direction: row;
+    gap: 8px;
+    width: 100%;
+    max-width: 320px;
+    margin: 0 auto;
+  }
+
+  .hero-order-pill-btn {
+    flex: 1.15;
+    padding: 11px 12px;
+    font-size: 12px;
+    font-weight: 800;
+    gap: 6px;
+  }
+
+  .hero-order-pill-btn .btn-arrow-circle {
+    width: 22px;
+    height: 22px;
+  }
+
+  .hero-learn-more-btn {
+    flex: 1;
+    padding: 11px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    gap: 6px;
+  }
+
+  .hero-learn-more-btn .learn-arrow-circle {
+    width: 22px;
+    height: 22px;
+  }
+
+  .hero-custom-right {
+    min-height: auto;
+    height: auto;
+    margin-top: 8px;
+    padding-bottom: 74px;
+    width: 100%;
+  }
+
+  .hero-orange-arch {
+    width: 240px;
+    height: 250px;
+    border-radius: 120px 120px 32px 32px;
+    top: 6px;
+  }
+
+  .hero-variety-pizza-wrap {
+    width: 215px;
+    height: 215px;
+    margin: 14px auto 0;
+  }
+
+  .hero-variety-pizza-img {
+    width: 205px;
+    height: 205px;
+    padding: 8px;
+  }
+
+  .hero-burger-assembled-img {
+    width: 190px;
+  }
+
+  .floating-order-card {
+    position: absolute !important;
+    top: auto !important;
+    bottom: -64px !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    width: max-content !important;
+    max-width: calc(100vw - 28px) !important;
+    padding: 8px 12px !important;
+    border-radius: 14px !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
+    cursor: pointer !important;
+  }
+
+  .floating-pizza-thumb {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  .floating-card-title {
+    font-size: 12.5px !important;
+  }
+
+  .card-price {
+    font-size: 13px !important;
+  }
+
+  .floating-foodies-card {
+    position: absolute !important;
+    top: -8px !important;
+    right: 2px !important;
+    left: auto !important;
+    bottom: auto !important;
+    transform: scale(0.82) !important;
+    transform-origin: top right !important;
+    padding: 5px 8px 6px !important;
+    border-radius: 12px !important;
+  }
+
+  .foodies-label {
+    font-size: 9.5px !important;
+    margin-bottom: 4px !important;
+  }
+
+  .avatar-img,
+  .avatar-count-badge {
+    width: 22px !important;
+    height: 22px !important;
+    font-size: 8.5px !important;
+  }
+
+  /* Categories Slider */
+  .categories-slider-section {
+    padding: 24px 0 28px;
+  }
+
+  .categories-slider-wrapper {
+    padding: 0 14px;
+  }
+
+  .categories-header-row {
+    margin-bottom: 12px;
+  }
+
+  .categories-title {
+    font-size: 19px;
+  }
+
+  .categories-scroll-track {
+    gap: 10px;
+    padding: 4px 2px 10px 2px;
+  }
+
+  .category-oval-card {
+    flex: 0 0 calc((100% - 10px) / 2.3);
+    width: calc((100% - 10px) / 2.3);
+    max-width: 130px;
+  }
+
+  .category-oval-frame {
+    width: 110px;
+    height: 110px;
+    border-width: 2.5px;
+  }
+
+  .category-oval-name {
+    font-size: 12px;
+    margin-top: 5px;
+  }
+
+  .category-oval-count {
+    font-size: 10px;
+  }
+
+  /* Special Offers Section */
+  .offers-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px;
+  }
+
+  .offer-card {
+    border-radius: 14px;
+  }
+
+  .offer-image {
+    height: 170px;
+  }
+
+  .offer-badge {
+    top: 8px;
+    left: 8px;
+    padding: 3px 8px;
+    font-size: 11.5px;
+  }
+
+  .offer-body {
+    padding: 12px 14px 14px;
+  }
+
+  .offer-body h3 {
+    font-size: 15px;
+  }
+
+  .offer-body p {
+    font-size: 11.5px;
+    line-height: 1.4;
+    margin-bottom: 8px;
+  }
+
+  .offer-bottom strong {
+    font-size: 17px;
+  }
+
+  .small-order {
+    padding: 9px 16px;
+    font-size: 11.5px;
+    border-radius: 8px;
+  }
+
+  /* SINGLE CARDS ONLY for Popular Pizzas (Max Width: 480px) */
+  .pizza-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .pizza-card {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    padding: 10px 12px !important;
+    gap: 12px !important;
+    min-height: auto !important;
+    border-radius: 14px !important;
+  }
+
+  .pizza-image {
+    width: 95px !important;
+    height: 95px !important;
+    min-width: 95px !important;
+    border-radius: 10px !important;
+  }
+
+  .pizza-image img {
+    width: 82px !important;
+    height: 82px !important;
+  }
+
+  .pizza-badge {
+    font-size: 9px !important;
+    padding: 2px 6px !important;
+    top: 4px !important;
+    left: 4px !important;
+  }
+
+  .pizza-info h3 {
+    font-size: 14.5px !important;
+    margin: 0 0 3px 0 !important;
+    line-height: 1.25 !important;
+  }
+
+  .pizza-info p {
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+    max-height: 30px !important;
+    margin-bottom: 5px !important;
+  }
+
+  .pizza-bottom {
+    padding-top: 2px !important;
+  }
+
+  .pizza-bottom strong {
+    font-size: 14.5px !important;
+  }
+
+  .plus-button {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    border-radius: 8px !important;
+  }
+
+  /* SINGLE CARDS ONLY for Why Venezia (Max Width: 480px) */
+  .why-section {
+    margin: 16px 14px;
+    padding: 22px 14px;
+    border-radius: 18px;
+  }
+
+  .why-heading h2 {
+    font-size: 21px;
+  }
+
+  .why-heading p {
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+
+  .why-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .why-card {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    text-align: left !important;
+    padding: 12px 14px !important;
+    gap: 12px !important;
+    min-height: auto !important;
+    border-radius: 12px !important;
+  }
+
+  .why-icon {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    border-radius: 10px !important;
+  }
+
+  .why-card strong {
+    font-size: 13px !important;
+  }
+
+  .why-card span {
+    font-size: 11px !important;
+  }
+
+  /* SINGLE CARDS ONLY for Dishes Grid (Max Width: 480px) */
+  .dishes-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .dish-card {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    padding: 10px 12px !important;
+    gap: 12px !important;
+    min-height: auto !important;
+    border-radius: 14px !important;
+  }
+
+  .dish-card-media {
+    width: 95px !important;
+    height: 95px !important;
+    min-width: 95px !important;
+    border-radius: 10px !important;
+  }
+
+  .dish-name {
+    font-size: 14px !important;
+  }
+
+  .dish-price {
+    font-size: 14px !important;
+  }
+
+  .dish-desc {
+    font-size: 11px !important;
+  }
+
+  /* About Section */
+  .about-section {
+    padding: 24px 14px;
+  }
+
+  .about-content {
+    gap: 20px;
+  }
+
+  .about-text h2 {
+    font-size: 22px;
+  }
+
+  .about-text p {
+    font-size: 12.5px;
+    line-height: 1.55;
+    margin: 8px 0 14px;
+  }
+
+  .about-text .primary-btn {
+    width: 100%;
+    max-width: 100%;
+    justify-content: center;
+    padding: 11px 18px;
+    font-size: 12.5px;
+    border-radius: 8px;
   }
 
   .about-image {
-    height: 220px;
+    height: 190px;
+    border-radius: 14px;
+  }
+
+  .about-overlay {
+    font-size: 22px;
+    padding: 12px;
+  }
+
+  /* Party & Firmenservice (Catering) Section */
+  .catering-section {
+    margin: 16px 14px;
+    padding: 0;
+  }
+
+  .catering-card-container {
+    padding: 20px 14px;
+    border-radius: 18px;
+    gap: 18px;
+  }
+
+  .catering-heading {
+    font-size: 21px;
+    line-height: 1.2;
+  }
+
+  .catering-description {
+    font-size: 12px;
+    line-height: 1.45;
+    margin: 6px 0 12px;
+  }
+
+  .catering-pill-tabs {
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .catering-pill-btn {
+    padding: 6px 10px;
+    font-size: 11px;
+    border-radius: 16px;
+  }
+
+  .catering-detail-box {
+    padding: 10px 12px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+
+  .detail-title {
+    font-size: 12.5px;
+  }
+
+  .detail-price {
+    font-size: 12.5px;
+  }
+
+  .detail-desc {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .catering-feature-row {
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+
+  .catering-feature-item {
+    font-size: 10.5px;
+    gap: 4px;
+  }
+
+  .catering-action-group {
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .catering-inquiry-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 11px 14px;
+    font-size: 12.5px;
+    border-radius: 8px;
+    min-height: 42px;
+  }
+
+  .catering-phone-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 14px;
+    font-size: 12px;
+    border-radius: 8px;
+    min-height: 42px;
+  }
+
+  .catering-photo-frame {
+    height: 180px;
+    border-radius: 14px;
+  }
+
+  .photo-info-pill {
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
+    font-size: 10px;
+    padding: 5px 8px;
+  }
+
+  /* Footer Section */
+  .footer {
+    margin-top: 16px;
   }
 
   .footer-main {
     grid-template-columns: 1fr;
-    gap: 30px;
+    gap: 24px;
+    padding: 32px 16px 20px;
+  }
+
+  .footer-brand p {
+    font-size: 12px;
+    line-height: 1.45;
+    margin: 8px 0 12px;
+  }
+
+  .footer-column h4 {
+    font-size: 13.5px;
+    margin-bottom: 8px;
+  }
+
+  .contact-row {
+    font-size: 12px;
+    gap: 8px;
   }
 
   .footer-bottom {
+    padding: 14px 16px 18px;
+    font-size: 11px;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
     align-items: flex-start;
+  }
+
+  /* Floating Bottom Quick Cart Bar */
+  .floating-bottom-cart-bar {
+    width: calc(100% - 28px);
+    max-width: 400px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    padding: 10px 16px;
+  }
+
+  .floating-bottom-cart-bar span {
+    font-size: 12.5px;
+  }
+
+  .floating-bottom-cart-bar strong {
+    font-size: 14px;
+  }
+
+  /* ==============================================================
+     CHECKOUT MODAL, ACCOUNT MODAL & CART DRAWER MOBILE OVERRIDES
+     ============================================================== */
+  .checkout-modal-overlay,
+  .account-modal-overlay {
+    padding: 0 !important;
+    align-items: flex-end !important;
+  }
+
+  .checkout-modal-card,
+  .account-modal-card {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .checkout-modal-card > div:nth-child(2),
+  .account-modal-card > div:nth-child(2) {
+    padding: 12px 14px !important;
+  }
+
+  .checkout-form-row,
+  .checkout-contact-row,
+  .checkout-street-row,
+  .checkout-city-row,
+  .checkout-reset-row,
+  .checkout-quick-login-grid,
+  .checkout-tracking-contact-grid,
+  .account-form-row {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .checkout-payment-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .checkout-payment-grid button {
+    width: 100% !important;
+    padding: 12px 14px !important;
+  }
+
+  .checkout-order-type-grid {
+    gap: 8px !important;
+  }
+
+  .checkout-summary-pill {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .checkout-summary-pill button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .cart-drawer {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    right: -100vw;
+  }
+
+  .cart-drawer.open {
+    right: 0 !important;
+  }
+
+  .cart-header {
+    padding: 14px 16px !important;
+  }
+
+  .cart-footer {
+    padding: 14px 16px 20px !important;
+  }
+
+  /* Account Page Mobile */
+  .account-profile-header {
+    padding: 16px 14px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  .account-profile-header button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Active Order Banner Mobile Positioning */
+  .active-order-banner {
+    bottom: calc(75px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 14px !important;
+    left: auto !important;
+    max-width: calc(100vw - 28px) !important;
   }
 }
 
@@ -3451,10 +4692,10 @@ img {
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 768px) {
   .dishes-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
+    grid-template-columns: 1fr !important;
+    gap: 14px;
   }
 }
 
@@ -4444,39 +5685,7 @@ img {
   }
 }
 
-@media (max-width: 576px) {
-  .hero-custom-title {
-    font-size: 34px;
-  }
-  .hero-custom-action-row {
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 14px;
-  }
-  .hero-drink-container {
-    display: none;
-  }
-  .hero-variety-pizza-wrap {
-    width: 290px;
-  }
-  .hero-orange-arch {
-    width: 290px;
-    height: 400px;
-  }
-  .floating-order-card {
-    left: -10px;
-    top: 0;
-    transform: scale(0.9);
-  }
-  .floating-foodies-card {
-    bottom: -10px;
-    left: 10%;
-    transform: scale(0.9);
-  }
-  .lettuce-decor {
-    display: none;
-  }
-}
+/* End of Hero Custom Styles — mobile responsiveness handled centrally in professional mobile view section */
 
 /* ==========================================================================
    CHECKOUT MODAL & REALTIME TRACKING STYLES

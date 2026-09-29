@@ -1,8 +1,32 @@
 import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
+import fs from 'fs';
+import path from 'path';
+
+function loadLocalEnv() {
+  try {
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf8');
+      content.split('\n').forEach(line => {
+        const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+        if (match) {
+          const key = match[1];
+          const val = (match[2] || '').replace(/^["'](.*)["']$/, '$1').trim();
+          if (!process.env[key] || process.env[key] === '') {
+            process.env[key] = val;
+          }
+        }
+      });
+    }
+  } catch (err) {
+    // Ignore error
+  }
+}
 
 // Resolve SMTP configuration dynamically from Supabase DB or server environment (.env)
 async function getSmtpConfig() {
+  loadLocalEnv();
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
 

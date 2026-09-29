@@ -374,22 +374,7 @@ export default function App() {
 
       {/* Top Notification Strip when Online Ordering is Closed */}
       {!isStoreOpen && (
-        <div style={{
-          background: 'linear-gradient(90deg, #991b1b, #7f1d1d)',
-          color: '#ffffff',
-          padding: '10px 16px',
-          fontSize: '13px',
-          fontWeight: '700',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '12px',
-          flexWrap: 'wrap',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.25)',
-          position: 'sticky',
-          top: '72px',
-          zIndex: 998
-        }}>
+        <div className="store-closed-notification-strip">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{
               display: 'inline-block',
@@ -532,25 +517,8 @@ export default function App() {
 
       {/* Floating Bottom Quick Cart Bar (Mobile & Desktop) */}
       {cartCount > 0 && !isCartOpen && (
-        <div style={{
-          position: 'fixed',
-          bottom: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 1500,
-          width: 'calc(100% - 40px)',
-          maxWidth: '480px',
-          background: '#111827',
-          color: '#ffffff',
-          borderRadius: '50px',
-          padding: '12px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          boxShadow: '0 12px 35px rgba(0,0,0,0.3)',
-          cursor: 'pointer',
-          animation: 'fadeIn 0.2s ease-out'
-        }}
+        <div
+          className="floating-bottom-cart-bar"
           onClick={() => setIsCartOpen(true)}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

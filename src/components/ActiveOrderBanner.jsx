@@ -196,6 +196,7 @@ export default function ActiveOrderBanner({ onOpenTracker }) {
 
   return (
     <div
+      className="active-order-banner"
       onClick={() => onOpenTracker && onOpenTracker(activeOrder)}
       style={{
         position: 'fixed',

@@ -7,12 +7,36 @@
  */
 
 import https from 'https';
+import fs from 'fs';
+import path from 'path';
+
+function loadLocalEnv() {
+  try {
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf8');
+      content.split('\n').forEach(line => {
+        const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+        if (match) {
+          const key = match[1];
+          const val = (match[2] || '').replace(/^["'](.*)["']$/, '$1').trim();
+          if (!process.env[key] || process.env[key] === '') {
+            process.env[key] = val;
+          }
+        }
+      });
+    }
+  } catch (err) {
+    // Ignore error
+  }
+}
 
 // Retrieve private server credentials from environment variables
 function getSumUpCredentials() {
+  loadLocalEnv();
   const apiKey = process.env.SUMUP_API_KEY;
   const merchantCode = process.env.SUMUP_MERCHANT_CODE || 'MVV82Y2M';
-  const payToEmail = process.env.SUMUP_PAY_TO_EMAIL;
+  const payToEmail = process.env.SUMUP_PAY_TO_EMAIL || 'veneziapizza1999@gmail.com';
   const currency = process.env.SUMUP_CURRENCY || 'EUR';
 
   return { apiKey, merchantCode, payToEmail, currency };

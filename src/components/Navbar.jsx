@@ -316,7 +316,7 @@ export default function Navbar({
               transition: 'all 0.15s ease'
             }}
           >
-            <div style={{
+            <div className="nav-account-avatar" style={{
               width: '24px',
               height: '24px',
               borderRadius: '50%',
@@ -328,7 +328,7 @@ export default function Navbar({
             }}>
               <User size={13} />
             </div>
-            <span>{customerUser ? (customerUser.full_name?.split(' ')[0] || 'Konto') : 'Account'}</span>
+            <span className="nav-account-label">{customerUser ? (customerUser.full_name?.split(' ')[0] || 'Konto') : 'Account'}</span>
           </button>
 
           {/* Mobile Menu Toggle Button */}

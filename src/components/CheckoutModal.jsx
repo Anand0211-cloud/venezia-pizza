@@ -723,7 +723,7 @@ export default function CheckoutModal({
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+        <div className="checkout-form-row checkout-reset-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '3px' }}>
               Neues Passwort (min. 6 Zeichen) *
@@ -1434,7 +1434,7 @@ export default function CheckoutModal({
                               ✓ {resetNotice}
                             </div>
                           )}
-                          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', gap: '8px', alignItems: 'center' }}>
+                          <div className="checkout-quick-login-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', gap: '8px', alignItems: 'center' }}>
                             <input
                               type="email"
                               placeholder="E-Mail-Adresse"
@@ -1502,7 +1502,7 @@ export default function CheckoutModal({
                 </div>
               )}
               {/* Delivery vs Pickup Choice */}
-              <div style={{
+              <div className="checkout-order-type-grid" style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
                 gap: '12px',
@@ -1644,7 +1644,7 @@ export default function CheckoutModal({
                   Persönliche Kontaktdaten
                 </h4>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                <div className="checkout-form-row checkout-contact-row" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px', marginBottom: '12px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
                       Vor- und Nachname *
@@ -1751,7 +1751,7 @@ export default function CheckoutModal({
                     Lieferadresse in Plauen
                   </h4>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.6fr', gap: '12px', marginBottom: '12px' }}>
+                  <div className="checkout-form-row checkout-street-row" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.6fr', gap: '12px', marginBottom: '12px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
                         Straße &amp; Hausnummer *
@@ -1774,7 +1774,7 @@ export default function CheckoutModal({
                       />
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '95px 1fr', gap: '8px' }}>
+                    <div className="checkout-form-row checkout-city-row" style={{ display: 'grid', gridTemplateColumns: '95px 1fr', gap: '8px' }}>
                       <div>
                         <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
                           PLZ *
@@ -2204,7 +2204,7 @@ export default function CheckoutModal({
               )}
 
               {/* Quick Summary Pill & Proceed */}
-              <div style={{
+              <div className="checkout-summary-pill" style={{
                 background: '#f8fafc',
                 padding: '16px',
                 borderRadius: '12px',
@@ -2298,7 +2298,7 @@ export default function CheckoutModal({
                   Wählen Sie Ihre gewünschte Zahlungsart
                 </h4>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '18px' }}>
+                <div className="checkout-payment-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '18px' }}>
                   {/* Option 1: SumUp Online Payment */}
                   <button
                     type="button"
@@ -3015,7 +3015,7 @@ export default function CheckoutModal({
                   Bestellübersicht &amp; Rechnungsdaten
                 </h4>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px', color: '#475569', marginBottom: '14px' }}>
+                <div className="checkout-tracking-contact-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px', color: '#475569', marginBottom: '14px' }}>
                   <div>
                     <span style={{ color: '#94a3b8' }}>Empfänger:</span><br />
                     <strong style={{ color: '#0f172a' }}>{confirmedOrder.customer_name}</strong><br />

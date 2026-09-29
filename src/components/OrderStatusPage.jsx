@@ -540,7 +540,7 @@ export default function OrderStatusPage({
             </div>
 
             {/* Two Column Layout: Order Items Breakdown & Delivery Details */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '20px' }}>
+            <div className="order-status-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '20px' }}>
               {/* Left Column: Ordered Items */}
               <div style={{
                 background: '#ffffff',
