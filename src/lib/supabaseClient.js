@@ -1006,7 +1006,8 @@ export async function getCurrentCustomerUser() {
 // Check if a customer email is already registered in the system (Auth, Orders, or Cache)
 export async function checkCustomerAccountExists(email) {
   const normalizedEmail = (email || '').toLowerCase().trim();
-  if (!normalizedEmail || !normalizedEmail.includes('@') || normalizedEmail.length < 5) {
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+  if (!normalizedEmail || !EMAIL_REGEX.test(normalizedEmail)) {
     return { exists: false };
   }
 
@@ -1051,21 +1052,28 @@ export async function checkCustomerAccountExists(email) {
         .select('id, customer_name, customer_phone, street, zip_city, note')
         .ilike('note', `%${normalizedEmail}%`)
         .order('created_at', { ascending: false })
-        .limit(1);
+        .limit(5);
 
       if (!ordersErr && ordersData && ordersData.length > 0) {
-        const ord = ordersData[0];
-        return {
-          exists: true,
-          source: 'orders',
-          profile: {
-            email: normalizedEmail,
-            full_name: ord.customer_name || '',
-            phone: ord.customer_phone || '',
-            street: ord.street || '',
-            zip_city: ord.zip_city || '08525 Plauen'
-          }
-        };
+        // Strictly verify that the extracted customer email matches normalizedEmail exactly
+        const matched = ordersData.find(ord => {
+          const ordEmail = getOrderCustomerEmail(ord);
+          return ordEmail && ordEmail.toLowerCase().trim() === normalizedEmail;
+        });
+
+        if (matched) {
+          return {
+            exists: true,
+            source: 'orders',
+            profile: {
+              email: normalizedEmail,
+              full_name: matched.customer_name || '',
+              phone: matched.customer_phone || '',
+              street: matched.street || '',
+              zip_city: matched.zip_city || '08525 Plauen'
+            }
+          };
+        }
       }
     } catch (e) {
       console.warn('Orders lookup check notice:', e);

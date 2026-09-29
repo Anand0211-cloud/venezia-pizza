@@ -99,6 +99,16 @@ export default function CheckoutModal({
   const [quickLoginError, setQuickLoginError] = useState('');
   const [resetNotice, setResetNotice] = useState('');
 
+  // Password Reset (OTP) State on Checkout
+  const [isResetMode, setIsResetMode] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetOtp, setResetOtp] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [showResetNewPassword, setShowResetNewPassword] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [isResetSubmitting, setIsResetSubmitting] = useState(false);
+
   // Existing Customer Account Detection & Inline Login State
   const [existingAccount, setExistingAccount] = useState(null); // { exists: boolean, profile?: ... }
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
@@ -274,42 +284,64 @@ export default function CheckoutModal({
     };
   }, [confirmedOrder?.id, confirmedOrder?.order_number]);
 
+  // Strict email format validation regex (waits until full email e.g. name@domain.com is entered)
+  const EMAIL_FORMAT_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+
+  const checkEmailAccount = async (targetEmail) => {
+    if (customerUser) {
+      setExistingAccount(null);
+      setIsCheckingEmail(false);
+      return;
+    }
+    const emailToTest = (targetEmail || '').trim().toLowerCase();
+    // Do NOT check halfway typed emails like "anand@" or "anand@intelloft"
+    if (!emailToTest || !EMAIL_FORMAT_REGEX.test(emailToTest)) {
+      setExistingAccount(null);
+      setIsCheckingEmail(false);
+      return;
+    }
+
+    setIsCheckingEmail(true);
+    try {
+      const res = await checkCustomerAccountExists(emailToTest);
+      if (res && res.exists) {
+        setExistingAccount(res);
+        setContinueAsGuest(false);
+        if (res.profile) {
+          setFormData((prev) => ({
+            ...prev,
+            name: prev.name ? prev.name : (res.profile.full_name || ''),
+            phone: prev.phone ? prev.phone : (res.profile.phone || ''),
+            street: prev.street ? prev.street : (res.profile.street || '')
+          }));
+        }
+      } else {
+        setExistingAccount(null);
+      }
+    } catch (err) {
+      console.warn('Check customer email error:', err);
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
+
   // Automatically check if entered email belongs to an existing customer
+  // Only triggers when the user has typed a complete, valid email address
   useEffect(() => {
     if (customerUser) {
       setExistingAccount(null);
       return;
     }
     const emailToTest = (formData.email || '').trim().toLowerCase();
-    if (!emailToTest || !emailToTest.includes('@') || emailToTest.length < 5) {
+    if (!emailToTest || !EMAIL_FORMAT_REGEX.test(emailToTest)) {
       setExistingAccount(null);
+      setIsCheckingEmail(false);
       return;
     }
 
-    const timer = setTimeout(async () => {
-      setIsCheckingEmail(true);
-      try {
-        const res = await checkCustomerAccountExists(emailToTest);
-        if (res && res.exists) {
-          setExistingAccount(res);
-          setContinueAsGuest(false);
-          if (res.profile) {
-            setFormData((prev) => ({
-              ...prev,
-              name: prev.name ? prev.name : (res.profile.full_name || ''),
-              phone: prev.phone ? prev.phone : (res.profile.phone || ''),
-              street: prev.street ? prev.street : (res.profile.street || '')
-            }));
-          }
-        } else {
-          setExistingAccount(null);
-        }
-      } catch (err) {
-        console.warn('Check customer email error:', err);
-      } finally {
-        setIsCheckingEmail(false);
-      }
-    }, 350);
+    const timer = setTimeout(() => {
+      checkEmailAccount(emailToTest);
+    }, 600);
 
     return () => clearTimeout(timer);
   }, [formData.email, customerUser]);
@@ -434,16 +466,375 @@ export default function CheckoutModal({
     }
   };
 
-  const handleQuickReset = async (overrideEmail = null) => {
-    const targetEmail = overrideEmail || quickLoginEmail || formData.email;
-    if (!targetEmail) {
-      setQuickLoginError('Bitte geben Sie Ihre E-Mail-Adresse ein.');
+  const handleOpenResetMode = async (overrideEmail = null) => {
+    const rawTarget = overrideEmail || formData.email || quickLoginEmail || '';
+    const targetEmail = rawTarget.trim().toLowerCase();
+    setResetEmail(targetEmail);
+    setIsResetMode(true);
+    setResetError('');
+    setResetOtp('');
+    setResetNewPassword('');
+    setResetConfirmPassword('');
+
+    if (targetEmail && EMAIL_FORMAT_REGEX.test(targetEmail)) {
+      await handleSendResetOtp(targetEmail);
+    } else {
+      setResetNotice('Bitte geben Sie Ihre registrierte E-Mail-Adresse ein und fordern Sie einen Bestätigungscode (OTP) an.');
+    }
+  };
+
+  const handleSendResetOtp = async (targetEmail = null) => {
+    const emailToSend = (targetEmail || resetEmail || formData.email || quickLoginEmail || '').trim().toLowerCase();
+    if (!emailToSend || !EMAIL_FORMAT_REGEX.test(emailToSend)) {
+      setResetError('Bitte geben Sie eine vollständige, gültige E-Mail-Adresse ein.');
       return;
     }
-    const res = await resetCustomerPassword(targetEmail);
-    setResetNotice(res.message || 'Link zum Zurücksetzen wurde gesendet!');
-    setTimeout(() => setResetNotice(''), 6000);
+    setResetEmail(emailToSend);
+    setIsResetSubmitting(true);
+    setResetError('');
+    try {
+      const res = await sendPasswordResetOtp(emailToSend);
+      if (res.success) {
+        setResetNotice(`✓ Bestätigungscode (OTP) wurde an ${emailToSend} gesendet! Bitte prüfen Sie Ihren Posteingang und Spam-Ordner.`);
+      } else {
+        setResetError(res.error || 'Fehler beim Senden des Bestätigungscodes.');
+      }
+    } catch (err) {
+      setResetError(err.message || 'Fehler beim Senden des Bestätigungscodes.');
+    } finally {
+      setIsResetSubmitting(false);
+    }
   };
+
+  const handleVerifyOtpAndReset = async (e) => {
+    if (e) e.preventDefault();
+    setResetError('');
+
+    const targetEmail = (resetEmail || formData.email || quickLoginEmail || '').trim().toLowerCase();
+    const cleanOtp = (resetOtp || '').trim();
+
+    if (!targetEmail || !EMAIL_FORMAT_REGEX.test(targetEmail)) {
+      setResetError('Bitte geben Sie eine gültige E-Mail-Adresse an.');
+      return;
+    }
+    if (!cleanOtp || cleanOtp.length < 6) {
+      setResetError('Bitte geben Sie den 6-stelligen Bestätigungscode (OTP) aus Ihrer E-Mail ein.');
+      return;
+    }
+    if (!resetNewPassword || resetNewPassword.length < 6) {
+      setResetError('Das neue Passwort muss mindestens 6 Zeichen lang sein.');
+      return;
+    }
+    if (resetNewPassword !== resetConfirmPassword) {
+      setResetError('Die eingegebenen Passwörter stimmen nicht überein.');
+      return;
+    }
+
+    setIsResetSubmitting(true);
+    try {
+      const res = await verifyOtpAndResetPassword({
+        email: targetEmail,
+        otp: cleanOtp,
+        newPassword: resetNewPassword
+      });
+
+      if (res.success) {
+        // Automatically sign in the user
+        const loginRes = await signInCustomerUser({
+          email: targetEmail,
+          password: resetNewPassword
+        });
+
+        if (loginRes.success && loginRes.user) {
+          setCustomerUser(loginRes.user);
+          setFormData(prev => {
+            const zipParsed = loginRes.user.street ? parseZipCity(loginRes.user.zip_city) : { plz: prev.plz, city: prev.city };
+            return {
+              ...prev,
+              email: loginRes.user.email || prev.email,
+              name: loginRes.user.full_name || prev.name,
+              phone: loginRes.user.phone || prev.phone,
+              street: loginRes.user.street || prev.street,
+              plz: zipParsed.plz || prev.plz,
+              city: zipParsed.city || prev.city,
+              zipCity: loginRes.user.zip_city || prev.zipCity
+            };
+          });
+        } else {
+          setCustomerUser({ email: targetEmail });
+        }
+
+        setIsResetMode(false);
+        setExistingAccount(null);
+        setExistingPassword('');
+        setExistingLoginError('');
+        setResetOtp('');
+        setResetNewPassword('');
+        setResetConfirmPassword('');
+        setShowQuickLogin(false);
+        setResetNotice('🎉 Passwort erfolgreich geändert! Sie sind jetzt angemeldet.');
+        setTimeout(() => setResetNotice(''), 6000);
+      } else {
+        setResetError(res.error || 'Ungültiger oder abgelaufener Bestätigungscode. Bitte prüfen Sie den Code in Ihrer E-Mail.');
+      }
+    } catch (err) {
+      setResetError(err.message || 'Fehler beim Ändern des Passworts.');
+    } finally {
+      setIsResetSubmitting(false);
+    }
+  };
+
+  const handleQuickReset = (overrideEmail = null) => {
+    handleOpenResetMode(overrideEmail);
+  };
+
+  const renderPasswordResetBox = () => (
+    <div style={{
+      background: '#f8fafc',
+      border: '2px solid #0284c7',
+      borderRadius: '14px',
+      padding: '16px 18px',
+      marginTop: '10px',
+      marginBottom: '16px',
+      boxShadow: '0 4px 16px rgba(2, 132, 199, 0.12)'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800', fontSize: '13.5px', color: '#0369a1' }}>
+          <KeyRound size={18} color="#0284c7" />
+          <span>Passwort mit Bestätigungscode (OTP) zurücksetzen</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setIsResetMode(false);
+            setResetError('');
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#64748b',
+            fontSize: '11.5px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            textDecoration: 'underline'
+          }}
+        >
+          ✕ Abbrechen
+        </button>
+      </div>
+
+      {resetNotice && (
+        <div style={{
+          background: '#eff6ff',
+          border: '1px solid #bfdbfe',
+          color: '#1e40af',
+          padding: '8px 12px',
+          borderRadius: '8px',
+          fontSize: '12px',
+          lineHeight: '1.4',
+          marginBottom: '12px'
+        }}>
+          {resetNotice}
+        </div>
+      )}
+
+      {resetError && (
+        <div style={{
+          background: '#fef2f2',
+          border: '1px solid #fecaca',
+          color: '#dc2626',
+          padding: '8px 12px',
+          borderRadius: '8px',
+          fontSize: '12px',
+          lineHeight: '1.4',
+          marginBottom: '12px'
+        }}>
+          ⚠️ {resetError}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '3px' }}>
+            E-Mail-Adresse
+          </label>
+          <input
+            type="email"
+            value={resetEmail}
+            onChange={(e) => setResetEmail(e.target.value)}
+            placeholder="ihre.email@example.de"
+            style={{
+              width: '100%',
+              padding: '9px 12px',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              fontSize: '13px',
+              background: '#ffffff',
+              boxSizing: 'border-box',
+              outline: 'none'
+            }}
+          />
+        </div>
+
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
+            <label style={{ fontSize: '11px', fontWeight: '700', color: '#0369a1' }}>
+              6-stelliger Bestätigungscode (OTP) *
+            </label>
+            <button
+              type="button"
+              onClick={() => handleSendResetOtp(resetEmail)}
+              disabled={isResetSubmitting}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#0284c7',
+                fontSize: '11px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                padding: 0,
+                textDecoration: 'underline'
+              }}
+            >
+              {isResetSubmitting ? 'Wird gesendet...' : 'Neuen Code anfordern'}
+            </button>
+          </div>
+          <input
+            type="text"
+            maxLength={30}
+            value={resetOtp}
+            onChange={(e) => setResetOtp(e.target.value.trim())}
+            placeholder="z. B. 123456"
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              borderRadius: '8px',
+              border: '2px solid #0284c7',
+              fontSize: '15px',
+              fontWeight: '700',
+              letterSpacing: '2px',
+              background: '#ffffff',
+              boxSizing: 'border-box',
+              outline: 'none'
+            }}
+          />
+          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>
+            Geben Sie den 6-stelligen Code aus Ihrer E-Mail ein (auch im Spam-Ordner nachsehen).
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '3px' }}>
+              Neues Passwort (min. 6 Zeichen) *
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showResetNewPassword ? 'text' : 'password'}
+                value={resetNewPassword}
+                onChange={(e) => setResetNewPassword(e.target.value)}
+                placeholder="Neues Passwort"
+                style={{
+                  width: '100%',
+                  padding: '9px 34px 9px 10px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '12.5px',
+                  background: '#ffffff',
+                  boxSizing: 'border-box',
+                  outline: 'none'
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowResetNewPassword(!showResetNewPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '8px',
+                  top: '9px',
+                  background: 'none',
+                  border: 'none',
+                  color: '#64748b',
+                  cursor: 'pointer'
+                }}
+              >
+                {showResetNewPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '3px' }}>
+              Passwort wiederholen *
+            </label>
+            <input
+              type={showResetNewPassword ? 'text' : 'password'}
+              value={resetConfirmPassword}
+              onChange={(e) => setResetConfirmPassword(e.target.value)}
+              placeholder="Wiederholen"
+              style={{
+                width: '100%',
+                padding: '9px 10px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                fontSize: '12.5px',
+                background: '#ffffff',
+                boxSizing: 'border-box',
+                outline: 'none'
+              }}
+            />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+          <button
+            type="button"
+            onClick={handleVerifyOtpAndReset}
+            disabled={isResetSubmitting}
+            style={{
+              flex: '1',
+              background: '#0284c7',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '11px 16px',
+              fontSize: '13px',
+              fontWeight: '800',
+              cursor: isResetSubmitting ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)'
+            }}
+          >
+            <Lock size={15} />
+            <span>{isResetSubmitting ? 'Wird gespeichert...' : 'Passwort speichern & Anmelden'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsResetMode(false);
+              setResetError('');
+            }}
+            style={{
+              background: '#f1f5f9',
+              color: '#475569',
+              border: '1px solid #cbd5e1',
+              borderRadius: '8px',
+              padding: '11px 16px',
+              fontSize: '12px',
+              fontWeight: '700',
+              cursor: 'pointer'
+            }}
+          >
+            Zurück
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   // Step 1 Validation & Proceed to Payment (Strict Authentication & Account Enforcement)
   const handleProceedToPayment = async (e) => {
@@ -1029,76 +1420,83 @@ export default function CheckoutModal({
 
                   {showQuickLogin && (
                     <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1' }}>
-                      {quickLoginError && (
-                        <div style={{ color: '#b91c1c', fontSize: '11.5px', marginBottom: '8px', fontWeight: '600' }}>
-                          {quickLoginError}
-                        </div>
+                      {isResetMode ? (
+                        renderPasswordResetBox()
+                      ) : (
+                        <>
+                          {quickLoginError && (
+                            <div style={{ color: '#b91c1c', fontSize: '11.5px', marginBottom: '8px', fontWeight: '600' }}>
+                              {quickLoginError}
+                            </div>
+                          )}
+                          {resetNotice && (
+                            <div style={{ color: '#15803d', fontSize: '11.5px', marginBottom: '8px', fontWeight: '700' }}>
+                              ✓ {resetNotice}
+                            </div>
+                          )}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', gap: '8px', alignItems: 'center' }}>
+                            <input
+                              type="email"
+                              placeholder="E-Mail-Adresse"
+                              value={quickLoginEmail}
+                              onChange={(e) => setQuickLoginEmail(e.target.value)}
+                              style={{
+                                padding: '7px 10px',
+                                borderRadius: '6px',
+                                border: '1px solid #cbd5e1',
+                                fontSize: '12px',
+                                background: '#ffffff'
+                              }}
+                            />
+                            <input
+                              type="password"
+                              placeholder="Passwort"
+                              value={quickLoginPassword}
+                              onChange={(e) => setQuickLoginPassword(e.target.value)}
+                              style={{
+                                padding: '7px 10px',
+                                borderRadius: '6px',
+                                border: '1px solid #cbd5e1',
+                                fontSize: '12px',
+                                background: '#ffffff'
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={handleQuickLogin}
+                              style={{
+                                background: 'var(--red)',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '6px',
+                                padding: '7px 14px',
+                                fontSize: '12px',
+                                fontWeight: '800',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Anmelden
+                            </button>
+                          </div>
+                          <div style={{ textAlign: 'right', marginTop: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenResetMode(quickLoginEmail || formData.email)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#0284c7',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                textDecoration: 'underline'
+                              }}
+                            >
+                              Passwort vergessen? Bestätigungscode (OTP) eingeben
+                            </button>
+                          </div>
+                        </>
                       )}
-                      {resetNotice && (
-                        <div style={{ color: '#15803d', fontSize: '11.5px', marginBottom: '8px', fontWeight: '700' }}>
-                          ✓ {resetNotice}
-                        </div>
-                      )}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', gap: '8px', alignItems: 'center' }}>
-                        <input
-                          type="email"
-                          placeholder="E-Mail-Adresse"
-                          value={quickLoginEmail}
-                          onChange={(e) => setQuickLoginEmail(e.target.value)}
-                          style={{
-                            padding: '7px 10px',
-                            borderRadius: '6px',
-                            border: '1px solid #cbd5e1',
-                            fontSize: '12px',
-                            background: '#ffffff'
-                          }}
-                        />
-                        <input
-                          type="password"
-                          placeholder="Passwort"
-                          value={quickLoginPassword}
-                          onChange={(e) => setQuickLoginPassword(e.target.value)}
-                          style={{
-                            padding: '7px 10px',
-                            borderRadius: '6px',
-                            border: '1px solid #cbd5e1',
-                            fontSize: '12px',
-                            background: '#ffffff'
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={handleQuickLogin}
-                          style={{
-                            background: 'var(--red)',
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: '6px',
-                            padding: '7px 14px',
-                            fontSize: '12px',
-                            fontWeight: '800',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Anmelden
-                        </button>
-                      </div>
-                      <div style={{ textAlign: 'right', marginTop: '6px' }}>
-                        <button
-                          type="button"
-                          onClick={handleQuickReset}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#64748b',
-                            fontSize: '11px',
-                            cursor: 'pointer',
-                            textDecoration: 'underline'
-                          }}
-                        >
-                          Passwort vergessen? Reset-Link per E-Mail anfordern
-                        </button>
-                      </div>
                     </div>
                   )}
                 </div>
@@ -1303,6 +1701,7 @@ export default function CheckoutModal({
                     placeholder="max.mueller@example.de"
                     value={customerUser ? customerUser.email : formData.email}
                     onChange={(e) => !customerUser && setFormData({ ...formData, email: e.target.value })}
+                    onBlur={(e) => !customerUser && checkEmailAccount(e.target.value)}
                     style={{
                       width: '100%',
                       padding: '10px 12px',
@@ -1338,6 +1737,9 @@ export default function CheckoutModal({
                       <UserCheck size={14} />
                       <span>Bestehendes Kundenkonto erkannt – Bitte melden Sie sich unten an</span>
                     </div>
+                  )}
+                  {!customerUser && isResetMode && !showQuickLogin && !existingAccount?.exists && (
+                    renderPasswordResetBox()
                   )}
                 </div>
               </div>
@@ -1529,137 +1931,141 @@ export default function CheckoutModal({
 
               {/* Dynamic Account Handler: If existing account detected -> prompt login, otherwise offer new account creation */}
               {!customerUser && existingAccount?.exists && (
-                <div style={{
-                  background: '#f0f9ff',
-                  border: '2px solid #0284c7',
-                  borderRadius: '14px',
-                  padding: '16px 18px',
-                  marginBottom: '20px',
-                  boxShadow: '0 4px 16px rgba(2, 132, 199, 0.12)'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800', fontSize: '13.5px', color: '#0369a1' }}>
-                      <UserCheck size={18} color="#0284c7" />
-                      <span>Kundenkonto bereits vorhanden!</span>
+                isResetMode ? (
+                  renderPasswordResetBox()
+                ) : (
+                  <div style={{
+                    background: '#f0f9ff',
+                    border: '2px solid #0284c7',
+                    borderRadius: '14px',
+                    padding: '16px 18px',
+                    marginBottom: '20px',
+                    boxShadow: '0 4px 16px rgba(2, 132, 199, 0.12)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800', fontSize: '13.5px', color: '#0369a1' }}>
+                        <UserCheck size={18} color="#0284c7" />
+                        <span>Kundenkonto bereits vorhanden!</span>
+                      </div>
+                      <span style={{
+                        background: '#0284c7',
+                        color: '#ffffff',
+                        fontSize: '10px',
+                        fontWeight: '800',
+                        padding: '3px 8px',
+                        borderRadius: '10px'
+                      }}>
+                        Bitte anmelden
+                      </span>
                     </div>
-                    <span style={{
-                      background: '#0284c7',
-                      color: '#ffffff',
-                      fontSize: '10px',
-                      fontWeight: '800',
-                      padding: '3px 8px',
-                      borderRadius: '10px'
-                    }}>
-                      Bitte anmelden
-                    </span>
-                  </div>
 
-                  <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#0c4a6e', lineHeight: '1.45' }}>
-                    Unter <strong>{formData.email}</strong> existiert bereits ein Kundenkonto bei uns. Bitte geben Sie Ihr Passwort ein, um sich anzumelden und Ihre Bestellung aufzugeben:
-                  </p>
+                    <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#0c4a6e', lineHeight: '1.45' }}>
+                      Unter <strong>{formData.email}</strong> existiert bereits ein Kundenkonto bei uns. Bitte geben Sie Ihr Passwort ein, um sich anzumelden und Ihre Bestellung aufzugeben:
+                    </p>
 
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{ position: 'relative', flex: '1 1 200px' }}>
-                      <input
-                        id="checkout-existing-password-input"
-                        type={showExistingPassword ? 'text' : 'password'}
-                        placeholder="Ihr bestehendes Passwort"
-                        value={existingPassword}
-                        onChange={(e) => {
-                          setExistingPassword(e.target.value);
-                          if (existingLoginError) setExistingLoginError('');
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleInlineExistingLogin();
-                          }
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '10px 38px 10px 12px',
-                          borderRadius: '8px',
-                          border: existingLoginError ? '2px solid #ef4444' : '1.5px solid #0284c7',
-                          fontSize: '13px',
-                          outline: 'none',
-                          background: '#ffffff',
-                          boxSizing: 'border-box'
-                        }}
-                      />
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <div style={{ position: 'relative', flex: '1 1 200px' }}>
+                        <input
+                          id="checkout-existing-password-input"
+                          type={showExistingPassword ? 'text' : 'password'}
+                          placeholder="Ihr bestehendes Passwort"
+                          value={existingPassword}
+                          onChange={(e) => {
+                            setExistingPassword(e.target.value);
+                            if (existingLoginError) setExistingLoginError('');
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleInlineExistingLogin();
+                            }
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '10px 38px 10px 12px',
+                            borderRadius: '8px',
+                            border: existingLoginError ? '2px solid #ef4444' : '1.5px solid #0284c7',
+                            fontSize: '13px',
+                            outline: 'none',
+                            background: '#ffffff',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowExistingPassword(!showExistingPassword)}
+                          style={{
+                            position: 'absolute',
+                            right: '10px',
+                            top: '10px',
+                            background: 'none',
+                            border: 'none',
+                            color: '#64748b',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {showExistingPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+
                       <button
                         type="button"
-                        onClick={() => setShowExistingPassword(!showExistingPassword)}
+                        onClick={handleInlineExistingLogin}
+                        disabled={isInlineLoggingIn}
                         style={{
-                          position: 'absolute',
-                          right: '10px',
-                          top: '10px',
-                          background: 'none',
+                          background: '#0284c7',
+                          color: '#ffffff',
                           border: 'none',
-                          color: '#64748b',
-                          cursor: 'pointer'
+                          borderRadius: '8px',
+                          padding: '10px 18px',
+                          fontSize: '13px',
+                          fontWeight: '800',
+                          cursor: isInlineLoggingIn ? 'wait' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
                         }}
                       >
-                        {showExistingPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        <LogIn size={15} />
+                        <span>{isInlineLoggingIn ? 'Wird angemeldet...' : 'Anmelden'}</span>
                       </button>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={handleInlineExistingLogin}
-                      disabled={isInlineLoggingIn}
-                      style={{
-                        background: '#0284c7',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '10px 18px',
-                        fontSize: '13px',
-                        fontWeight: '800',
-                        cursor: isInlineLoggingIn ? 'wait' : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
-                      }}
-                    >
-                      <LogIn size={15} />
-                      <span>{isInlineLoggingIn ? 'Wird angemeldet...' : 'Anmelden'}</span>
-                    </button>
-                  </div>
+                    {existingLoginError && (
+                      <div style={{
+                        color: '#dc2626',
+                        background: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        borderRadius: '6px',
+                        padding: '6px 10px',
+                        fontSize: '11.5px',
+                        fontWeight: '600',
+                        marginTop: '10px'
+                      }}>
+                        ⚠️ {existingLoginError}
+                      </div>
+                    )}
 
-                  {existingLoginError && (
-                    <div style={{
-                      color: '#dc2626',
-                      background: '#fef2f2',
-                      border: '1px solid #fecaca',
-                      borderRadius: '6px',
-                      padding: '6px 10px',
-                      fontSize: '11.5px',
-                      fontWeight: '600',
-                      marginTop: '10px'
-                    }}>
-                      ⚠️ {existingLoginError}
+                    <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', marginTop: '12px', fontSize: '11px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenResetMode(formData.email)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#0284c7',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          padding: 0,
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        Passwort vergessen? Bestätigungscode (OTP) eingeben
+                      </button>
                     </div>
-                  )}
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', marginTop: '12px', fontSize: '11px' }}>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickReset(formData.email)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#0284c7',
-                        fontWeight: '700',
-                        cursor: 'pointer',
-                        padding: 0,
-                        textDecoration: 'underline'
-                      }}
-                    >
-                      Passwort vergessen? Reset-Link per E-Mail senden
-                    </button>
                   </div>
-                </div>
+                )
               )}
 
               {!customerUser && !existingAccount?.exists && (
