@@ -42,8 +42,14 @@ function getSumUpCredentials() {
   return { apiKey, merchantCode, payToEmail, currency };
 }
 
-// Helper to make HTTPS requests to api.sumup.com
-function sumupRequest(method, path, data = null) {
+const sumupAgent = new https.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 60000,
+  maxSockets: 20
+});
+
+// Helper to make HTTPS requests to api.sumup.com with persistent connection
+function sumupRequestOnce(method, path, data = null) {
   const { apiKey } = getSumUpCredentials();
 
   return new Promise((resolve, reject) => {
@@ -54,12 +60,14 @@ function sumupRequest(method, path, data = null) {
       port: 443,
       path: path,
       method: method,
+      agent: sumupAgent,
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
+        'Connection': 'keep-alive',
         ...(postData ? { 'Content-Length': Buffer.byteLength(postData) } : {})
       },
-      timeout: 15000
+      timeout: 12000
     };
 
     const req = https.request(options, (res) => {
@@ -94,6 +102,21 @@ function sumupRequest(method, path, data = null) {
     }
     req.end();
   });
+}
+
+async function sumupRequest(method, path, data = null) {
+  try {
+    return await sumupRequestOnce(method, path, data);
+  } catch (err) {
+    // Retry once on socket reset / network glitch
+    console.warn('[SumUp Plugin] Retrying request due to network notice:', err.message);
+    try {
+      await new Promise(r => setTimeout(r, 400));
+      return await sumupRequestOnce(method, path, data);
+    } catch (retryErr) {
+      throw retryErr;
+    }
+  }
 }
 
 export function sumupPlugin() {

@@ -247,7 +247,12 @@ export function getLocalOrders() {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem('venezia_local_orders');
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    return (Array.isArray(list) ? list : []).filter(o => 
+      !o.order_number?.startsWith('ACC-') && 
+      !(o.note && o.note.includes('Kundenkonto Registrierung'))
+    );
   } catch {
     return [];
   }
@@ -256,7 +261,11 @@ export function getLocalOrders() {
 export function saveLocalOrders(orders) {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem('venezia_local_orders', JSON.stringify(orders.slice(0, 100)));
+    const cleanOrders = (Array.isArray(orders) ? orders : []).filter(o => 
+      !o.order_number?.startsWith('ACC-') && 
+      !(o.note && o.note.includes('Kundenkonto Registrierung'))
+    );
+    localStorage.setItem('venezia_local_orders', JSON.stringify(cleanOrders.slice(0, 100)));
   } catch (err) {
     console.warn('Failed to save local orders:', err);
   }
@@ -282,14 +291,18 @@ export function getOrderCustomerEmail(order) {
 export function getActiveOrder() {
   if (typeof window === 'undefined') return null;
   try {
+    const raw = localStorage.getItem('venezia_active_order');
+    if (!raw) return null;
+    const order = JSON.parse(raw);
+    if (!order || order.order_number?.startsWith('ACC-') || (order.note && order.note.includes('Kundenkonto Registrierung'))) {
+      localStorage.removeItem('venezia_active_order');
+      return null;
+    }
     // STRICT: Active order tracking is strictly for logged-in accounts
     const cachedCustomer = getCachedCustomer();
     if (!cachedCustomer?.email) {
       return null;
     }
-    const raw = localStorage.getItem('venezia_active_order');
-    if (!raw) return null;
-    const order = JSON.parse(raw);
     const orderEmail = getOrderCustomerEmail(order);
     const loggedEmail = cachedCustomer.email.toLowerCase().trim();
     if (orderEmail && orderEmail !== loggedEmail) {
@@ -358,10 +371,16 @@ export async function getOrders() {
       return localOrders;
     }
 
-    const fetchedList = data || [];
+    const fetchedList = (data || []).filter(o => 
+      !o.order_number?.startsWith('ACC-') && 
+      !(o.note && o.note.includes('Kundenkonto Registrierung'))
+    );
     // Merge with any recent local orders that may not be in DB yet
     const combined = [...fetchedList];
     for (const loc of localOrders) {
+      if (loc.order_number?.startsWith('ACC-') || (loc.note && loc.note.includes('Kundenkonto Registrierung'))) {
+        continue;
+      }
       if (!combined.some(o => String(o.id) === String(loc.id) || o.order_number === loc.order_number)) {
         combined.unshift(loc);
       }
@@ -369,7 +388,7 @@ export async function getOrders() {
     return combined;
   } catch (err) {
     console.warn('Exception in getOrders, returning local store:', err);
-    return localOrders;
+    return localOrders.filter(o => !o.order_number?.startsWith('ACC-') && !(o.note && o.note.includes('Kundenkonto Registrierung')));
   }
 }
 
@@ -843,6 +862,10 @@ export function subscribeToOrders(callback) {
           { event: '*', schema: 'public', table: 'orders' },
           (payload) => {
             try {
+              const rec = payload.new || payload.old;
+              if (rec?.order_number?.startsWith('ACC-') || (rec?.note && rec.note.includes('Kundenkonto Registrierung'))) {
+                return; // Discard dummy account registration records completely
+              }
               if (callback) callback(payload);
             } catch (e) {
               console.error('Error in orders realtime callback:', e);
@@ -1045,11 +1068,12 @@ export async function checkCustomerAccountExists(email) {
       // RPC might not be executed in database yet, proceed to fallback checks
     }
 
-    // 2b. Check in orders table by note pattern
+    // 2b. Check in orders table by note pattern (excluding fake account entries)
     try {
       const { data: ordersData, error: ordersErr } = await supabase
         .from('orders')
-        .select('id, customer_name, customer_phone, street, zip_city, note')
+        .select('id, customer_name, customer_phone, street, zip_city, note, order_number')
+        .not('order_number', 'like', 'ACC-%')
         .ilike('note', `%${normalizedEmail}%`)
         .order('created_at', { ascending: false })
         .limit(5);
@@ -1057,6 +1081,9 @@ export async function checkCustomerAccountExists(email) {
       if (!ordersErr && ordersData && ordersData.length > 0) {
         // Strictly verify that the extracted customer email matches normalizedEmail exactly
         const matched = ordersData.find(ord => {
+          if (ord.order_number?.startsWith('ACC-') || (ord.note && ord.note.includes('Kundenkonto Registrierung'))) {
+            return false;
+          }
           const ordEmail = getOrderCustomerEmail(ord);
           return ordEmail && ordEmail.toLowerCase().trim() === normalizedEmail;
         });
@@ -1164,28 +1191,6 @@ export async function signUpCustomerUser({ email, password, full_name, phone, st
       };
 
       saveCachedCustomer(profile);
-
-      // Persist customer profile to public orders table so checkCustomerAccountExists can immediately find it
-      if (supabase) {
-        try {
-          await supabase.from('orders').insert([{
-            order_number: `ACC-${Math.floor(100000 + Math.random() * 900000)}`,
-            customer_name: full_name || 'Kunde',
-            customer_phone: phone || '',
-            delivery_type: 'pickup',
-            street: street || 'Plauen',
-            zip_city: zip_city || '08525 Plauen',
-            note: `[E-Mail: ${normalizedEmail}] [Kundenkonto Registrierung]`,
-            subtotal: 0,
-            delivery_fee: 0,
-            total: 0,
-            status: 'completed',
-            estimated_delivery_minutes: 0
-          }]);
-        } catch (ordSyncErr) {
-          console.warn('Sync customer registration to orders notice:', ordSyncErr);
-        }
-      }
 
       // Clean any active order in browser storage belonging to another user
       try {
@@ -1528,6 +1533,9 @@ export async function getCustomerOrderHistory(email) {
 
       // Enforce strict email matching: order must contain this customer's exact email in note
       return (data || []).filter(o => {
+        if (o.order_number?.startsWith('ACC-') || (o.note && o.note.includes('Kundenkonto Registrierung'))) {
+          return false;
+        }
         const note = (o.note || '').toLowerCase();
         return note.includes(`[e-mail: ${normalizedEmail}]`) || note.includes(normalizedEmail);
       });

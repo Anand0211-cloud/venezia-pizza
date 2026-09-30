@@ -1,6 +1,12 @@
 import https from 'https';
 
-function sumupRequest(method, path, data, apiKey) {
+const sumupAgent = new https.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 60000,
+  maxSockets: 20
+});
+
+function sumupRequestOnce(method, path, data, apiKey) {
   return new Promise((resolve, reject) => {
     const postData = data ? JSON.stringify(data) : null;
     const options = {
@@ -8,12 +14,14 @@ function sumupRequest(method, path, data, apiKey) {
       port: 443,
       path,
       method,
+      agent: sumupAgent,
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
+        'Connection': 'keep-alive',
         ...(postData ? { 'Content-Length': Buffer.byteLength(postData) } : {})
       },
-      timeout: 15000
+      timeout: 12000
     };
 
     const req = https.request(options, (res) => {
@@ -39,6 +47,19 @@ function sumupRequest(method, path, data, apiKey) {
     if (postData) req.write(postData);
     req.end();
   });
+}
+
+async function sumupRequest(method, path, data, apiKey) {
+  try {
+    return await sumupRequestOnce(method, path, data, apiKey);
+  } catch (err) {
+    try {
+      await new Promise(r => setTimeout(r, 400));
+      return await sumupRequestOnce(method, path, data, apiKey);
+    } catch (retryErr) {
+      throw retryErr;
+    }
+  }
 }
 
 export default async function handler(req, res) {

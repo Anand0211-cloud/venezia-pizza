@@ -23,41 +23,112 @@ export async function getSumUpMerchantInfo() {
 }
 
 export async function createSumUpCheckout({ orderNumber, amount, customerEmail, description, redirectUrl }) {
+  const defaultRedirect = typeof window !== 'undefined'
+    ? `${window.location.origin}?payment=sumup_complete`
+    : undefined;
+
+  const payload = {
+    orderNumber,
+    amount: Number(amount),
+    customerEmail,
+    description,
+    redirectUrl: redirectUrl || defaultRedirect
+  };
+
+  const tryCall = async () => {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 12000) : null;
+
+    try {
+      const res = await fetch('/api/sumup/create-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload),
+        signal: controller ? controller.signal : undefined
+      });
+
+      if (timeoutId) clearTimeout(timeoutId);
+
+      const text = await res.text();
+      let data = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error('Ungültige Serverantwort beim Erstellen der Zahlung.');
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error || data.message || `SumUp Fehler (${res.status})`);
+      }
+
+      return data;
+    } catch (err) {
+      if (timeoutId) clearTimeout(timeoutId);
+      throw err;
+    }
+  };
+
   try {
-    const defaultRedirect = typeof window !== 'undefined'
-      ? `${window.location.origin}?payment=sumup_complete`
-      : undefined;
-
-    const res = await fetch('/api/sumup/create-checkout', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        orderNumber,
-        amount: Number(amount),
-        customerEmail,
-        description,
-        redirectUrl: redirectUrl || defaultRedirect
-      })
-    });
-
-    const data = await res.json();
-    return data;
+    return await tryCall();
   } catch (err) {
-    console.error('[SumUpService] Checkout creation error:', err);
-    return { success: false, error: err.message };
+    console.warn('[SumUpService] First checkout attempt failed, retrying once...', err.message);
+    try {
+      await new Promise(r => setTimeout(r, 600));
+      return await tryCall();
+    } catch (retryErr) {
+      console.error('[SumUpService] Checkout creation error:', retryErr);
+      return {
+        success: false,
+        error: retryErr.name === 'AbortError'
+          ? 'Zeitüberschreitung bei der Verbindung zu SumUp. Bitte versuchen Sie es erneut.'
+          : (retryErr.message || 'Verbindung zu SumUp fehlgeschlagen.')
+      };
+    }
   }
 }
 
 export async function getSumUpCheckoutStatus(checkoutId) {
   if (!checkoutId) return { success: false, error: 'Missing checkoutId' };
+
+  const tryCheck = async () => {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 10000) : null;
+
+    try {
+      const res = await fetch(`/api/sumup/checkout-status?id=${encodeURIComponent(checkoutId)}`, {
+        signal: controller ? controller.signal : undefined
+      });
+
+      if (timeoutId) clearTimeout(timeoutId);
+
+      const text = await res.text();
+      let data = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        return { success: false, error: 'Ungültige Status-Antwort' };
+      }
+
+      return data;
+    } catch (err) {
+      if (timeoutId) clearTimeout(timeoutId);
+      throw err;
+    }
+  };
+
   try {
-    const res = await fetch(`/api/sumup/checkout-status?id=${encodeURIComponent(checkoutId)}`);
-    return await res.json();
+    return await tryCheck();
   } catch (err) {
-    console.error('[SumUpService] Status check error:', err);
-    return { success: false, error: err.message };
+    console.warn('[SumUpService] Retrying checkout status check...', err.message);
+    try {
+      await new Promise(r => setTimeout(r, 500));
+      return await tryCheck();
+    } catch (retryErr) {
+      console.error('[SumUpService] Status check error:', retryErr);
+      return { success: false, error: retryErr.message };
+    }
   }
 }
 

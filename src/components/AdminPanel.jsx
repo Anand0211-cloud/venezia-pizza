@@ -1642,7 +1642,11 @@ export default function AdminPanel({ onBackToStore }) {
         }
 
         if (fetchedOrders && fetchedOrders.length > 0) {
-          setOrders(fetchedOrders);
+          const cleanOrders = fetchedOrders.filter(o => 
+            !o.order_number?.startsWith('ACC-') && 
+            !(o.note && o.note.includes('Kundenkonto Registrierung'))
+          );
+          setOrders(cleanOrders);
         } else {
           setOrders(prev => prev.length > 0 ? prev : DEMO_ORDERS);
         }
@@ -1658,8 +1662,12 @@ export default function AdminPanel({ onBackToStore }) {
         }
       } else {
         const localOrders = await getOrders();
-        if (localOrders && localOrders.length > 0) {
-          setOrders(localOrders);
+        const cleanLocal = (localOrders || []).filter(o => 
+          !o.order_number?.startsWith('ACC-') && 
+          !(o.note && o.note.includes('Kundenkonto Registrierung'))
+        );
+        if (cleanLocal.length > 0) {
+          setOrders(cleanLocal);
         } else {
           setOrders(DEMO_ORDERS);
         }
@@ -1685,6 +1693,10 @@ export default function AdminPanel({ onBackToStore }) {
     // Unconditionally subscribe to orders for live real-time sync (Supabase + cross-tab/local)
     const unsubOrders = subscribeToOrders((payload) => {
       if (!payload) return;
+      const rec = payload.new || payload.old;
+      if (rec?.order_number?.startsWith('ACC-') || (rec?.note && rec.note.includes('Kundenkonto Registrierung'))) {
+        return; // Discard dummy account registration records completely
+      }
       if (payload.eventType === 'UPDATE' && payload.new) {
         setOrders(prev => prev.map(o => {
           if (String(o.id) === String(payload.new.id) || o.order_number === payload.new.order_number) {

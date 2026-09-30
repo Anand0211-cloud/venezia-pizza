@@ -949,10 +949,16 @@ export default function CheckoutModal({
       }
     }
 
-    // CASE B: NEW CUSTOMER ACCOUNT (Password is mandatory, min 6 characters)
+    // CASE B: NEW CUSTOMER ACCOUNT
+    if (continueAsGuest) {
+      setIsInlineLoggingIn(false);
+      setStep(2);
+      return;
+    }
+
     if (!accountPassword || accountPassword.trim().length < 6) {
       setIsInlineLoggingIn(false);
-      alert('Bitte vergeben Sie ein sicheres Passwort für Ihr Kundenkonto (mindestens 6 Zeichen).');
+      alert('Bitte vergeben Sie ein sicheres Passwort für Ihr Kundenkonto (mindestens 6 Zeichen) oder aktivieren Sie "Als Gast bestellen".');
       const newPwdEl = document.getElementById('checkout-new-password-input');
       if (newPwdEl) {
         newPwdEl.focus();
@@ -1074,27 +1080,8 @@ export default function CheckoutModal({
       payment_id: paymentMethod === 'cash' ? `CASH-${Date.now()}` : `SUMUP_INIT`
     };
 
-    // Create customer user account in Supabase Auth if new user and password provided
-    if (!customerUser && effectiveEmail && !existingAccount?.exists && accountPassword && accountPassword.trim().length >= 6) {
-      try {
-        const fullStreetForAuth = orderType === 'delivery'
-          ? `${formData.street} ${formData.houseNr}`.trim()
-          : '';
-        const reg = await signUpCustomerUser({
-          email: effectiveEmail,
-          password: accountPassword.trim(),
-          full_name: formData.name,
-          phone: formData.phone,
-          street: fullStreetForAuth,
-          zip_city: formData.zipCity
-        });
-        if (reg?.user) {
-          setCustomerUser(reg.user);
-        }
-      } catch (authErr) {
-        console.warn('Customer account registration notice:', authErr);
-      }
-    }
+    // Note: Account creation was already performed in Step 1 (handleProceedToPayment).
+    // Do NOT repeat auth or create any orders before payment is completed!
 
     // 1. SUMUP ONLINE PAYMENT: Redirect to official SumUp 3D-Secure payment page
     if (paymentMethod === 'sumup') {
@@ -2105,10 +2092,11 @@ export default function CheckoutModal({
                       <input
                         id="checkout-new-password-input"
                         type={showAccountPassword ? 'text' : 'password'}
-                        required
+                        required={!continueAsGuest}
+                        disabled={continueAsGuest}
                         minLength={6}
-                        placeholder="Sicheres Passwort (mind. 6 Zeichen) *"
-                        value={accountPassword}
+                        placeholder={continueAsGuest ? 'Gastbestellung aktiv' : 'Sicheres Passwort (mind. 6 Zeichen) *'}
+                        value={continueAsGuest ? '' : accountPassword}
                         onChange={(e) => setAccountPassword(e.target.value)}
                         style={{
                           width: '100%',
@@ -2117,26 +2105,45 @@ export default function CheckoutModal({
                           border: '1px solid #cbd5e1',
                           fontSize: '13px',
                           outline: 'none',
-                          background: '#ffffff',
+                          background: continueAsGuest ? '#f1f5f9' : '#ffffff',
+                          color: continueAsGuest ? '#94a3b8' : '#0f172a',
                           boxSizing: 'border-box'
                         }}
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowAccountPassword(!showAccountPassword)}
-                        style={{
-                          position: 'absolute',
-                          right: '10px',
-                          top: '9px',
-                          background: 'none',
-                          border: 'none',
-                          color: '#94a3b8',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {showAccountPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
+                      {!continueAsGuest && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAccountPassword(!showAccountPassword)}
+                          style={{
+                            position: 'absolute',
+                            right: '10px',
+                            top: '9px',
+                            background: 'none',
+                            border: 'none',
+                            color: '#94a3b8',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {showAccountPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      )}
                     </div>
+                  </div>
+
+                  <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      id="checkout-guest-checkbox"
+                      checked={continueAsGuest}
+                      onChange={(e) => setContinueAsGuest(e.target.checked)}
+                      style={{ cursor: 'pointer', width: '15px', height: '15px' }}
+                    />
+                    <label
+                      htmlFor="checkout-guest-checkbox"
+                      style={{ fontSize: '12px', color: '#64748b', cursor: 'pointer', userSelect: 'none' }}
+                    >
+                      Als Gast bestellen (kein Kundenkonto erstellen)
+                    </label>
                   </div>
                 </div>
               )}

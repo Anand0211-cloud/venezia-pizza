@@ -178,23 +178,34 @@ export default function App() {
         // An order is ONLY placed if SumUp explicitly confirms the status as 'PAID'
         // or a successful transaction exists in the checkout object.
         let isPaymentSuccessful = false;
-        try {
-          const statusRes = await getSumUpCheckoutStatus(checkoutId);
-          const checkoutData = statusRes?.checkout;
-          const status = (checkoutData?.status || '').toUpperCase();
-          const hasSuccessfulTxn = Array.isArray(checkoutData?.transactions) &&
-            checkoutData.transactions.some(t => {
-              const txStatus = (t.status || '').toUpperCase();
-              return txStatus === 'SUCCESSFUL' || txStatus === 'PAID';
-            });
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            const statusRes = await getSumUpCheckoutStatus(checkoutId);
+            const checkoutData = statusRes?.checkout;
+            const status = (checkoutData?.status || '').toUpperCase();
+            const hasSuccessfulTxn = Array.isArray(checkoutData?.transactions) &&
+              checkoutData.transactions.some(t => {
+                const txStatus = (t.status || '').toUpperCase();
+                return txStatus === 'SUCCESSFUL' || txStatus === 'PAID';
+              });
 
-          if (status === 'PAID' || hasSuccessfulTxn) {
-            isPaymentSuccessful = true;
-          } else {
-            console.warn('[SumUp Verification] Payment not completed. Checkout status:', status, checkoutData);
+            if (status === 'PAID' || hasSuccessfulTxn || smpStatus === 'SUCCESS') {
+              isPaymentSuccessful = true;
+              break;
+            } else {
+              console.warn(`[SumUp Verification] Attempt ${attempt}: Status '${status}', retrying...`);
+            }
+          } catch (chkErr) {
+            console.error(`[SumUp Verification] Status check attempt ${attempt} error:`, chkErr);
           }
-        } catch (chkErr) {
-          console.error('[SumUp Verification] Status check error:', chkErr);
+
+          if (smpStatus === 'FAILED') {
+            break;
+          }
+
+          if (attempt < 3) {
+            await new Promise(r => setTimeout(r, 1000));
+          }
         }
 
         if (!isPaymentSuccessful) {
