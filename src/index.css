@@ -27,7 +27,7 @@ body {
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: var(--text);
   background: #ffffff;
-  overflow-x: hidden;
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -62,12 +62,49 @@ img {
   height: 72px;
   background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid #eef2f6;
   position: sticky;
   top: 0;
   z-index: 1000;
   box-shadow: 0 1px 6px rgba(15, 23, 42, 0.04);
   transition: all 0.2s ease;
+}
+
+.navbar.menu-open {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  z-index: 10000 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: #ffffff !important;
+}
+
+.nav-mobile-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 9998;
+  touch-action: none;
+  animation: fadeInNavBackdrop 0.18s ease-out;
+}
+
+@keyframes fadeInNavBackdrop {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .nav-inner {
@@ -98,6 +135,13 @@ img {
 
 .logo-wrap:hover {
   opacity: 0.92;
+}
+
+.logo-wrap img,
+.navbar .venezia-logo-container img {
+  height: 50px;
+  width: auto;
+  max-width: 220px;
 }
 
 .nav-status-badge {
@@ -280,6 +324,7 @@ img {
     opacity: 0;
     transform: translateY(-6px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -584,24 +629,36 @@ img {
 
 /* Mobile Drawer */
 .nav-mobile-drawer {
+  position: fixed;
+  top: 72px;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: auto;
+  max-height: calc(100dvh - 84px);
   background: #ffffff;
   border-bottom: 1px solid #e2e8f0;
-  padding: 18px 24px;
+  border-radius: 0 0 20px 20px;
+  padding: 18px 20px 24px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
-  animation: slideDownMenu 0.2s ease-out;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  z-index: 10001;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  animation: slideDownMenu 0.18s ease-out;
 }
 
 @keyframes slideDownMenu {
   from {
     opacity: 0;
-    transform: translateY(-8px);
   }
+
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -698,6 +755,12 @@ img {
 }
 
 @media (max-width: 960px) {
+  .navbar {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: #ffffff !important;
+  }
+
   .nav-center-group {
     display: none;
   }
@@ -710,6 +773,7 @@ img {
     display: flex;
   }
 }
+
 /* =========================================
    HERO (REFERENCE DESIGN - EVERYTHING IS BETTER WITH PIZZA)
 ========================================= */
@@ -751,17 +815,39 @@ img {
 
 /* Floating Decorative Green Lettuce Garnish */
 @keyframes lettuce-float-left {
-  0%   { transform: rotate(18deg) translateY(0px)   scale(1); }
-  30%  { transform: rotate(21deg) translateY(-10px) scale(1.03); }
-  60%  { transform: rotate(15deg) translateY(-5px)  scale(1.01); }
-  100% { transform: rotate(18deg) translateY(0px)   scale(1); }
+  0% {
+    transform: rotate(18deg) translateY(0px) scale(1);
+  }
+
+  30% {
+    transform: rotate(21deg) translateY(-10px) scale(1.03);
+  }
+
+  60% {
+    transform: rotate(15deg) translateY(-5px) scale(1.01);
+  }
+
+  100% {
+    transform: rotate(18deg) translateY(0px) scale(1);
+  }
 }
 
 @keyframes lettuce-float-right {
-  0%   { transform: rotate(-22deg) translateY(0px)   scale(1); }
-  30%  { transform: rotate(-18deg) translateY(-8px)  scale(1.02); }
-  60%  { transform: rotate(-25deg) translateY(-13px) scale(1.04); }
-  100% { transform: rotate(-22deg) translateY(0px)   scale(1); }
+  0% {
+    transform: rotate(-22deg) translateY(0px) scale(1);
+  }
+
+  30% {
+    transform: rotate(-18deg) translateY(-8px) scale(1.02);
+  }
+
+  60% {
+    transform: rotate(-25deg) translateY(-13px) scale(1.04);
+  }
+
+  100% {
+    transform: rotate(-22deg) translateY(0px) scale(1);
+  }
 }
 
 .lettuce-decor {
@@ -846,6 +932,14 @@ img {
   align-items: center;
   gap: 20px;
   margin-top: 10px;
+}
+
+.desktop-only-action {
+  display: flex;
+}
+
+.mobile-only-action {
+  display: none !important;
 }
 
 /* Red-Orange Pill Order CTA */
@@ -1251,7 +1345,7 @@ img {
   background: #ffffff;
   border-top: 1px solid #f0f2f5;
   border-bottom: 1px solid #f0f2f5;
-  padding: 52px 0 56px;
+  padding: 38px 0 18px;
   position: relative;
   overflow: hidden;
 }
@@ -1358,7 +1452,7 @@ img {
   gap: 20px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
-  padding: 8px 4px 16px 4px;
+  padding: 8px 4px 6px 4px;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
@@ -1572,6 +1666,18 @@ img {
    OFFERS
 ========================================= */
 
+#angebote {
+  padding-top: 24px;
+  padding-bottom: 36px;
+}
+
+@media (max-width: 768px) {
+  #angebote {
+    padding-top: 18px !important;
+    padding-bottom: 24px !important;
+  }
+}
+
 .offers-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1595,7 +1701,7 @@ img {
 }
 
 .offer-image {
-  height: 220px;
+  height: 240px;
   position: relative;
   overflow: hidden;
   background: #f0f0f0;
@@ -1628,47 +1734,76 @@ img {
 }
 
 .offer-body {
-  padding: 12px 16px 14px;
+  padding: 14px 18px 14px;
   display: flex;
   flex-direction: column;
   flex-grow: 1;
 }
 
 .offer-body h3 {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 800;
-  color: #111111;
+  color: #0f172a;
   margin-bottom: 4px;
+  line-height: 1.3;
 }
 
-.offer-body p {
-  min-height: 31px;
-  color: #5d6368;
-  font-size: 12.5px;
+.offer-body p,
+.offer-desc {
+  min-height: auto;
+  color: #64748b;
+  font-size: 13.5px;
+  font-weight: 600;
   line-height: 1.45;
-  white-space: pre-line;
-  flex-grow: 1;
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .offer-bottom {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 8px;
+  margin-top: 6px;
   padding-top: 8px;
-  border-top: 1px solid #f1f3f5;
+  border-top: 1px solid #f1f5f9;
 }
 
 .offer-bottom strong {
-  font-size: 20px;
-  font-weight: 900;
-  color: #111111;
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
 }
 
 .small-order {
-  padding: 8px 16px;
-  font-size: 11.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 16px;
+  font-size: 13px;
   font-weight: 700;
+  color: #ffffff;
+  background: var(--red);
+  border: none;
+  border-radius: 8px;
+  min-height: 34px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(227, 6, 19, 0.25);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.small-order:hover {
+  background: var(--red-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(227, 6, 19, 0.35);
+}
+
+.small-order:active {
+  transform: translateY(0);
 }
 
 /* =========================================
@@ -1694,8 +1829,8 @@ img {
 
 @media (max-width: 768px) {
   .pizza-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
   }
 }
 
@@ -1764,19 +1899,21 @@ img {
 }
 
 .pizza-card h3 {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 800;
   color: #0f172a;
   margin: 0 0 4px;
+  line-height: 1.3;
 }
 
 .pizza-card p {
-  font-size: 12px;
+  font-size: 13.5px;
   color: #64748b;
+  font-weight: 600;
   line-height: 1.45;
   min-height: 18px;
   flex-grow: 1;
-  margin: 0 0 12px;
+  margin: 0 0 10px;
 }
 
 .pizza-bottom {
@@ -2053,6 +2190,7 @@ img {
 .catering-pill-tabs {
   display: flex;
   gap: 10px;
+  margin-top: 20px;
   margin-bottom: 16px;
   flex-wrap: wrap;
 }
@@ -2248,131 +2386,7 @@ img {
    FOOTER
 ========================================= */
 
-.footer {
-  margin-top: 30px;
-  background: #101010;
-  color: white;
-}
-
-.footer-main {
-  max-width: 1440px;
-  margin: auto;
-  padding: 48px 42px 40px;
-  display: grid;
-  grid-template-columns: 1.3fr 1fr 1fr 0.8fr;
-  gap: 45px;
-}
-
-.footer-brand p {
-  color: #b0b0b0;
-  font-size: 12px;
-  line-height: 1.6;
-  margin-top: 14px;
-}
-
-.socials {
-  display: flex;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.social-btn {
-  width: 32px;
-  height: 32px;
-  border: 1px solid #444;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ccc;
-  transition: all 0.2s ease;
-}
-
-.social-btn:hover {
-  background: var(--red);
-  border-color: var(--red);
-  color: white;
-  transform: translateY(-2px);
-}
-
-.footer-column h4 {
-  font-size: 13.5px;
-  font-weight: 700;
-  margin-bottom: 18px;
-  color: #ffffff;
-  letter-spacing: 0.2px;
-}
-
-.footer-column>a {
-  display: block;
-  color: #b5b5b5;
-  font-size: 12px;
-  margin-bottom: 11px;
-  transition: color 0.2s ease;
-}
-
-.footer-column>a:hover {
-  color: white;
-  padding-left: 2px;
-}
-
-.contact-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  color: #b5b5b5;
-  font-size: 12px;
-  line-height: 1.6;
-  margin-bottom: 14px;
-}
-
-.contact-row svg {
-  color: var(--red);
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.footer-bottom {
-  max-width: 1440px;
-  margin: auto;
-  padding: 20px 42px;
-  border-top: 1px solid #222222;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: #777777;
-  font-size: 11px;
-}
-
-.footer-tagline {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.italy-flag {
-  width: 48px;
-  height: 5px;
-  display: flex;
-  border-radius: 1px;
-  overflow: hidden;
-}
-
-.italy-flag b {
-  flex: 1;
-}
-
-.italy-flag b:nth-child(1) {
-  background: #008c45;
-}
-
-.italy-flag b:nth-child(2) {
-  background: white;
-}
-
-.italy-flag b:nth-child(3) {
-  background: #cd212a;
-}
+/* Footer styles are encapsulated in src/components/Footer.css */
 
 /* =========================================
    CART DRAWER & QUICK ORDER MODAL
@@ -2383,9 +2397,12 @@ img {
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   z-index: 2000;
   opacity: 0;
   pointer-events: none;
+  touch-action: none;
+  overscroll-behavior: contain;
   transition: opacity 0.3s ease;
 }
 
@@ -2397,15 +2414,20 @@ img {
 .cart-drawer {
   position: fixed;
   top: 0;
+  bottom: 0;
   right: -420px;
   width: 100%;
   max-width: 400px;
-  height: 100vh;
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
   background: #ffffff;
   z-index: 2001;
   box-shadow: -10px 0 30px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -2419,6 +2441,7 @@ img {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
 }
 
 .cart-header h3 {
@@ -2446,6 +2469,8 @@ img {
 .cart-items-list {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 20px 24px;
   display: flex;
   flex-direction: column;
@@ -2509,9 +2534,11 @@ img {
 }
 
 .cart-footer {
-  padding: 20px 24px;
+  flex-shrink: 0;
+  padding: 18px 24px;
+  padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
   border-top: 1px solid #eee;
-  background: #fdfdfd;
+  background: #ffffff;
 }
 
 .cart-summary-row {
@@ -2568,17 +2595,25 @@ img {
   display: flex;
   align-items: center;
   gap: 10px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.12);
   z-index: 3000;
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, bottom 0.25s ease;
+}
+
+.toast-notice.has-cart-bar {
+  bottom: calc(90px + env(safe-area-inset-bottom, 0px));
 }
 
 .toast-notice.show {
   transform: translateX(-50%) translateY(0);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .toast-notice svg {
-  color: #28a745;
+  color: #22c55e;
 }
 
 /* =========================================
@@ -2701,8 +2736,8 @@ img {
   }
 
   .pizza-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
   }
 
   .pizza-card {
@@ -2745,11 +2780,7 @@ img {
     left: calc(50% - 10px);
   }
 
-  .footer-main {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 35px;
-    padding: 40px 25px;
-  }
+
 }
 
 /* ==========================================================================
@@ -2758,15 +2789,17 @@ img {
    touch targets, and visual proportions on mobile viewports.
    ========================================================================== */
 
-/* Prevent horizontal viewport overflow & layout shifting */
-html, body {
-  overflow-x: hidden;
+/* Prevent horizontal viewport overflow & layout shifting while preserving position: sticky */
+html,
+body {
+  overflow-x: clip;
   max-width: 100vw;
   -webkit-tap-highlight-color: transparent;
 }
 
 .app-layout {
-  overflow-x: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
   width: 100%;
 }
 
@@ -2782,7 +2815,7 @@ html, body {
   justify-content: center;
   gap: 12px;
   flex-wrap: wrap;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
   position: sticky;
   top: 72px;
   z-index: 998;
@@ -2791,7 +2824,7 @@ html, body {
 /* Floating Bottom Quick Cart Bar */
 .floating-bottom-cart-bar {
   position: fixed;
-  bottom: 20px;
+  bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1500;
@@ -2804,7 +2837,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 12px 35px rgba(0,0,0,0.3);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.3);
   cursor: pointer;
   animation: fadeIn 0.2s ease-out;
   transition: transform 0.2s ease, opacity 0.2s ease;
@@ -2815,6 +2848,7 @@ html, body {
 }
 
 @media (max-width: 768px) {
+
   /* Common Section Spacing */
   .section {
     padding: 38px 20px;
@@ -3033,54 +3067,65 @@ html, body {
     display: none !important;
   }
 
-  /* SINGLE CARDS ONLY for Popular Pizzas (<= 768px) */
+  /* 2x2 GRID for Popular Pizzas (<= 768px) */
+  .section.popular,
+  .popular {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
   .pizza-grid {
-    grid-template-columns: 1fr !important;
-    gap: 14px !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
   }
 
   .pizza-card {
     display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    padding: 12px 14px !important;
-    gap: 14px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 0 !important;
+    gap: 0 !important;
     min-height: auto !important;
-    border-radius: 16px !important;
+    border-radius: 14px !important;
     background: #ffffff !important;
     border: 1px solid #e2e8f0 !important;
-    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.04) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+    overflow: hidden !important;
   }
 
   .pizza-image {
-    width: 110px !important;
-    height: 110px !important;
-    min-width: 110px !important;
-    border-radius: 12px !important;
+    width: 100% !important;
+    height: 175px !important;
+    min-width: unset !important;
+    border-radius: 14px 14px 0 0 !important;
     background: #f8fafc !important;
     position: relative !important;
     overflow: hidden !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    display: block !important;
     margin: 0 !important;
     padding: 0 !important;
     flex-shrink: 0 !important;
   }
 
   .pizza-image img {
-    width: 96px !important;
-    height: 96px !important;
+    width: 100% !important;
+    height: 100% !important;
     object-fit: cover !important;
-    border-radius: 8px !important;
+    object-position: center !important;
+    border-radius: 0 !important;
+    display: block !important;
   }
 
   .pizza-badge {
-    top: 6px !important;
-    left: 6px !important;
+    position: absolute !important;
+    top: 8px !important;
+    left: 8px !important;
     font-size: 10px !important;
-    padding: 2px 7px !important;
-    border-radius: 6px !important;
+    font-weight: 800 !important;
+    padding: 2.5px 7px !important;
+    border-radius: 5px !important;
+    z-index: 2 !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25) !important;
   }
 
   .pizza-info {
@@ -3089,27 +3134,35 @@ html, body {
     display: flex !important;
     flex-direction: column !important;
     justify-content: space-between !important;
-    padding: 0 !important;
-    height: 100% !important;
+    padding: 8px 9px 8px !important;
+    height: auto !important;
+    background: #ffffff !important;
   }
 
-  .pizza-info h3 {
-    font-size: 15.5px !important;
+  .pizza-info h3,
+  .pizza-card h3 {
+    font-size: 14.5px !important;
     font-weight: 800 !important;
     color: #0f172a !important;
-    margin: 0 0 4px 0 !important;
+    margin: 0 0 3px 0 !important;
     line-height: 1.25 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
-  .pizza-info p {
-    font-size: 12px !important;
+  .pizza-info p,
+  .pizza-card p {
+    font-size: 12.8px !important;
     color: #64748b !important;
+    font-weight: 600 !important;
     line-height: 1.4 !important;
-    margin-bottom: 8px !important;
+    margin: 0 0 4px 0 !important;
     display: -webkit-box !important;
     -webkit-line-clamp: 2 !important;
     -webkit-box-orient: vertical !important;
     overflow: hidden !important;
+    min-height: 32px !important;
   }
 
   .pizza-bottom {
@@ -3117,34 +3170,37 @@ html, body {
     align-items: center !important;
     justify-content: space-between !important;
     padding-top: 4px !important;
+    border-top: 1px solid #f1f5f9 !important;
     margin-top: auto !important;
+    gap: 4px !important;
   }
 
   .pizza-bottom strong {
-    font-size: 15.5px !important;
-    font-weight: 850 !important;
-    color: var(--red) !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    white-space: nowrap !important;
   }
 
   .plus-button {
-    width: 38px !important;
-    height: 38px !important;
-    min-width: 38px !important;
-    border-radius: 10px !important;
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+    border-radius: 8px !important;
     background: var(--red) !important;
     color: #ffffff !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    box-shadow: 0 4px 12px rgba(227, 6, 19, 0.25) !important;
+    box-shadow: 0 2px 8px rgba(227, 6, 19, 0.22) !important;
     border: none !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important;
   }
 
-  /* SINGLE CARDS ONLY for Why Us (<= 768px) */
+  /* Hide Why Venezia section on mobile & tablet views (<= 768px) */
   .why-section {
-    margin: 24px 20px;
-    padding: 32px 18px;
-    border-radius: 20px;
+    display: none !important;
   }
 
   .why-grid {
@@ -3198,29 +3254,31 @@ html, body {
   /* SINGLE CARDS ONLY for Dishes Grid (<= 768px) */
   .dishes-grid {
     grid-template-columns: 1fr !important;
-    gap: 14px !important;
+    gap: 18px !important;
   }
 
   .dish-card {
     display: flex !important;
-    flex-direction: row !important;
+    flex-direction: column !important;
     align-items: stretch !important;
-    padding: 12px 14px !important;
+    padding: 0 !important;
     border-radius: 16px !important;
-    gap: 14px !important;
+    overflow: hidden !important;
+    gap: 0 !important;
     min-height: auto !important;
     background: #ffffff !important;
     border: 1px solid #e2e8f0 !important;
-    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.04) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05) !important;
   }
 
   .dish-card-media {
-    width: 110px !important;
-    height: 110px !important;
-    min-width: 110px !important;
-    border-radius: 12px !important;
+    width: 100% !important;
+    height: 210px !important;
+    min-width: 100% !important;
     position: relative !important;
     overflow: hidden !important;
+    border-radius: 0 !important;
+    background: #f1f5f9 !important;
     flex-shrink: 0 !important;
   }
 
@@ -3228,6 +3286,8 @@ html, body {
     width: 100% !important;
     height: 100% !important;
     object-fit: cover !important;
+    object-position: center !important;
+    display: block !important;
   }
 
   .dish-card-body {
@@ -3235,19 +3295,20 @@ html, body {
     display: flex !important;
     flex-direction: column !important;
     min-width: 0 !important;
-    padding: 0 !important;
+    padding: 10px 14px 12px !important;
+    gap: 5px !important;
   }
 
   .dish-title-row {
     display: flex !important;
     justify-content: space-between !important;
-    align-items: flex-start !important;
-    gap: 6px !important;
-    margin-bottom: 4px !important;
+    align-items: baseline !important;
+    gap: 8px !important;
+    margin-bottom: 0 !important;
   }
 
   .dish-name {
-    font-size: 14.5px !important;
+    font-size: 16px !important;
     font-weight: 800 !important;
     color: #0f172a !important;
     line-height: 1.25 !important;
@@ -3255,26 +3316,93 @@ html, body {
   }
 
   .dish-price {
-    font-size: 14.5px !important;
-    font-weight: 850 !important;
+    font-size: 16.5px !important;
+    font-weight: 900 !important;
     color: var(--red) !important;
     white-space: nowrap !important;
   }
 
   .dish-desc {
-    font-size: 11.5px !important;
+    font-size: 12px !important;
     color: #64748b !important;
     line-height: 1.35 !important;
-    margin-bottom: 8px !important;
+    margin: 0 !important;
     display: -webkit-box !important;
     -webkit-line-clamp: 2 !important;
     -webkit-box-orient: vertical !important;
     overflow: hidden !important;
   }
 
+  .pizza-size-pills {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 4px !important;
+    padding: 3px 6px !important;
+    margin: 2px 0 0 !important;
+    border-radius: 7px !important;
+  }
+
+  .pizza-size-pills .size-label {
+    font-size: 10px !important;
+  }
+
+  .size-buttons-group {
+    display: flex !important;
+    gap: 3px !important;
+  }
+
+  .size-btn {
+    padding: 2px 7px !important;
+    font-size: 10.5px !important;
+    border-radius: 4px !important;
+  }
+
+  .dish-card-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    margin-top: 3px !important;
+    padding-top: 6px !important;
+    border-top: 1px solid #f1f5f9 !important;
+  }
+
+  .customize-btn {
+    flex: none !important;
+    min-height: 33px !important;
+    padding: 5px 12px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    border-radius: 7px !important;
+    border: 1px solid #e2e8f0 !important;
+    background: #f8fafc !important;
+    color: #334155 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+  }
+
+  .add-cart-btn {
+    flex: none !important;
+    width: auto !important;
+    min-height: 33px !important;
+    padding: 5px 15px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    border-radius: 7px !important;
+    background: var(--red) !important;
+    color: #ffffff !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    box-shadow: 0 2px 6px rgba(227, 6, 19, 0.2) !important;
+  }
+
   .dish-card-footer {
     margin-top: auto !important;
-    padding-top: 4px !important;
+    padding-top: 6px !important;
   }
 
   .add-to-cart-btn {
@@ -3285,7 +3413,7 @@ html, body {
 
   /* Categories Slider */
   .categories-slider-section {
-    padding: 34px 0 38px;
+    padding: 24px 0 12px !important;
   }
 
   .categories-slider-wrapper {
@@ -3319,12 +3447,36 @@ html, body {
     gap: 24px;
   }
 
-  /* Footer */
-  .footer-main {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 32px;
-    padding: 36px 20px 24px;
+  .about-text {
+    text-align: center !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    padding-left: 0 !important;
   }
+
+  .about-eyebrow {
+    text-align: center !important;
+    width: 100% !important;
+  }
+
+  .about-text h2 {
+    text-align: center !important;
+    width: 100% !important;
+  }
+
+  .about-text p {
+    text-align: center !important;
+    margin: 12px auto 16px !important;
+    max-width: 100% !important;
+  }
+
+  .about-text .primary-btn {
+    margin: 0 auto !important;
+    justify-content: center !important;
+  }
+
+
 
   /* Global Modals & Pages for <= 768px */
   .order-status-grid {
@@ -3337,6 +3489,7 @@ html, body {
    MOBILE SCREENS (Max Width: 480px / 360px - 430px Smartphones)
 ========================================= */
 @media (max-width: 480px) {
+
   /* Consistent Page Padding */
   .section {
     padding: 24px 14px;
@@ -3378,6 +3531,13 @@ html, body {
   .logo-wrap svg {
     max-width: 120px;
     height: auto;
+  }
+
+  .logo-wrap img,
+  .navbar .venezia-logo-container img {
+    height: 35px !important;
+    width: auto !important;
+    max-width: 145px !important;
   }
 
   .nav-right {
@@ -3599,45 +3759,57 @@ html, body {
 
   /* Categories Slider */
   .categories-slider-section {
-    padding: 24px 0 28px;
+    padding: 20px 0 10px !important;
   }
 
   .categories-slider-wrapper {
-    padding: 0 14px;
+    padding: 0 16px;
   }
 
   .categories-header-row {
-    margin-bottom: 12px;
+    margin-bottom: 20px;
+  }
+
+  .categories-eyebrow {
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    margin-bottom: 6px;
   }
 
   .categories-title {
-    font-size: 19px;
+    font-size: 21px;
+    line-height: 1.25;
   }
 
   .categories-scroll-track {
-    gap: 10px;
-    padding: 4px 2px 10px 2px;
+    gap: 16px;
+    padding: 8px 4px 6px 4px !important;
   }
 
   .category-oval-card {
-    flex: 0 0 calc((100% - 10px) / 2.3);
-    width: calc((100% - 10px) / 2.3);
-    max-width: 130px;
+    flex: 0 0 calc((100% - 16px) / 2.3);
+    width: calc((100% - 16px) / 2.3);
+    max-width: 155px;
   }
 
   .category-oval-frame {
-    width: 110px;
-    height: 110px;
-    border-width: 2.5px;
+    width: 135px;
+    height: 135px;
+    border-width: 3px;
+  }
+
+  .category-oval-info {
+    margin-top: 10px;
   }
 
   .category-oval-name {
-    font-size: 12px;
-    margin-top: 5px;
+    font-size: 13.5px;
+    font-weight: 800;
+    margin-top: 4px;
   }
 
   .category-oval-count {
-    font-size: 10px;
+    font-size: 11px;
   }
 
   /* Special Offers Section */
@@ -3651,7 +3823,7 @@ html, body {
   }
 
   .offer-image {
-    height: 170px;
+    height: 260px;
   }
 
   .offer-badge {
@@ -3662,97 +3834,102 @@ html, body {
   }
 
   .offer-body {
-    padding: 12px 14px 14px;
+    padding: 12px 14px 12px;
   }
 
   .offer-body h3 {
-    font-size: 15px;
-  }
-
-  .offer-body p {
-    font-size: 11.5px;
-    line-height: 1.4;
-    margin-bottom: 8px;
-  }
-
-  .offer-bottom strong {
-    font-size: 17px;
-  }
-
-  .small-order {
-    padding: 9px 16px;
-    font-size: 11.5px;
-    border-radius: 8px;
-  }
-
-  /* SINGLE CARDS ONLY for Popular Pizzas (Max Width: 480px) */
-  .pizza-grid {
-    grid-template-columns: 1fr !important;
-    gap: 10px !important;
-  }
-
-  .pizza-card {
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    padding: 10px 12px !important;
-    gap: 12px !important;
-    min-height: auto !important;
-    border-radius: 14px !important;
-  }
-
-  .pizza-image {
-    width: 95px !important;
-    height: 95px !important;
-    min-width: 95px !important;
-    border-radius: 10px !important;
-  }
-
-  .pizza-image img {
-    width: 82px !important;
-    height: 82px !important;
-  }
-
-  .pizza-badge {
-    font-size: 9px !important;
-    padding: 2px 6px !important;
-    top: 4px !important;
-    left: 4px !important;
-  }
-
-  .pizza-info h3 {
     font-size: 14.5px !important;
-    margin: 0 0 3px 0 !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    margin-bottom: 3px !important;
     line-height: 1.25 !important;
   }
 
-  .pizza-info p {
-    font-size: 11px !important;
-    line-height: 1.35 !important;
-    max-height: 30px !important;
-    margin-bottom: 5px !important;
+  .offer-body p,
+  .offer-desc {
+    font-size: 12.8px !important;
+    font-weight: 600 !important;
+    color: #64748b !important;
+    line-height: 1.4 !important;
+    margin-bottom: 6px !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    min-height: 32px !important;
   }
 
-  .pizza-bottom {
-    padding-top: 2px !important;
+  .offer-bottom {
+    margin-top: 4px;
+    padding-top: 6px;
+  }
+
+  .offer-bottom strong {
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+  }
+
+  .small-order {
+    padding: 6px 14px;
+    font-size: 12px;
+    border-radius: 7px;
+    min-height: 32px;
+  }
+
+  /* 2x2 GRID for Popular Pizzas (Max Width: 480px) */
+  .section.popular,
+  .popular {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+
+  .pizza-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .pizza-image {
+    height: 165px !important;
+  }
+
+  .pizza-info {
+    padding: 7px 8px 8px !important;
+  }
+
+  .pizza-info h3,
+  .pizza-card h3 {
+    font-size: 14.5px !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    line-height: 1.25 !important;
+  }
+
+  .pizza-info p,
+  .pizza-card p {
+    font-size: 12.8px !important;
+    font-weight: 600 !important;
+    color: #64748b !important;
+    min-height: 32px !important;
+    line-height: 1.4 !important;
   }
 
   .pizza-bottom strong {
-    font-size: 14.5px !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
   }
 
   .plus-button {
-    width: 34px !important;
-    height: 34px !important;
-    min-width: 34px !important;
-    border-radius: 8px !important;
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    border-radius: 7px !important;
   }
 
   /* SINGLE CARDS ONLY for Why Venezia (Max Width: 480px) */
   .why-section {
-    margin: 16px 14px;
-    padding: 22px 14px;
-    border-radius: 18px;
+    display: none !important;
   }
 
   .why-heading h2 {
@@ -3798,36 +3975,44 @@ html, body {
   /* SINGLE CARDS ONLY for Dishes Grid (Max Width: 480px) */
   .dishes-grid {
     grid-template-columns: 1fr !important;
-    gap: 10px !important;
+    gap: 16px !important;
   }
 
   .dish-card {
     display: flex !important;
-    flex-direction: row !important;
+    flex-direction: column !important;
     align-items: stretch !important;
-    padding: 10px 12px !important;
-    gap: 12px !important;
+    padding: 0 !important;
+    border-radius: 16px !important;
+    overflow: hidden !important;
+    gap: 0 !important;
     min-height: auto !important;
-    border-radius: 14px !important;
   }
 
   .dish-card-media {
-    width: 95px !important;
-    height: 95px !important;
-    min-width: 95px !important;
-    border-radius: 10px !important;
+    width: 100% !important;
+    height: 200px !important;
+    min-width: 100% !important;
+    border-radius: 0 !important;
+  }
+
+  .dish-card-body {
+    padding: 10px 14px 12px !important;
+    gap: 5px !important;
   }
 
   .dish-name {
-    font-size: 14px !important;
+    font-size: 15.5px !important;
   }
 
   .dish-price {
-    font-size: 14px !important;
+    font-size: 16.5px !important;
   }
 
   .dish-desc {
-    font-size: 11px !important;
+    font-size: 12.8px !important;
+    font-weight: 600 !important;
+    color: #64748b !important;
   }
 
   /* About Section */
@@ -3839,14 +4024,31 @@ html, body {
     gap: 20px;
   }
 
+  .about-text {
+    text-align: center !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    padding-left: 0 !important;
+  }
+
+  .about-eyebrow {
+    text-align: center !important;
+    width: 100% !important;
+  }
+
   .about-text h2 {
     font-size: 22px;
+    text-align: center !important;
+    width: 100% !important;
   }
 
   .about-text p {
     font-size: 12.5px;
     line-height: 1.55;
-    margin: 8px 0 14px;
+    margin: 8px auto 14px !important;
+    text-align: center !important;
+    max-width: 100% !important;
   }
 
   .about-text .primary-btn {
@@ -3856,6 +4058,7 @@ html, body {
     padding: 11px 18px;
     font-size: 12.5px;
     border-radius: 8px;
+    margin: 0 auto !important;
   }
 
   .about-image {
@@ -3893,6 +4096,7 @@ html, body {
 
   .catering-pill-tabs {
     gap: 6px;
+    margin-top: 16px !important;
     margin-bottom: 10px;
   }
 
@@ -3968,47 +4172,14 @@ html, body {
     padding: 5px 8px;
   }
 
-  /* Footer Section */
-  .footer {
-    margin-top: 16px;
-  }
 
-  .footer-main {
-    grid-template-columns: 1fr;
-    gap: 24px;
-    padding: 32px 16px 20px;
-  }
-
-  .footer-brand p {
-    font-size: 12px;
-    line-height: 1.45;
-    margin: 8px 0 12px;
-  }
-
-  .footer-column h4 {
-    font-size: 13.5px;
-    margin-bottom: 8px;
-  }
-
-  .contact-row {
-    font-size: 12px;
-    gap: 8px;
-  }
-
-  .footer-bottom {
-    padding: 14px 16px 18px;
-    font-size: 11px;
-    flex-direction: column;
-    gap: 10px;
-    align-items: flex-start;
-  }
 
   /* Floating Bottom Quick Cart Bar */
   .floating-bottom-cart-bar {
     width: calc(100% - 28px);
     max-width: 400px;
-    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-    padding: 10px 16px;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    padding: 11px 18px;
   }
 
   .floating-bottom-cart-bar span {
@@ -4039,8 +4210,8 @@ html, body {
     flex-direction: column !important;
   }
 
-  .checkout-modal-card > div:nth-child(2),
-  .account-modal-card > div:nth-child(2) {
+  .checkout-modal-card>div:nth-child(2),
+  .account-modal-card>div:nth-child(2) {
     padding: 12px 14px !important;
   }
 
@@ -4085,6 +4256,12 @@ html, body {
     width: 100vw !important;
     max-width: 100vw !important;
     right: -100vw;
+    top: 0 !important;
+    bottom: 0 !important;
+    height: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    overscroll-behavior: contain !important;
   }
 
   .cart-drawer.open {
@@ -4093,10 +4270,12 @@ html, body {
 
   .cart-header {
     padding: 14px 16px !important;
+    flex-shrink: 0 !important;
   }
 
   .cart-footer {
-    padding: 14px 16px 20px !important;
+    padding: 14px 16px max(18px, env(safe-area-inset-bottom, 18px)) !important;
+    flex-shrink: 0 !important;
   }
 
   /* Account Page Mobile */
@@ -4292,7 +4471,7 @@ html, body {
   border-top: 1px solid #e5e7eb;
   border-bottom: 2px solid #e5e7eb;
   position: sticky;
-  top: 80px;
+  top: 72px;
   z-index: 45;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
 }
@@ -4304,22 +4483,61 @@ html, body {
   display: flex;
   align-items: stretch;
   justify-content: space-between;
+  position: relative;
+}
+
+/* Subtle edge gradient fade when there are more tabs to scroll */
+.pizzahut-tabs-inner::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 48px;
+  background: linear-gradient(to right, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.95));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 4;
+}
+
+.pizzahut-tabs-inner.has-overflow-right::after {
+  opacity: 1;
+}
+
+.pizzahut-tabs-inner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 48px;
+  background: linear-gradient(to left, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.95));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 4;
+}
+
+.pizzahut-tabs-inner.has-overflow-left::before {
+  opacity: 1;
 }
 
 .pizzahut-tabs-list {
   display: flex;
   align-items: stretch;
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
   border: none;
   flex: 1;
-}
-
-@media (max-width: 1080px) {
-  .pizzahut-tabs-list {
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
+  width: 100%;
 }
 
 .pizzahut-tabs-list::-webkit-scrollbar {
@@ -4330,9 +4548,10 @@ html, body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 1;
-  min-width: 125px;
-  padding: 18px 28px;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  min-width: 120px;
+  padding: 16px 24px;
   background: #ffffff;
   color: #1f2937;
   font-size: 14.5px;
@@ -4414,107 +4633,186 @@ html, body {
 
 .pizzahut-tab-text {
   letter-spacing: 0.2px;
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.2;
 }
 
-/* Vegetarian switch section on right */
-.pizzahut-tabs-right {
-  display: flex;
-  align-items: center;
-  padding: 0 20px;
-  border: none;
-  background: transparent;
-  flex-shrink: 0;
-  gap: 12px;
-  margin-left: auto;
+.pizzahut-tab-main {
+  font-size: 14.5px;
+  font-weight: inherit;
+  white-space: nowrap;
 }
 
-.veg-toggle-label {
+.pizzahut-tab-sub {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.92;
+  margin-top: 2px;
+  letter-spacing: 0.15px;
+  white-space: nowrap;
+}
+
+/* =========================================
+   MENU TABS HORIZONTAL SLIDER LINE & CUES
+========================================= */
+
+.menu-tabs-slider-bar-wrap {
+  width: 100%;
+  background: #ffffff;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #374151;
+  flex-direction: column;
+  position: relative;
+  z-index: 10;
+}
+
+/* The interactive slider track line under tabs (matching user's blue line) */
+.menu-tabs-slider-track {
+  width: 100%;
+  height: 4px;
+  background: #e2e8f0;
+  position: relative;
   cursor: pointer;
+  overflow: hidden;
   user-select: none;
+  transition: height 0.15s ease;
 }
 
-.veg-indicator-icon {
-  width: 14px;
-  height: 14px;
-  border: 1.5px solid #16a34a;
+.menu-tabs-slider-track:hover {
+  height: 5px;
+}
+
+/* Active red sliding thumb / indicator */
+.menu-tabs-slider-thumb {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #dc2626 0%, #ef4444 100%);
+  border-radius: 999px;
+  box-shadow: 0 1px 5px rgba(220, 38, 38, 0.5);
+  transition: left 0.08s ease-out, width 0.15s ease;
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .menu-tabs-slider-track {
+    height: 3.5px;
+  }
+}
+
+/* Domino's Style Dietary Filter Strip on top of Menu Bar */
+.menu-dietary-strip {
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+  padding: 8px 20px;
+}
+
+.menu-dietary-inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.menu-dietary-inner::-webkit-scrollbar {
+  display: none;
+}
+
+.dietary-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1.5px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.dietary-filter-pill:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+/* Dietary Icons (Indian / Domino's Veg & Non-Veg official standard) */
+.dietary-icon {
+  width: 15px;
+  height: 15px;
   border-radius: 3px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1px;
-}
-
-.veg-indicator-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #16a34a;
-}
-
-.switch-control {
-  position: relative;
-  width: 44px;
-  height: 24px;
-  background: #cbd5e1;
-  border-radius: 20px;
-  cursor: pointer;
-  transition: background-color 0.25s ease;
-  border: none;
-  padding: 2px;
-  display: inline-flex;
-  align-items: center;
-}
-
-.switch-control.active {
-  background: #16a34a;
-}
-
-.switch-thumb {
-  width: 20px;
-  height: 20px;
+  flex-shrink: 0;
   background: #ffffff;
-  border-radius: 50%;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  transform: translateX(0);
 }
 
-.switch-control.active .switch-thumb {
-  transform: translateX(20px);
+.dietary-icon.veg-icon {
+  border: 1.5px solid #16a34a;
+}
+
+.dietary-icon.veg-icon .veg-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #16a34a;
+  display: block;
+}
+
+.dietary-icon.nonveg-icon {
+  border: 1.5px solid #b91c1c;
+}
+
+.dietary-icon.nonveg-icon .nonveg-triangle {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 7px solid #b91c1c;
+  display: block;
+  transform: translateY(-0.5px);
+}
+
+/* Active Veg Pill */
+.dietary-filter-pill.veg-pill.active {
+  background: #f0fdf4;
+  border-color: #16a34a;
+  color: #15803d;
+  box-shadow: 0 1px 4px rgba(22, 163, 74, 0.15);
+}
+
+/* Active Non-Veg Pill */
+.dietary-filter-pill.nonveg-pill.active {
+  background: #fef2f2;
+  border-color: #dc2626;
+  color: #b91c1c;
+  box-shadow: 0 1px 4px rgba(220, 38, 38, 0.15);
 }
 
 @media (max-width: 900px) {
   .pizzahut-tabs-container {
-    top: 60px;
+    top: 64px;
   }
 
   .pizzahut-tab-btn {
     padding: 14px 18px;
     font-size: 13.5px;
-  }
-
-  .pizzahut-tabs-right {
-    padding: 0 14px;
-  }
-}
-
-@media (max-width: 680px) {
-  .pizzahut-tabs-inner {
-    flex-direction: column;
-  }
-
-  .pizzahut-tabs-right {
-    justify-content: flex-end;
-    padding: 10px 16px;
-    border-top: 1px solid #e5e7eb;
-    border-right: none;
-    border-left: none;
+    flex-shrink: 0;
   }
 }
 
@@ -4806,7 +5104,8 @@ html, body {
 }
 
 .dish-desc {
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
   color: #64748b;
   line-height: 1.45;
   margin: 0 0 10px;
@@ -5021,7 +5320,6 @@ html, body {
   }
 
   .menu-controls-section {
-    top: 60px;
     padding: 12px 14px;
   }
 
@@ -5264,8 +5562,13 @@ html, body {
 }
 
 @keyframes floatDrink {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(-5px); }
+  0% {
+    transform: translateY(0);
+  }
+
+  100% {
+    transform: translateY(-5px);
+  }
 }
 
 /* Right Column (Orange arch + Variety Pizza + Floating Cards) */
@@ -5409,8 +5712,13 @@ html, body {
 }
 
 @keyframes subtleSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .hero-food-slot.food-visible:hover .hero-variety-pizza-img {
@@ -5434,7 +5742,7 @@ html, body {
   filter: drop-shadow(0 22px 38px rgba(0, 0, 0, 0.2));
   /* Smooth fade-up once, then gentle idle float */
   animation: burgerFadeUp 1s cubic-bezier(0.16, 1, 0.3, 1) forwards,
-             burgerGentleFloat 5s ease-in-out 1s infinite alternate;
+    burgerGentleFloat 5s ease-in-out 1s infinite alternate;
 }
 
 /* Silky smooth fade-up — no overshoot, no scale jerk */
@@ -5443,9 +5751,11 @@ html, body {
     transform: translateY(28px);
     opacity: 0;
   }
+
   60% {
     opacity: 1;
   }
+
   100% {
     transform: translateY(0px);
     opacity: 1;
@@ -5454,9 +5764,17 @@ html, body {
 
 /* Slow, gentle breathing float after entry */
 @keyframes burgerGentleFloat {
-  0%   { transform: translateY(0px); }
-  50%  { transform: translateY(-7px); }
-  100% { transform: translateY(-2px); }
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-7px);
+  }
+
+  100% {
+    transform: translateY(-2px);
+  }
 }
 
 
@@ -5479,8 +5797,13 @@ html, body {
 }
 
 @keyframes floatCard1 {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(-8px); }
+  0% {
+    transform: translateY(0);
+  }
+
+  100% {
+    transform: translateY(-8px);
+  }
 }
 
 .floating-pizza-thumb {
@@ -5571,8 +5894,13 @@ html, body {
 }
 
 @keyframes floatCard2 {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(6px); }
+  0% {
+    transform: translateY(0);
+  }
+
+  100% {
+    transform: translateY(6px);
+  }
 }
 
 .foodies-label {
@@ -5630,11 +5958,13 @@ html, body {
     padding: 0 24px;
     gap: 20px;
   }
+
   .hero-orange-arch {
     width: 360px;
     height: 520px;
     right: -40px;
   }
+
   .hero-variety-pizza-wrap {
     width: 420px;
     margin-right: 50px;
@@ -5646,24 +5976,30 @@ html, body {
     max-height: none;
     padding: 40px 0 60px;
   }
+
   .hero-custom-container {
     grid-template-columns: 1fr;
     text-align: center;
     gap: 50px;
   }
+
   .hero-custom-left {
     align-items: center;
     padding-right: 0;
   }
+
   .hero-custom-desc {
     margin: 0 auto 30px;
   }
+
   .hero-custom-action-row {
     justify-content: center;
   }
+
   .hero-custom-right {
     min-height: 480px;
   }
+
   .hero-orange-arch {
     right: 50%;
     transform: translate(50%, -50%);
@@ -5673,13 +6009,16 @@ html, body {
     padding-right: 0;
     justify-content: center;
   }
+
   .hero-social-sidebar {
     display: none;
   }
+
   .hero-variety-pizza-wrap {
     margin-right: 0;
     width: 360px;
   }
+
   .floating-order-card {
     left: -20px;
   }
@@ -5695,6 +6034,7 @@ html, body {
     opacity: 0;
     transform: translateY(16px) scale(0.98);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -5708,10 +6048,13 @@ html, body {
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.65;
     transform: scale(0.96);
@@ -5723,6 +6066,7 @@ html, body {
     opacity: 0;
     transform: translateY(30px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -5740,20 +6084,1648 @@ html, body {
   body * {
     visibility: hidden;
   }
+
   .checkout-modal-card,
   .checkout-modal-card * {
     visibility: visible;
   }
+
   .checkout-modal-overlay {
     position: static;
     background: none !important;
     backdrop-filter: none !important;
     padding: 0 !important;
   }
+
   .checkout-modal-card {
     box-shadow: none !important;
     border: none !important;
     width: 100% !important;
     max-width: 100% !important;
+  }
+}
+
+/* ==========================================================================
+   COMPREHENSIVE RESPONSIVE SYSTEM — VENEZIA PIZZA
+   Mobile-first, covering all modern devices: iPhone, Samsung, Android,
+   tablets (portrait & landscape) and common desktop breakpoints.
+   RULE: Only layout / visual — no functionality or logic changes.
+   ========================================================================== */
+
+/* ── Global safe-area & overflow guards ── */
+html,
+body {
+  overflow-x: clip;
+  max-width: 100vw;
+}
+
+*,
+*::before,
+*::after {
+  min-width: 0;
+  /* prevent flex/grid children from overflowing */
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ── Viewport meta helpers (supplement HTML tag) ── */
+.app-layout {
+  overflow-x: clip;
+  overflow-y: visible;
+  width: 100%;
+  position: relative;
+}
+
+/* ==========================================================================
+   TABLET LANDSCAPE  (max-width: 1024px)
+   ========================================================================== */
+@media (max-width: 1024px) {
+
+  /* Navbar */
+  .nav-phone-link .phone-info {
+    display: none;
+  }
+
+  /* Section padding */
+  .section {
+    padding: 48px 28px;
+  }
+
+  /* Offers: 2-col on tablet */
+  .offers-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+  }
+
+  /* Why Us: 2×2 on tablet */
+  .why-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+
+
+  /* Catering */
+  .catering-card-container {
+    grid-template-columns: 1fr;
+    padding: 36px 28px;
+  }
+
+  /* Menu page dishes grid: 3 col */
+  .dishes-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+
+  /* Menu Hero */
+  .menu-main-title {
+    font-size: 28px;
+  }
+
+  /* Section headings */
+  .section-heading h2,
+  .why-heading h2,
+  .about-text h2 {
+    font-size: 28px;
+  }
+
+  /* About */
+  .about-content {
+    gap: 36px;
+  }
+}
+
+/* ==========================================================================
+   TABLET PORTRAIT  (max-width: 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+
+  /* ── Navbar ── */
+  .navbar {
+    height: 64px;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: #ffffff !important;
+  }
+
+  .nav-inner {
+    padding: 0 18px;
+    height: 64px;
+  }
+
+  .nav-center-group {
+    display: none !important;
+  }
+
+  .nav-phone-link {
+    display: none !important;
+  }
+
+  .mobile-menu-btn {
+    display: flex !important;
+  }
+
+  .logo-wrap img,
+  .navbar .venezia-logo-container img {
+    height: 48px !important;
+    width: auto !important;
+    max-width: 185px !important;
+  }
+
+  .nav-account-label {
+    display: none;
+  }
+
+  .nav-account-btn {
+    padding: 6px 10px !important;
+  }
+
+  /* ── Mobile Drawer ── */
+  .nav-mobile-drawer {
+    position: fixed;
+    top: 64px;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: auto;
+    max-height: calc(100dvh - 76px);
+    background: #ffffff;
+    border-radius: 0 0 20px 20px;
+    z-index: 10001;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+    padding: 16px 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.18);
+    border-top: 1px solid #f0f2f5;
+  }
+
+  .mobile-links-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 0;
+  }
+
+  .mobile-nav-link {
+    display: flex;
+    align-items: center;
+    padding: 13px 15px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+    transition: background 0.15s ease, color 0.15s ease;
+    text-decoration: none;
+  }
+
+  .mobile-nav-link:hover,
+  .mobile-nav-link.active {
+    background: #fff1f2;
+    color: var(--red);
+  }
+
+  .mobile-drawer-footer {
+    margin-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 14px;
+    border-top: 1px solid #f0f2f5;
+  }
+
+  .mobile-phone-cta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 13px 16px;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e293b;
+    text-decoration: none;
+  }
+
+  /* Store closed strip */
+  .store-closed-notification-strip {
+    top: 64px;
+    font-size: 12px;
+    padding: 8px 14px;
+    gap: 8px;
+  }
+
+  /* ── Sections ── */
+  .section {
+    padding: 36px 18px;
+  }
+
+  .section-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+
+  .section-heading h2,
+  .why-heading h2,
+  .about-text h2 {
+    font-size: 24px;
+    letter-spacing: -0.5px;
+  }
+
+  /* ── Offers grid: 1 col ── */
+  .offers-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    max-width: 520px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .offer-image {
+    height: 280px;
+  }
+
+
+
+  /* ── Why section: compact rows ── */
+  .why-section {
+    margin: 20px 18px;
+    padding: 28px 16px;
+    border-radius: 18px;
+  }
+
+  .why-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .why-card {
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    padding: 14px 16px;
+    gap: 16px;
+    min-height: auto;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .why-icon {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 12px;
+    background: rgba(227, 6, 19, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    flex-shrink: 0;
+  }
+
+  /* ── About section ── */
+  .about-section {
+    padding: 32px 18px;
+  }
+
+  .about-content {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .about-image {
+    height: 240px;
+    order: -1;
+  }
+
+  /* ── Catering section ── */
+  .catering-section {
+    margin: 24px auto;
+    padding: 0 18px;
+  }
+
+  .catering-card-container {
+    grid-template-columns: 1fr;
+    padding: 28px 20px;
+    border-radius: 18px;
+    gap: 24px;
+  }
+
+  .catering-heading {
+    font-size: 24px;
+  }
+
+  .catering-photo-frame {
+    height: 240px;
+  }
+
+
+
+  /* ── Menu page ── */
+  .menu-hero-header {
+    padding: 32px 16px 24px;
+  }
+
+  .menu-main-title {
+    font-size: 24px;
+  }
+
+  .menu-main-subtitle {
+    font-size: 13px;
+  }
+
+  .menu-controls-section {
+    padding: 10px 14px;
+    top: 0;
+  }
+
+  .pizzahut-tabs-container {
+    top: 64px;
+  }
+
+  .pizzahut-tabs-list {
+    min-height: 50px;
+  }
+
+  .pizzahut-tab-btn {
+    min-height: 50px;
+    padding: 14px 18px;
+    font-size: 14px;
+    font-weight: 700;
+    min-width: 95px;
+    flex-shrink: 0;
+  }
+
+  .dishes-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .dish-card {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0;
+    gap: 0;
+    min-height: auto;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .dish-card-media {
+    width: 100%;
+    height: 210px;
+    min-width: 100%;
+    border-radius: 0;
+    flex-shrink: 0;
+  }
+
+  .dish-card-body {
+    flex: 1;
+    min-width: 0;
+    padding: 14px 16px 16px;
+  }
+
+  /* Party callout */
+  .party-callout-card {
+    padding: 20px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .party-call-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* ── Cart drawer ── */
+  .cart-drawer {
+    width: 100vw;
+    max-width: 100vw;
+    right: -100vw;
+    top: 0;
+    bottom: 0;
+    height: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    overscroll-behavior: contain;
+  }
+
+  .cart-drawer.open {
+    right: 0;
+  }
+
+  .cart-header {
+    padding: 16px 18px;
+    flex-shrink: 0;
+  }
+
+  .cart-items-list {
+    padding: 16px 18px;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .cart-footer {
+    padding: 16px 18px max(20px, env(safe-area-inset-bottom, 20px));
+    flex-shrink: 0;
+  }
+
+  /* ── Checkout & Account modals ── */
+  .checkout-modal-overlay,
+  .account-modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .checkout-modal-card,
+  .account-modal-card {
+    width: 100vw;
+    max-width: 100vw;
+    border-radius: 20px 20px 0 0;
+    max-height: 92vh;
+  }
+
+  .checkout-form-row,
+  .checkout-contact-row,
+  .checkout-street-row,
+  .checkout-city-row,
+  .checkout-reset-row,
+  .account-form-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .checkout-payment-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  /* ── Active order banner ── */
+  .active-order-banner {
+    right: 14px;
+    left: auto;
+    max-width: calc(100vw - 28px);
+  }
+
+  /* ── Categories slider ── */
+  .categories-slider-section {
+    padding: 24px 0 12px !important;
+  }
+
+  .categories-slider-wrapper {
+    padding: 0 20px;
+  }
+
+  .categories-header-row {
+    margin-bottom: 20px;
+  }
+
+  .category-oval-frame {
+    width: 155px;
+    height: 155px;
+  }
+
+  .category-oval-card {
+    flex: 0 0 calc((100% - 32px) / 3.4);
+    max-width: 175px;
+  }
+
+  /* ── Hero (tablet portrait) ── */
+  .hero-custom {
+    min-height: auto;
+    max-height: none;
+    padding: 28px 0 40px;
+  }
+
+  .hero-custom-container {
+    grid-template-columns: 1fr;
+    padding: 0 18px;
+    gap: 28px;
+    text-align: center;
+  }
+
+  .hero-custom-left {
+    align-items: center;
+    padding-right: 0;
+  }
+
+  .hero-custom-desc {
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .hero-custom-action-row {
+    justify-content: center;
+  }
+
+  .desktop-only-action {
+    display: none !important;
+  }
+
+  .mobile-only-action {
+    display: flex !important;
+    justify-content: center;
+    width: 100%;
+    margin-top: 14px;
+  }
+
+  .hero-custom-right {
+    min-height: auto;
+  }
+
+  .hero-social-sidebar {
+    display: none;
+  }
+
+  .hero-variety-pizza-wrap {
+    width: 300px;
+    height: 300px;
+    margin-right: 0;
+  }
+
+  .hero-orange-arch {
+    right: 50%;
+    transform: translate(50%, -50%);
+    width: 320px;
+    height: 430px;
+    border-radius: 160px;
+    padding-right: 0;
+    justify-content: center;
+  }
+
+  .lettuce-decor {
+    display: block;
+    opacity: 0.9;
+  }
+
+  .lettuce-left {
+    bottom: 20px;
+    left: -20px;
+    width: 90px;
+  }
+
+  .lettuce-right {
+    top: 20px;
+    right: -20px;
+    width: 85px;
+  }
+}
+
+/* ==========================================================================
+   MOBILE  (max-width: 480px) — small phones
+   ========================================================================== */
+@media (max-width: 480px) {
+
+  /* ── Navbar ── */
+  .navbar {
+    height: 60px;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: #ffffff !important;
+  }
+
+  .nav-inner {
+    padding: 0 10px;
+    height: 60px;
+    gap: 8px;
+  }
+
+  .nav-brand-group {
+    gap: 8px;
+    flex-shrink: 1;
+    min-width: 0;
+  }
+
+  .logo-wrap img,
+  .navbar .venezia-logo-container img {
+    height: 35px !important;
+    width: auto !important;
+    max-width: 145px !important;
+  }
+
+  .nav-right {
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .nav-mobile-drawer {
+    top: 60px;
+    height: auto;
+    max-height: calc(100dvh - 72px);
+    padding: 14px 14px 18px;
+    border-radius: 0 0 18px 18px;
+    z-index: 10001;
+  }
+
+  .store-closed-notification-strip {
+    top: 60px;
+    font-size: 11.5px;
+    padding: 7px 12px;
+    line-height: 1.35;
+  }
+
+  /* Cart & account buttons in nav */
+  .nav-cart-btn {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 50%;
+    justify-content: center;
+    border: 1.5px solid #e2e8f0;
+    background: #ffffff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  }
+
+  .nav-cart-total {
+    display: none !important;
+  }
+
+  .nav-cart-badge {
+    top: -3px;
+    right: -3px;
+    width: 16px;
+    height: 16px;
+    font-size: 9px;
+  }
+
+  .nav-account-btn {
+    width: 36px !important;
+    height: 36px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    gap: 0 !important;
+  }
+
+  .nav-account-label {
+    display: none !important;
+  }
+
+  .mobile-menu-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Sections ── */
+  .section {
+    padding: 22px 14px;
+  }
+
+  .section-heading h2,
+  .why-heading h2,
+  .about-text h2 {
+    font-size: 20px;
+    letter-spacing: -0.3px;
+  }
+
+  .section-heading p,
+  .why-heading p {
+    font-size: 12px;
+  }
+
+  .section-link {
+    font-size: 11px;
+  }
+
+  /* ── Offers ── */
+  .offers-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    max-width: 100%;
+  }
+
+  .offer-image {
+    height: 240px;
+  }
+
+  .offer-body {
+    padding: 10px 12px 10px;
+  }
+
+  .offer-body h3 {
+    font-size: 14.5px !important;
+    color: #0f172a !important;
+    margin-bottom: 3px !important;
+    line-height: 1.25 !important;
+  }
+
+  .offer-body p,
+  .offer-desc {
+    font-size: 12.8px !important;
+    font-weight: 600 !important;
+    color: #64748b !important;
+    line-height: 1.4 !important;
+    margin-bottom: 5px !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    min-height: 32px !important;
+  }
+
+  .offer-bottom {
+    margin-top: 4px;
+    padding-top: 5px;
+  }
+
+  .offer-bottom strong {
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+  }
+
+  .small-order {
+    padding: 6px 12px;
+    font-size: 11.5px;
+    border-radius: 6px;
+    min-height: 30px;
+  }
+
+
+
+  /* ── Why Venezia ── */
+  .why-section {
+    display: none !important;
+  }
+
+  .why-grid {
+    gap: 8px;
+  }
+
+  .why-card {
+    padding: 12px 14px;
+    gap: 12px;
+    border-radius: 12px;
+  }
+
+  .why-icon {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    border-radius: 10px;
+  }
+
+  .why-card strong {
+    font-size: 13px;
+  }
+
+  .why-card span {
+    font-size: 11px;
+  }
+
+  /* ── About ── */
+  .about-section {
+    padding: 22px 14px;
+  }
+
+  .about-image {
+    height: 190px;
+    border-radius: 14px;
+  }
+
+  .about-overlay {
+    font-size: 20px;
+    padding: 12px;
+  }
+
+  .about-text p {
+    font-size: 12.5px;
+    line-height: 1.55;
+    margin: 8px auto 14px !important;
+    text-align: center !important;
+  }
+
+  /* ── Catering ── */
+  .catering-section {
+    margin: 14px 14px;
+    padding: 0;
+  }
+
+  .catering-card-container {
+    padding: 18px 14px;
+    border-radius: 16px;
+    gap: 16px;
+  }
+
+  .catering-heading {
+    font-size: 20px;
+  }
+
+  .catering-description {
+    font-size: 12px;
+  }
+
+  .catering-pill-btn {
+    padding: 6px 10px;
+    font-size: 11px;
+    border-radius: 16px;
+  }
+
+  .catering-action-group {
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .catering-inquiry-btn,
+  .catering-phone-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 11px 14px;
+    font-size: 12.5px;
+    border-radius: 8px;
+    min-height: 42px;
+  }
+
+  .catering-photo-frame {
+    height: 180px;
+    border-radius: 12px;
+  }
+
+
+
+  /* ── Categories slider ── */
+  .categories-slider-section {
+    padding: 20px 0 10px !important;
+  }
+
+  .categories-slider-wrapper {
+    padding: 0 16px;
+  }
+
+  .categories-header-row {
+    margin-bottom: 22px;
+  }
+
+  .categories-title {
+    font-size: 21px;
+    line-height: 1.25;
+  }
+
+  .categories-scroll-track {
+    gap: 16px;
+    padding: 8px 4px 6px 4px !important;
+  }
+
+  .category-oval-card {
+    flex: 0 0 calc((100% - 16px) / 2.3);
+    width: calc((100% - 16px) / 2.3);
+    max-width: 155px;
+  }
+
+  .category-oval-frame {
+    width: 135px;
+    height: 135px;
+    border-width: 3px;
+  }
+
+  .category-oval-info {
+    margin-top: 10px;
+  }
+
+  .category-oval-name {
+    font-size: 13.5px;
+    font-weight: 800;
+    margin-top: 4px;
+  }
+
+  .category-oval-count {
+    font-size: 11px;
+  }
+
+  /* ── Hero (small phone) ── */
+  .hero-custom {
+    padding: 14px 0 16px;
+    overflow: hidden;
+  }
+
+  .hero-custom-container {
+    padding: 0 14px;
+    gap: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .hero-custom-left {
+    align-items: center;
+    text-align: center;
+    padding: 0;
+  }
+
+  .hero-custom-title {
+    font-size: clamp(23px, 7.2vw, 29px);
+    line-height: 1.15;
+    margin-bottom: 6px;
+  }
+
+  .hero-custom-desc {
+    font-size: 13px;
+    line-height: 1.45;
+    max-width: 320px;
+    margin: 0 auto 2px;
+  }
+
+  .desktop-only-action {
+    display: none !important;
+  }
+
+  .mobile-only-action {
+    display: flex !important;
+    justify-content: center;
+    width: 100%;
+    margin-top: 10px;
+    margin-bottom: 4px;
+  }
+
+  .hero-order-pill-btn {
+    flex: none !important;
+    width: auto !important;
+    min-width: 170px !important;
+    max-width: 215px !important;
+    padding: 9px 12px 9px 22px !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.5px !important;
+    justify-content: center !important;
+    border-radius: 40px !important;
+    box-shadow: 0 6px 20px rgba(235, 38, 0, 0.35) !important;
+  }
+
+  .btn-arrow-circle {
+    width: 26px !important;
+    height: 26px !important;
+  }
+
+  .hero-custom-right {
+    min-height: auto !important;
+    padding-bottom: 0 !important;
+    margin-top: 2px !important;
+    position: relative;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .hero-orange-arch {
+    width: 190px !important;
+    height: 230px !important;
+    border-radius: 120px 0 0 120px !important;
+    top: -12px !important;
+    right: -25px !important;
+    left: auto !important;
+    transform: none !important;
+    position: absolute !important;
+    padding-right: 0 !important;
+    z-index: 1 !important;
+  }
+
+  .hero-variety-pizza-wrap {
+    width: 215px !important;
+    height: 215px !important;
+    margin: 0 auto !important;
+    position: relative !important;
+    z-index: 2 !important;
+  }
+
+  .hero-variety-pizza-img {
+    width: 205px !important;
+    height: 205px !important;
+    padding: 2px !important;
+  }
+
+  .hero-burger-assembled-img {
+    width: 195px !important;
+  }
+
+  .lettuce-decor {
+    display: block !important;
+    opacity: 0.88;
+  }
+
+  .lettuce-left {
+    bottom: 10px !important;
+    left: -15px !important;
+    width: 76px !important;
+  }
+
+  .lettuce-right {
+    top: 10px !important;
+    right: -15px !important;
+    width: 72px !important;
+  }
+
+  /* ── Menu page ── */
+  .menu-hero-header {
+    padding: 28px 14px 20px;
+  }
+
+  .menu-main-title {
+    font-size: 22px;
+  }
+
+  .menu-meta-pills {
+    gap: 6px;
+  }
+
+  .meta-pill {
+    font-size: 10.5px;
+    padding: 4px 10px;
+  }
+
+  .pizzahut-tabs-container {
+    top: 60px;
+  }
+
+  .pizzahut-tabs-list {
+    min-height: 48px;
+  }
+
+  .pizzahut-tab-btn {
+    min-height: 48px;
+    padding: 13px 16px;
+    font-size: 13.5px;
+    font-weight: 700;
+    min-width: 88px;
+    flex-shrink: 0;
+  }
+
+  .tab-sketch-left {
+    width: 65px;
+    height: 45px;
+  }
+
+  .tab-sketch-right {
+    width: 75px;
+    height: 50px;
+  }
+
+  .menu-dietary-strip {
+    padding: 6px 14px;
+  }
+
+  .dietary-filter-pill {
+    padding: 5px 12px;
+    font-size: 12px;
+    gap: 6px;
+  }
+
+  .menu-controls-section {
+    padding: 10px 14px;
+    top: 0;
+  }
+
+  .menu-search-box input {
+    height: 40px;
+    font-size: 13px;
+  }
+
+  .dishes-grid {
+    gap: 16px;
+  }
+
+  .dish-card {
+    flex-direction: column;
+    padding: 0;
+    gap: 0;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .dish-card-media {
+    width: 100%;
+    height: 200px;
+    min-width: 100%;
+    border-radius: 0;
+  }
+
+  .dish-card-body {
+    padding: 10px 14px 12px;
+    gap: 5px;
+  }
+
+  .dish-name {
+    font-size: 15.5px;
+  }
+
+  .dish-price {
+    font-size: 16.5px;
+  }
+
+  .dish-desc {
+    font-size: 12.8px;
+    font-weight: 600;
+    color: #64748b;
+    line-height: 1.35;
+    margin: 0;
+    -webkit-line-clamp: 2;
+  }
+
+  .pizza-size-pills {
+    padding: 3px 6px;
+    margin: 2px 0 0;
+    gap: 4px;
+  }
+
+  .size-btn {
+    padding: 2px 7px;
+    font-size: 10.5px;
+  }
+
+  .dish-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 3px;
+    padding-top: 6px;
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .customize-btn {
+    flex: none;
+    min-height: 33px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .add-cart-btn {
+    flex: none;
+    width: auto;
+    min-height: 33px;
+    padding: 5px 15px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .menu-items-section {
+    padding: 0 14px;
+    margin-top: 20px;
+  }
+
+  .section-category-title {
+    font-size: 20px;
+  }
+
+  .party-callout-card {
+    padding: 18px 14px;
+    border-radius: 12px;
+  }
+
+  .party-callout-text h3 {
+    font-size: 17px;
+  }
+
+  .party-callout-text p {
+    font-size: 12.5px;
+  }
+
+  .party-call-btn {
+    font-size: 13px;
+    padding: 10px 18px;
+  }
+
+  /* ── Mini offer cards in menu ── */
+  .mini-offer-card {
+    padding: 7px 10px;
+    gap: 8px;
+  }
+
+  .mini-offer-info strong {
+    font-size: 11.5px;
+  }
+
+  .mini-offer-info span {
+    font-size: 11px;
+  }
+
+  /* ── Cart drawer ── */
+  .cart-drawer {
+    width: 100vw;
+    max-width: 100vw;
+    right: -100vw;
+    top: 0;
+    bottom: 0;
+    height: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    overscroll-behavior: contain;
+  }
+
+  .cart-drawer.open {
+    right: 0;
+  }
+
+  .cart-header {
+    padding: 14px 16px;
+    flex-shrink: 0;
+  }
+
+  .cart-items-list {
+    padding: 14px 16px;
+    gap: 12px;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .cart-footer {
+    padding: 14px 16px max(18px, env(safe-area-inset-bottom, 18px));
+    flex-shrink: 0;
+  }
+
+  .cart-item {
+    gap: 12px;
+  }
+
+  .cart-item-img {
+    width: 52px;
+    height: 52px;
+    border-radius: 8px;
+  }
+
+  .cart-item-title {
+    font-size: 12.5px;
+  }
+
+  .cart-item-price {
+    font-size: 12.5px;
+  }
+
+  .cart-total-row {
+    font-size: 15px;
+  }
+
+  .checkout-btn {
+    height: 46px;
+    font-size: 13.5px;
+  }
+
+  /* ── Floating bottom cart bar ── */
+  .floating-bottom-cart-bar {
+    width: calc(100% - 28px);
+    max-width: 400px;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    padding: 11px 18px;
+  }
+
+  /* ── Active order banner ── */
+  .active-order-banner {
+    bottom: calc(74px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 14px !important;
+    left: auto !important;
+    max-width: calc(100vw - 28px) !important;
+  }
+
+  /* ── Toast ── */
+  .toast-notice {
+    width: auto;
+    max-width: calc(100vw - 32px);
+    text-align: center;
+    font-size: 12.5px;
+    padding: 11px 18px;
+    border-radius: 24px;
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .toast-notice.has-cart-bar {
+    bottom: calc(86px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* ── Order status page ── */
+  .order-status-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+
+  /* ── Checkout / Account full-screen on phones ── */
+  .checkout-modal-overlay,
+  .account-modal-overlay {
+    padding: 0 !important;
+    align-items: flex-end !important;
+  }
+
+  .checkout-modal-card,
+  .account-modal-card {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+
+  .checkout-form-row,
+  .checkout-contact-row,
+  .checkout-street-row,
+  .checkout-city-row,
+  .checkout-reset-row,
+  .checkout-quick-login-grid,
+  .checkout-tracking-contact-grid,
+  .account-form-row {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .checkout-payment-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .checkout-payment-grid button {
+    width: 100% !important;
+    padding: 12px 14px !important;
+  }
+
+  .checkout-summary-pill {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .checkout-summary-pill button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Account page mobile adjustments */
+  .account-profile-header {
+    padding: 16px 14px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  .account-profile-header button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+/* ==========================================================================
+   VERY SMALL PHONES  (max-width: 360px) — iPhone SE, Galaxy A series
+   ========================================================================== */
+@media (max-width: 360px) {
+  .nav-inner {
+    padding: 0 8px;
+    gap: 6px;
+  }
+
+  .logo-wrap img,
+  .navbar .venezia-logo-container img {
+    height: 35px !important;
+    width: auto !important;
+    max-width: 135px !important;
+  }
+
+  .nav-right {
+    gap: 4px;
+  }
+
+  .nav-cart-btn,
+  .nav-account-btn,
+  .mobile-menu-btn {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .dish-card {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0;
+    gap: 0;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .dish-card-media {
+    width: 100%;
+    height: 185px;
+    min-width: 100%;
+    border-radius: 0;
+  }
+
+  .section {
+    padding: 18px 10px;
+  }
+
+  .hero-custom-container {
+    padding: 0 10px;
+  }
+
+  .hero-custom-title {
+    font-size: clamp(22px, 8vw, 28px);
+  }
+
+  .hero-order-pill-btn,
+  .hero-learn-more-btn {
+    padding: 10px 10px;
+    font-size: 11.5px;
+  }
+
+  .hero-variety-pizza-wrap {
+    width: 185px;
+    height: 185px;
+  }
+
+  .hero-variety-pizza-img {
+    width: 175px;
+    height: 175px;
+  }
+
+  .hero-burger-assembled-img {
+    width: 165px;
+  }
+
+  .categories-slider-wrapper {
+    padding: 0 10px;
+  }
+
+  .category-oval-frame {
+    width: 95px;
+    height: 95px;
+  }
+
+  .category-oval-name {
+    font-size: 10.5px;
+  }
+
+  .offers-grid {
+    gap: 10px;
+  }
+
+  .offer-image {
+    height: 200px;
+  }
+
+
+
+  .catering-card-container {
+    padding: 14px 10px;
+  }
+
+  .why-section {
+    display: none !important;
+  }
+
+  .about-section {
+    padding: 18px 10px;
+  }
+
+  .dishes-grid {
+    gap: 8px;
+  }
+
+  .dish-card {
+    flex-direction: column !important;
+    padding: 0 !important;
+    gap: 0;
+    border-radius: 16px !important;
+    overflow: hidden !important;
+  }
+
+  .dish-card-media {
+    width: 100% !important;
+    height: 180px !important;
+    min-width: 100% !important;
+    border-radius: 0 !important;
+  }
+
+  .dish-card-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+
+  .customize-btn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-height: 33px !important;
+    padding: 5px 10px !important;
+    font-size: 11.5px !important;
+  }
+
+  .add-cart-btn {
+    flex: 1 !important;
+    width: auto !important;
+    min-height: 33px !important;
+    padding: 5px 10px !important;
+    font-size: 11.5px !important;
+    white-space: nowrap !important;
+    justify-content: center !important;
+  }
+
+  .pizza-card {
+    padding: 8px 10px;
+    gap: 10px;
+  }
+
+  .pizza-image {
+    width: 78px;
+    height: 78px;
+    min-width: 78px;
+  }
+}
+
+/* ==========================================================================
+   LANDSCAPE PHONES  (max-height: 500px and orientation: landscape)
+   ========================================================================== */
+@media (max-height: 500px) and (orientation: landscape) {
+  .hero-custom {
+    min-height: auto;
+    padding: 16px 0 20px;
+  }
+
+  .hero-custom-container {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    text-align: left;
+  }
+
+  .hero-custom-left {
+    align-items: flex-start;
+  }
+
+  .hero-custom-right {
+    min-height: 280px;
+    padding-bottom: 0;
+  }
+
+  .hero-variety-pizza-wrap {
+    width: 220px;
+    height: 220px;
+    margin-right: 0;
+  }
+
+  .hero-orange-arch {
+    width: 200px;
+    height: 320px;
+    right: -20px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-radius: 160px 0 0 160px;
+    padding-right: 14px;
+    justify-content: flex-end;
+  }
+
+  .floating-order-card {
+    display: none !important;
+  }
+
+  .floating-foodies-card {
+    display: none !important;
+  }
+
+  .nav-mobile-drawer {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .mobile-links-group {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+}
+
+/* ==========================================================================
+   PRINT — clean receipt-like output
+   ========================================================================== */
+@media print {
+
+  .navbar,
+  .cart-overlay,
+  .cart-drawer,
+  .floating-bottom-cart-bar,
+  .active-order-banner,
+  .hero-custom,
+  .categories-slider-section,
+  .why-section,
+  .about-section,
+  .catering-section,
+  .footer,
+  .toast-notice {
+    display: none !important;
   }
 }

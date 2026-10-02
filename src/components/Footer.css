@@ -1,0 +1,624 @@
+/* ==========================================================================
+   VENEZIA PIZZA SERVICE — MODERN RESPONSIVE FOOTER
+   Clean, Tactile, High-End Aesthetic across Mobile, Tablet & Desktop
+   ========================================================================== */
+
+.footer {
+  margin-top: 40px;
+  background: #0c0d11;
+  color: #e2e8f0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+}
+
+/* Subtle top crimson glow accent */
+.footer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  max-width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(227, 6, 19, 0.8), transparent);
+  pointer-events: none;
+}
+
+.footer-main {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 56px 36px 44px;
+  display: grid;
+  grid-template-columns: 1.3fr 1.15fr 1.15fr 0.9fr;
+  gap: 36px;
+  align-items: start;
+}
+
+/* ── Brand Column ── */
+.footer-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.footer-logo-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.footer-logo-link:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.footer-logo-link .venezia-logo-container img {
+  height: 58px !important;
+  width: auto !important;
+  max-width: 260px !important;
+}
+
+.footer-tagline-text {
+  color: #94a3b8;
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin-top: 16px;
+  margin-bottom: 16px;
+  max-width: 360px;
+}
+
+.footer-tagline-text span {
+  display: block;
+}
+
+.footer-tagline-sub {
+  color: #cbd5e1;
+  font-size: 12.8px;
+  margin-top: 4px;
+}
+
+.footer-highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.footer-highlight-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.footer-socials-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.footer-socials-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.socials {
+  display: flex;
+  gap: 10px;
+}
+
+.social-btn {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.04);
+  transition: all 0.25s ease;
+  text-decoration: none;
+}
+
+.social-btn:hover {
+  background: var(--red, #e30613);
+  border-color: var(--red, #e30613);
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(227, 6, 19, 0.35);
+}
+
+/* ── Column Titles ── */
+.footer-column-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  margin-bottom: 18px;
+  color: #ffffff;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer-column-title .title-bullet {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--red, #e30613);
+  box-shadow: 0 0 8px rgba(227, 6, 19, 0.6);
+  flex-shrink: 0;
+}
+
+/* ── Contact Cards Stack ── */
+.footer-cards-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.footer-contact-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  text-decoration: none;
+  color: #e2e8f0;
+  transition: all 0.2s ease;
+  min-height: 48px;
+}
+
+.footer-contact-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
+}
+
+.contact-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f87171;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.footer-contact-card:hover .contact-card-icon {
+  background: var(--red, #e30613);
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+.footer-phone-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.footer-phone-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.contact-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.contact-card-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 2px;
+}
+
+.contact-card-main {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1.4;
+}
+
+.contact-card-main.email-text {
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  color: #e2e8f0;
+}
+
+.contact-card-sub {
+  font-size: 11px;
+  color: #f87171;
+  font-weight: 500;
+  margin-top: 1px;
+}
+
+.contact-card-arrow {
+  color: #64748b;
+  flex-shrink: 0;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.footer-contact-card:hover .contact-card-arrow {
+  color: #ffffff;
+  transform: translateX(2px);
+}
+
+/* ── Opening Hours Box ── */
+.footer-hours-box {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hours-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hours-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hours-icon {
+  color: var(--red, #e30613);
+  flex-shrink: 0;
+}
+
+.hours-day {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.hours-times {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-left: 23px;
+}
+
+.time-pill {
+  font-size: 11.5px;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.time-pill.highlight-pill {
+  background: rgba(227, 6, 19, 0.12);
+  border-color: rgba(227, 6, 19, 0.25);
+  color: #fca5a5;
+  font-weight: 600;
+}
+
+.hours-note {
+  font-size: 11px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.hours-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 2px 0;
+}
+
+.hours-footer-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+.pulse-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  flex-shrink: 0;
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+/* ── Quick Links ── */
+.footer-links-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.footer-nav-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  min-height: 40px;
+}
+
+.footer-nav-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  transform: translateX(3px);
+}
+
+.nav-link-icon {
+  color: #64748b;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.footer-nav-link:hover .nav-link-icon {
+  color: var(--red, #e30613);
+  transform: translateX(2px);
+}
+
+/* ── Footer Bottom Strip ── */
+.footer-bottom {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 18px 36px 95px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 12px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.footer-bottom-copy {
+  line-height: 1.5;
+}
+
+.footer-developer-credit {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+.developer-credit-link {
+  color: var(--red, #e30613);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: all 0.18s ease;
+}
+
+.developer-credit-link:hover {
+  color: var(--red-dark, #c9000b);
+  opacity: 0.88;
+}
+
+.footer-tagline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.footer-tagline-motto {
+  font-size: 12px;
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+.italy-flag {
+  width: 44px;
+  height: 6px;
+  display: flex;
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.italy-flag b {
+  flex: 1;
+}
+
+.italy-flag b:nth-child(1) { background: #008c45; }
+.italy-flag b:nth-child(2) { background: #ffffff; }
+.italy-flag b:nth-child(3) { background: #cd212a; }
+
+/* ==========================================================================
+   RESPONSIVE LAYOUTS FOR EVERY SCREEN
+   ========================================================================== */
+
+/* Tablet & Medium Screens (769px to 1024px) */
+@media (max-width: 1024px) {
+  .footer-main {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 36px 30px !important;
+    padding: 44px 28px 36px !important;
+  }
+}
+
+/* Mobile Screens (<= 768px) */
+@media (max-width: 768px) {
+  .footer {
+    margin-top: 24px !important;
+  }
+
+  .footer-main {
+    grid-template-columns: 1fr !important;
+    gap: 28px !important;
+    padding: 36px 18px 24px !important;
+  }
+
+  .footer-logo-link .venezia-logo-container img {
+    height: 42px !important;
+    width: auto !important;
+    max-width: 175px !important;
+  }
+
+  /* Hide Opening Hours and Quick Links in mobile view */
+  .footer-hours-col,
+  .footer-links-col {
+    display: none !important;
+  }
+
+  .footer-tagline-text {
+    max-width: 100% !important;
+  }
+
+  .footer-links-nav {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .footer-bottom {
+    padding: 16px 18px calc(105px + env(safe-area-inset-bottom, 16px)) !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    gap: 8px !important;
+    font-size: 11.5px !important;
+  }
+
+  .footer-tagline {
+    justify-content: center !important;
+  }
+}
+
+/* Small Smartphone Screens (<= 480px) */
+@media (max-width: 480px) {
+  .footer-main {
+    padding: 28px 14px 20px !important;
+    gap: 24px !important;
+  }
+
+  .footer-logo-link .venezia-logo-container img {
+    height: 38px !important;
+    width: auto !important;
+    max-width: 155px !important;
+  }
+
+  .footer-column-title {
+    font-size: 13px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .footer-contact-card {
+    padding: 10px 12px !important;
+    gap: 10px !important;
+  }
+
+  .contact-card-icon {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .contact-card-main {
+    font-size: 13px !important;
+  }
+
+  .contact-card-main.email-text {
+    font-size: 11.5px !important;
+  }
+
+  .hours-times {
+    padding-left: 0 !important;
+  }
+
+  .footer-links-nav {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+  }
+
+  .footer-nav-link {
+    padding: 8px 10px !important;
+    font-size: 12px !important;
+    min-height: 38px !important;
+  }
+
+  .footer-bottom {
+    padding: 14px 14px calc(110px + env(safe-area-inset-bottom, 16px)) !important;
+    font-size: 11px !important;
+    gap: 6px !important;
+  }
+}
+
+/* Extra Small Screens (<= 360px, e.g. iPhone SE, Folded screens) */
+@media (max-width: 360px) {
+  .footer-main {
+    padding: 22px 10px 18px !important;
+    gap: 20px !important;
+  }
+
+  .footer-logo-link .venezia-logo-container img {
+    height: 34px !important;
+    width: auto !important;
+    max-width: 135px !important;
+  }
+
+  .footer-links-nav {
+    grid-template-columns: 1fr !important;
+  }
+
+  .footer-highlights {
+    gap: 6px !important;
+  }
+
+  .footer-highlight-badge {
+    font-size: 10.5px !important;
+    padding: 3px 8px !important;
+  }
+}

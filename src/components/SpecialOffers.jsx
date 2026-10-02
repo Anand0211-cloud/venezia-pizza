@@ -65,7 +65,9 @@ export default function SpecialOffers({ onAddToCart, onShowAllOffers }) {
 
               <div className="offer-body">
                 <h3>{offer.title}</h3>
-                <p style={{ whiteSpace: 'pre-line' }}>{offer.description}</p>
+                <p className="offer-desc">
+                  {offer.description ? offer.description.replace(/\n\+?\s*/g, ' • ') : ''}
+                </p>
 
                 <div className="offer-bottom">
                   <strong>{offer.formattedPrice}</strong>

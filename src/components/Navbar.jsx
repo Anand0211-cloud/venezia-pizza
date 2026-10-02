@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Phone, ShoppingBag, Menu, X, Search, Plus, Check, ArrowRight, Sliders, User } from 'lucide-react';
+import { Phone, Smartphone, ShoppingBag, Menu, X, Search, Plus, Check, ArrowRight, Sliders, User } from 'lucide-react';
 import VeneziaLogo from './VeneziaLogo';
 import { restaurantInfo, allMenuItems } from '../data/menuData';
 import { useLiveMenu } from '../data/liveMenuState';
@@ -39,6 +39,24 @@ export default function Navbar({
     { label: 'Angebote', href: '#angebote', id: 'angebote' },
     { label: 'Kontakt', href: '#kontakt', id: 'kontakt' }
   ];
+
+  // Lock background scrolling when mobile drawer is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+    } else {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    }
+    return () => {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    };
+  }, [mobileMenuOpen]);
 
   // Close search dropdown when clicking outside
   useEffect(() => {
@@ -122,7 +140,16 @@ export default function Navbar({
   };
 
   return (
-    <header className="navbar">
+    <>
+      {mobileMenuOpen && (
+        <div
+          className="nav-mobile-backdrop"
+          onClick={() => setMobileMenuOpen(false)}
+          onTouchMove={(e) => e.preventDefault()}
+          aria-hidden="true"
+        />
+      )}
+      <header className={`navbar ${mobileMenuOpen ? 'menu-open' : ''}`}>
       <div className="nav-inner">
         {/* Left: Brand Logo & Status */}
         <div className="nav-brand-group">
@@ -132,7 +159,7 @@ export default function Navbar({
             aria-label="Venezia Pizza Service Startseite"
             onClick={(e) => handleLinkClick(e, { id: 'home' })}
           >
-            <VeneziaLogo variant="dark" />
+            <VeneziaLogo variant="navbar" height={50} />
           </a>
 
           <div className="nav-status-badge">
@@ -416,10 +443,22 @@ export default function Navbar({
           </div>
 
           <div className="mobile-drawer-footer">
-            <a href={restaurantInfo.phoneCall} className="mobile-phone-cta">
-              <Phone size={16} />
-              <span>{restaurantInfo.phone}</span>
-            </a>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', marginBottom: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <a href={restaurantInfo.phoneCall} className="mobile-phone-cta" style={{ fontSize: '12px', padding: '10px 8px' }}>
+                  <Phone size={14} />
+                  <span>{restaurantInfo.phone}</span>
+                </a>
+                <a href={restaurantInfo.phoneSecondaryCall} className="mobile-phone-cta" style={{ fontSize: '12px', padding: '10px 8px' }}>
+                  <Phone size={14} />
+                  <span>{restaurantInfo.phoneSecondary}</span>
+                </a>
+              </div>
+              <a href={restaurantInfo.mobileCall} className="mobile-phone-cta" style={{ background: '#16a34a', color: '#ffffff' }}>
+                <Smartphone size={15} />
+                <span>Mobil: {restaurantInfo.mobile}</span>
+              </a>
+            </div>
             <button
               className="mobile-account-btn"
               onClick={() => {
@@ -449,5 +488,6 @@ export default function Navbar({
         </div>
       )}
     </header>
+    </>
   );
 }

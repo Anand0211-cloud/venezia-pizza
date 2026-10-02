@@ -100,15 +100,28 @@ const CATEGORY_EMOJIS = {
 // Frontend categories with clean German names (no icons)
 const FRONTEND_CATEGORIES = [
   { id: 'all', name_de: 'Alle Gerichte', name_en: 'All Dishes' },
-  { id: 'deals', name_de: 'Spar-Angebote & Deals (A1–A3)', name_en: 'Special Deals (A1–A3)' },
-  { id: 'pizza', name_de: 'Pizzen (1–49a)', name_en: 'Pizzas (1–49a)' },
-  { id: 'calzone', name_de: 'Calzone & Melts', name_en: 'Calzone & Melts' },
-  { id: 'pasta', name_de: 'Pasta & Al Forno', name_en: 'Pasta & Al Forno' },
-  { id: 'doner', name_de: 'Döner & Fleisch', name_en: 'Döner & Meat' },
-  { id: 'burger-snacks', name_de: 'Burger & Snacks', name_en: 'Burgers & Snacks' },
-  { id: 'schnitzel', name_de: 'Schnitzel Spezial', name_en: 'Schnitzel Specials' },
-  { id: 'salad', name_de: 'Frische Salate', name_en: 'Fresh Salads' },
-  { id: 'dessert-drinks', name_de: 'Desserts & Getränke', name_en: 'Desserts & Drinks' }
+  { id: 'pizzen', name_de: 'Pizzen', name_en: 'Pizzas' },
+  { id: 'pasta', name_de: 'Pasta', name_en: 'Pasta' },
+  { id: 'gnocchi', name_de: 'Gnocchi', name_en: 'Gnocchi' },
+  { id: 'pasta-al-forno', name_de: 'Pasta al Forno', name_en: 'Pasta al Forno' },
+  { id: 'vegetarisch', name_de: 'Vegetarisch überbacken', name_en: 'Vegetarian Baked Dishes' },
+  { id: 'auflaeufe', name_de: 'Aufläufe', name_en: 'Casseroles' },
+  { id: 'reisgerichte', name_de: 'Reisgerichte im Ofen überbacken', name_en: 'Baked Rice Dishes' },
+  { id: 'fleischgerichte', name_de: 'Fleischgerichte', name_en: 'Meat Dishes' },
+  { id: 'gyros', name_de: 'Gyros', name_en: 'Gyros & Döner' },
+  { id: 'salate', name_de: 'Salate', name_en: 'Salads' },
+  { id: 'grill-menue', name_de: 'Grill Menü', name_en: 'Grill Menu' },
+  { id: 'american-food', name_de: 'American Food', name_en: 'American Food & Burgers' },
+  { id: 'indisch', name_de: 'Indische Hauptgerichte', name_en: 'Indian Main Dishes' },
+  { id: 'lamm', name_de: 'Lamm Spezialitäten', name_en: 'Lamb Specialties' },
+  { id: 'steaks', name_de: 'Steaks', name_en: 'Steaks' },
+  { id: 'fischgerichte', name_de: 'Fischgerichte', name_en: 'Fish Dishes' },
+  { id: 'mexikanisch', name_de: 'Mexikanische Gerichte', name_en: 'Mexican Dishes' },
+  { id: 'chinesisch', name_de: 'Chinesische Gerichte', name_en: 'Chinese Dishes' },
+  { id: 'beilagen', name_de: 'Extra Beilagen', name_en: 'Side Dishes' },
+  { id: 'toasts', name_de: 'Toasts', name_en: 'Toasts' },
+  { id: 'omelette', name_de: 'Omelette mit Käse überbacken', name_en: 'Baked Cheese Omelette' },
+  { id: 'getraenke', name_de: 'Getränke', name_en: 'Beverages' }
 ];
 
 // Preset images available in public/images

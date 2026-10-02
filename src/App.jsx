@@ -36,7 +36,19 @@ export default function App() {
     ) {
       return 'admin';
     }
-    if (hash === '#speisekarte' || hash === '#/speisekarte' || pathname === '/speisekarte') {
+    if (
+      hash === '#speisekarte' ||
+      hash === '#/speisekarte' ||
+      pathname === '/speisekarte' ||
+      hash === '#order' ||
+      hash === '#ordernow' ||
+      hash === '#/order' ||
+      hash === '#/ordernow' ||
+      pathname === '/order' ||
+      pathname === '/ordernow' ||
+      hash === '#menu' ||
+      pathname === '/menu'
+    ) {
       return 'speisekarte';
     }
     if (hash === '#konto' || hash === '#account' || pathname === '/account' || pathname === '/konto') {
@@ -314,7 +326,7 @@ export default function App() {
       return;
     }
 
-    if (sectionId === 'speisekarte') {
+    if (sectionId === 'speisekarte' || sectionId === 'order' || sectionId === 'ordernow' || sectionId === 'menu') {
       window.location.hash = 'speisekarte';
       setCurrentView('speisekarte');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -462,8 +474,8 @@ export default function App() {
                   setIsClosedModalOpen(true);
                   return;
                 }
-                const el = document.getElementById('angebote');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
+                setCurrentView('speisekarte');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               onMenuClick={() => {
                 setCurrentView('speisekarte');
@@ -806,7 +818,7 @@ export default function App() {
       )}
 
       {/* Toast Notice */}
-      <div className={`toast-notice ${toastMessage ? 'show' : ''}`}>
+      <div className={`toast-notice ${toastMessage ? 'show' : ''} ${cartCount > 0 && !isCartOpen ? 'has-cart-bar' : ''}`}>
         <Check size={18} />
         <span>{toastMessage}</span>
       </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 
 // Shared pizza slice SVG — uses currentColor so color can be customized via CSS
 const PIZZA_SLICE_SVG = `<svg viewBox="0 0 120 130" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -30,6 +30,7 @@ import {
   Info,
   Check,
   ChevronRight,
+  ChevronLeft,
   Utensils,
   Clock,
   Bike
@@ -48,79 +49,184 @@ import CustomizeItemModal from './CustomizeItemModal';
 export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCategory = 'pizza' }) {
   const { menuItems } = useLiveMenu();
   const [activeCategory, setActiveCategory] = useState(
-    selectedInitialCategory === 'all' ? 'pizza' : (selectedInitialCategory || 'pizza')
+    selectedInitialCategory === 'all' || !selectedInitialCategory ? 'pizzen' : selectedInitialCategory
   );
   const [searchQuery, setSearchQuery] = useState('');
-  const [isVegOnly, setIsVegOnly] = useState(false);
+  const [dietaryFilter, setDietaryFilter] = useState('all'); // 'all' | 'veg' | 'non-veg'
   const [customizingItem, setCustomizingItem] = useState(null);
   const [selectedSizes, setSelectedSizes] = useState({}); // { [itemId]: sizeKey }
 
-  // Pizza Hut style tabs mapping
+  // Horizontal scroll state & refs for categories tab slider line
+  const tabsListRef = useRef(null);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [thumbRatio, setThumbRatio] = useState(0.18);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const updateTabScrollState = () => {
+    const el = tabsListRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    const maxScroll = scrollWidth - clientWidth;
+    if (maxScroll > 1) {
+      setScrollProgress(Math.max(0, Math.min(1, scrollLeft / maxScroll)));
+      setThumbRatio(Math.max(0.1, Math.min(1, clientWidth / scrollWidth)));
+      setCanScrollLeft(scrollLeft > 6);
+      setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 6);
+    } else {
+      setScrollProgress(0);
+      setThumbRatio(1);
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+    }
+  };
+
+  useEffect(() => {
+    updateTabScrollState();
+    const handleResize = () => updateTabScrollState();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Center active category tab in view whenever it changes
+  useEffect(() => {
+    if (tabsListRef.current) {
+      const activeBtn = tabsListRef.current.querySelector('.pizzahut-tab-btn.active');
+      if (activeBtn) {
+        activeBtn.scrollIntoView({
+          behavior: 'smooth',
+          inline: 'center',
+          block: 'nearest'
+        });
+      }
+    }
+  }, [activeCategory]);
+
+  const handleScrollBy = (amount) => {
+    if (tabsListRef.current) {
+      tabsListRef.current.scrollBy({ left: amount, behavior: 'smooth' });
+    }
+  };
+
+  const handleTrackClick = (e) => {
+    const track = e.currentTarget;
+    const rect = track.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickRatio = Math.max(0, Math.min(1, clickX / rect.width));
+    const el = tabsListRef.current;
+    if (el) {
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      el.scrollTo({ left: clickRatio * maxScroll, behavior: 'smooth' });
+    }
+  };
+
+  const handleCategoryClick = (catId, event) => {
+    setActiveCategory(catId);
+    if (event?.currentTarget) {
+      event.currentTarget.scrollIntoView({
+        behavior: 'smooth',
+        inline: 'center',
+        block: 'nearest'
+      });
+    }
+  };
+
+  // Sync active category if changed externally
+  useEffect(() => {
+    if (selectedInitialCategory && selectedInitialCategory !== 'all') {
+      // Map legacy category IDs if needed
+      const idMap = {
+        pizza: 'pizzen',
+        schnitzel: 'fleischgerichte',
+        doner: 'gyros',
+        salad: 'salate'
+      };
+      setActiveCategory(idMap[selectedInitialCategory] || selectedInitialCategory);
+    }
+  }, [selectedInitialCategory]);
+
+  // Updated 22 menu categories
   const cleanCategories = [
-    { id: 'deals', name: 'Deals', title: 'Spar-Angebote & Kombi-Menüs' },
-    { id: 'pizza', name: 'Pizzas', title: 'Original Steinofen-Pizzen (1–49a)' },
-    { id: 'calzone', name: 'Melts', title: 'Melts, Calzone & Pizzabrot' },
-    { id: 'burger-snacks', name: 'Sides', title: 'Sides, Snacks & Burger' },
-    { id: 'pasta', name: 'Pastas', title: 'Pasta & Al Forno Spezialitäten' },
-    { id: 'doner', name: 'Döner', title: 'Döner & Fleischgerichte' },
-    { id: 'schnitzel', name: 'Schnitzel', title: 'Schnitzel Variationen' },
-    { id: 'salad', name: 'Salads', title: 'Frische knackige Salate' },
-    { id: 'desserts', name: 'Desserts', title: 'Desserts & Süßspeisen' },
+    { id: 'pizzen', name: 'Pizzen', title: 'Original Steinofen-Pizzen (1–49a)' },
+    { id: 'pasta', name: 'Pasta', title: 'Klassische Pasta Spezialitäten' },
+    { id: 'gnocchi', name: 'Gnocchi', title: 'Gnocchi Spezialitäten' },
+    { id: 'pasta-al-forno', name: 'Pasta al Forno', title: 'Pasta al Forno (Überbackene Nudelgerichte)' },
+    { id: 'vegetarisch', name: 'Vegetarisch', sub: 'überbacken', title: 'Vegetarisch überbackene Spezialitäten' },
+    { id: 'auflaeufe', name: 'Aufläufe', title: 'Feine Aufläufe aus dem Ofen' },
+    { id: 'reisgerichte', name: 'Reisgerichte', sub: 'im Ofen überbacken', title: 'Reisgerichte im Ofen überbacken' },
+    { id: 'fleischgerichte', name: 'Fleischgerichte', title: 'Herzhafte Fleischgerichte & Schnitzel' },
+    { id: 'gyros', name: 'Gyros', title: 'Gyros & Döner Spezialitäten' },
+    { id: 'salate', name: 'Salate', title: 'Frische knackige Salate' },
+    { id: 'grill-menue', name: 'Grill Menü', title: 'Köstliche Grill-Menüs vom Rost' },
+    { id: 'american-food', name: 'American Food', title: 'American Food & Burger Spezialitäten' },
+    { id: 'indisch', name: 'Indische', sub: 'Hauptgerichte', title: 'Indische Hauptgerichte & Currys' },
+    { id: 'lamm', name: 'Lamm', sub: 'Spezialitäten', title: 'Zarte Lamm Spezialitäten' },
+    { id: 'steaks', name: 'Steaks', title: 'Saftige Steaks vom Grill' },
+    { id: 'fischgerichte', name: 'Fischgerichte', title: 'Köstliche Fischgerichte & Meeresfrüchte' },
+    { id: 'mexikanisch', name: 'Mexikanische', sub: 'Gerichte', title: 'Mexikanische Spezialitäten' },
+    { id: 'chinesisch', name: 'Chinesische', sub: 'Gerichte', title: 'Chinesische Spezialitäten aus dem Wok' },
+    { id: 'beilagen', name: 'Extra Beilagen', title: 'Extra Beilagen & Saucen' },
+    { id: 'toasts', name: 'Toasts', title: 'Knusprige Toast Spezialitäten' },
+    { id: 'omelette', name: 'Omelette', sub: 'mit Käse überbacken', title: 'Omelette mit Käse überbacken' },
+    { id: 'getraenke', name: 'Getränke', title: 'Erfrischende Getränke' },
   ];
 
   // Filter items
   const filteredItems = useMemo(() => {
     return menuItems.filter((item) => {
       // Category match
-      let matchesCategory = true;
-      if (activeCategory === 'deals') {
-        matchesCategory = false; // rendered separately
-      } else if (activeCategory === 'pizza') {
-        matchesCategory = item.category === 'pizza';
-      } else if (activeCategory === 'calzone') {
-        matchesCategory = item.category === 'calzone';
-      } else if (activeCategory === 'burger-snacks') {
-        matchesCategory = item.category === 'burger-snacks' || item.category === 'burger' || item.category === 'snacks';
+      let matchesCategory = false;
+      const cat = (item.category || '').toLowerCase();
+      const name = (item.name || '').toLowerCase();
+
+      if (activeCategory === 'pizzen') {
+        matchesCategory = cat === 'pizzen' || cat === 'pizza' || cat === 'calzone';
       } else if (activeCategory === 'pasta') {
-        matchesCategory = item.category === 'pasta';
-      } else if (activeCategory === 'doner') {
-        matchesCategory = item.category === 'doner';
-      } else if (activeCategory === 'schnitzel') {
-        matchesCategory = item.category === 'schnitzel';
-      } else if (activeCategory === 'salad') {
-        matchesCategory = item.category === 'salad';
-      } else if (activeCategory === 'desserts') {
-        const itemName = (item.name || '').toLowerCase();
-        const isDrink = item.category === 'dessert-drinks' && (
-          itemName.includes('cola') ||
-          itemName.includes('fanta') ||
-          itemName.includes('sprite') ||
-          itemName.includes('bier') ||
-          itemName.includes('wasser') ||
-          itemName.includes('wein') ||
-          itemName.includes('red bull') ||
-          itemName.includes('spezi') ||
-          itemName.includes('mezzo')
-        );
-        matchesCategory = item.category === 'dessert-drinks' && !isDrink;
-      } else if (activeCategory === 'drinks') {
-        const itemName = (item.name || '').toLowerCase();
-        const isDrink = item.category === 'dessert-drinks' && (
-          itemName.includes('cola') ||
-          itemName.includes('fanta') ||
-          itemName.includes('sprite') ||
-          itemName.includes('bier') ||
-          itemName.includes('wasser') ||
-          itemName.includes('wein') ||
-          itemName.includes('red bull') ||
-          itemName.includes('spezi') ||
-          itemName.includes('mezzo')
-        );
-        matchesCategory = isDrink;
+        matchesCategory = cat === 'pasta' && !cat.includes('forno') && !name.includes('forno') && !name.includes('lasagne');
+      } else if (activeCategory === 'gnocchi') {
+        matchesCategory = cat === 'gnocchi' || name.includes('gnocchi');
+      } else if (activeCategory === 'reisgerichte') {
+        matchesCategory = cat === 'reisgerichte' || cat === 'reis' || name.includes('reis') || name.includes('risotto');
+      } else if (activeCategory === 'pasta-al-forno') {
+        matchesCategory = cat === 'pasta-al-forno' || cat === 'al-forno' || name.includes('al forno') || name.includes('lasagne') || name.includes('cannelloni');
+      } else if (activeCategory === 'vegetarisch') {
+        matchesCategory = cat === 'vegetarisch' || cat === 'vegetarisch-ueberbacken';
+      } else if (activeCategory === 'auflaeufe') {
+        matchesCategory = cat === 'auflaeufe' || cat === 'auflauf' || name.includes('auflauf') || name.includes('gratin');
+      } else if (activeCategory === 'fleischgerichte') {
+        matchesCategory = cat === 'fleischgerichte' || cat === 'schnitzel' || cat === 'fleisch';
+      } else if (activeCategory === 'gyros') {
+        matchesCategory = cat === 'gyros' || cat === 'doner' || name.includes('gyros') || name.includes('döner');
+      } else if (activeCategory === 'salate') {
+        matchesCategory = cat === 'salate' || cat === 'salad';
+      } else if (activeCategory === 'grill-menue') {
+        matchesCategory = cat === 'grill-menue' || cat === 'grill' || name.includes('grill');
+      } else if (activeCategory === 'american-food') {
+        matchesCategory = cat === 'american-food' || cat === 'burger-snacks' || cat === 'burger' || name.includes('burger') || name.includes('wings') || name.includes('nuggets');
+      } else if (activeCategory === 'indisch') {
+        matchesCategory = cat === 'indisch' || cat === 'indian' || name.includes('curry') || name.includes('tikka') || name.includes('korma') || name.includes('paneer');
+      } else if (activeCategory === 'lamm') {
+        matchesCategory = cat === 'lamm' || cat === 'lamb' || name.includes('lamm');
+      } else if (activeCategory === 'steaks') {
+        matchesCategory = cat === 'steaks' || cat === 'steak' || name.includes('steak');
+      } else if (activeCategory === 'fischgerichte') {
+        matchesCategory = cat === 'fischgerichte' || cat === 'fisch' || name.includes('lachs') || name.includes('calamari') || name.includes('zander');
+      } else if (activeCategory === 'mexikanisch') {
+        matchesCategory = cat === 'mexikanisch' || cat === 'mexican' || name.includes('tacos') || name.includes('burrito') || name.includes('enchilada') || name.includes('nachos');
+      } else if (activeCategory === 'chinesisch') {
+        matchesCategory = cat === 'chinesisch' || cat === 'chinese' || cat === 'asia' || name.includes('chop suey') || name.includes('gebratene nudeln') || name.includes('gebratener reis') || name.includes('süß-sauer');
+      } else if (activeCategory === 'beilagen') {
+        matchesCategory = cat === 'beilagen' || cat === 'extra-beilagen' || name.includes('pommes') || name.includes('kroketten') || name.includes('knoblauchbrot') || name.includes('zaziki') || name.includes('pizzabrötchen');
+      } else if (activeCategory === 'toasts') {
+        matchesCategory = cat === 'toasts' || cat === 'toast' || name.includes('toast');
+      } else if (activeCategory === 'omelette') {
+        matchesCategory = cat === 'omelette' || name.includes('omelett');
+      } else if (activeCategory === 'getraenke') {
+        matchesCategory = cat === 'getraenke' || cat === 'drinks' || cat === 'dessert-drinks';
       } else if (activeCategory === 'all') {
         matchesCategory = true;
       } else {
-        matchesCategory = item.category === activeCategory;
+        matchesCategory = cat === activeCategory;
       }
 
       // Search match
@@ -133,15 +239,18 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
         item.desc?.toLowerCase().includes(q) ||
         item.toppings?.toLowerCase().includes(q);
 
-      // Vegetarian toggle filter
+      // Dietary filter (veg / non-veg / all)
       let matchesDietary = true;
-      if (isVegOnly) {
-        matchesDietary = item.dietary?.includes('vegetarisch') || item.dietary?.includes('vegan');
+      const isVeg = item.dietary?.includes('vegetarisch') || item.dietary?.includes('vegan');
+      if (dietaryFilter === 'veg') {
+        matchesDietary = isVeg;
+      } else if (dietaryFilter === 'non-veg') {
+        matchesDietary = !isVeg;
       }
 
       return matchesCategory && matchesSearch && matchesDietary;
     });
-  }, [menuItems, activeCategory, searchQuery, isVegOnly]);
+  }, [menuItems, activeCategory, searchQuery, dietaryFilter]);
 
   // Dynamic Deals linked to live menu items
   const liveDeals = useMemo(() => {
@@ -230,10 +339,45 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
 
   return (
     <div className="menu-page-container" id="speisekarte">
-      {/* Pizza Hut Style Menu Tabs Switch Bar */}
+      {/* Menu Tabs Switch Bar with Domino's style Veg & Non-Veg Filters on Top */}
       <div className="pizzahut-tabs-container">
-        <div className="pizzahut-tabs-inner">
-          <div className="pizzahut-tabs-list">
+        {/* Top Filter Bar: Veg Only & Non Veg Only */}
+        <div className="menu-dietary-strip">
+          <div className="menu-dietary-inner">
+            <button
+              type="button"
+              className={`dietary-filter-pill veg-pill ${dietaryFilter === 'veg' ? 'active' : ''}`}
+              onClick={() => setDietaryFilter((prev) => (prev === 'veg' ? 'all' : 'veg'))}
+              aria-pressed={dietaryFilter === 'veg'}
+            >
+              <span className="dietary-icon veg-icon">
+                <span className="veg-dot" />
+              </span>
+              <span className="dietary-text">Veg Only</span>
+            </button>
+
+            <button
+              type="button"
+              className={`dietary-filter-pill nonveg-pill ${dietaryFilter === 'non-veg' ? 'active' : ''}`}
+              onClick={() => setDietaryFilter((prev) => (prev === 'non-veg' ? 'all' : 'non-veg'))}
+              aria-pressed={dietaryFilter === 'non-veg'}
+            >
+              <span className="dietary-icon nonveg-icon">
+                <span className="nonveg-triangle" />
+              </span>
+              <span className="dietary-text">Non Veg Only</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Categories Tab Slider */}
+        <div className={`pizzahut-tabs-inner ${canScrollLeft ? 'has-overflow-left' : ''} ${canScrollRight ? 'has-overflow-right' : ''}`}>
+          <div
+            className="pizzahut-tabs-list"
+            ref={tabsListRef}
+            onScroll={updateTabScrollState}
+            id="categories-tab-list"
+          >
             {cleanCategories.map((cat) => {
               const isActive = activeCategory === cat.id;
               return (
@@ -241,7 +385,7 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
                   key={cat.id}
                   type="button"
                   className={`pizzahut-tab-btn ${isActive ? 'active' : ''}`}
-                  onClick={() => setActiveCategory(cat.id)}
+                  onClick={(e) => handleCategoryClick(cat.id, e)}
                 >
                   {/* Left: full pizza circle watermark */}
                   <span
@@ -249,7 +393,10 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
                     aria-hidden="true"
                     dangerouslySetInnerHTML={{ __html: TAB_SKETCH_LEFT }}
                   />
-                  <span className="pizzahut-tab-text">{cat.name}</span>
+                  <span className="pizzahut-tab-text">
+                    <span className="pizzahut-tab-main">{cat.name}</span>
+                    {cat.sub && <span className="pizzahut-tab-sub">{cat.sub}</span>}
+                  </span>
                   {/* Right: pizza slice watermark */}
                   <span
                     className="tab-sketch-right"
@@ -260,24 +407,24 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
               );
             })}
           </div>
+        </div>
 
-          <div className="pizzahut-tabs-right">
-            <label className="veg-toggle-label" onClick={() => setIsVegOnly((prev) => !prev)}>
-              <span className="veg-indicator-icon">
-                <span className="veg-indicator-dot" />
-              </span>
-              <span>Vegetarian</span>
-            </label>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={isVegOnly}
-              className={`switch-control ${isVegOnly ? 'active' : ''}`}
-              onClick={() => setIsVegOnly((prev) => !prev)}
-              aria-label="Vegetarisch filtern"
-            >
-              <span className="switch-thumb" />
-            </button>
+        {/* Interactive Slider Line under Categories */}
+        <div className="menu-tabs-slider-bar-wrap">
+          <div
+            className="menu-tabs-slider-track"
+            onClick={handleTrackClick}
+            title="Klicken oder ziehen für weitere Kategorien"
+            role="scrollbar"
+            aria-controls="categories-tab-list"
+          >
+            <div
+              className="menu-tabs-slider-thumb"
+              style={{
+                width: `${Math.max(10, thumbRatio * 100)}%`,
+                left: `${scrollProgress * (1 - Math.max(0.10, thumbRatio)) * 100}%`
+              }}
+            />
           </div>
         </div>
       </div>
@@ -451,7 +598,7 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
               onClick={() => {
                 setActiveCategory('pizza');
                 setSearchQuery('');
-                setIsVegOnly(false);
+                setDietaryFilter('all');
               }}
             >
               Alle Pizzen anzeigen
@@ -612,12 +759,14 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
       </section>
 
       {/* Modal for Item Customization */}
-      <CustomizeItemModal
-        item={customizingItem}
-        isOpen={!!customizingItem}
-        onClose={() => setCustomizingItem(null)}
-        onAddToCart={onAddToCart}
-      />
+      {customizingItem && (
+        <CustomizeItemModal
+          item={customizingItem}
+          isOpen={true}
+          onClose={() => setCustomizingItem(null)}
+          onAddToCart={onAddToCart}
+        />
+      )}
     </div>
   );
 }

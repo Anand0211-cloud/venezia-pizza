@@ -49,10 +49,7 @@ export default function PartyCateringSection({ onInquiryClick }) {
             Party- &amp; <span>Firmenservice</span> in Plauen
           </h2>
 
-          <p className="catering-description">
-            Verwöhnen Sie Ihre Gäste mit heißer, authentischer italienischer Küche.
-            Frisch aus dem Steinofen zubereitet und pünktlich zu Ihrem Event geliefert!
-          </p>
+
 
           {/* Clean Segmented Tabs */}
           <div className="catering-pill-tabs">
@@ -100,6 +97,7 @@ export default function PartyCateringSection({ onInquiryClick }) {
               <span>5 bis 100+ Personen</span>
             </div>
           </div>
+
 
           {/* Clean Actions */}
           <div className="catering-action-group">

@@ -5,15 +5,15 @@ import catPastaImg from './cat_pasta_1789589362531.jpg';
 import catDonerImg from './cat_doner_1789589379525.jpg';
 import catSaladImg from './cat_salad_1789589396956.jpg';
 import catSchnitzelImg from './cat_schnitzel_1789589414461.jpg';
-import offerA1Img from './offer_a1_1789589436268.jpg';
-import offerA2Img from './offer_a2_1789589456152.jpg';
-import offerA3Img from './offer_a3_1789589478736.jpg';
+const offerA1Img = '/images/Offer1.png';
+const offerA2Img = '/images/Offer2.png';
+const offerA3Img = '/images/offer3.png';
 import varietyPizzaHeroImg from './variety_pizza_hero.png';
 import cocktailDrinkImg from './cocktail_drink.png';
 import greenLettuceImg from './green_lettuce.png';
-import burgerHeroImg from './burger_hero.png';
-import burgerExplodedImg from './burger_exploded.png';
 import burgerAssembledImg from './burger_assembled.png';
+const burgerHeroImg = burgerAssembledImg;
+const burgerExplodedImg = burgerAssembledImg;
 
 // User's custom pizza PNG images
 import pizza1Img from './pizza 1.png';

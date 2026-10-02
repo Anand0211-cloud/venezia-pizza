@@ -58,16 +58,14 @@ export default function Categories({ selectedCategory, onSelectCategory }) {
           {/* Slider Controls & Page Dots */}
           <div className="slider-nav-arrows">
             <div className="slider-dots">
-              <button
-                className={`slider-dot ${currentPage === 0 ? 'active' : ''}`}
-                onClick={() => scrollToPage(0)}
-                aria-label="Seite 1 (5 Kategorien)"
-              />
-              <button
-                className={`slider-dot ${currentPage === 1 ? 'active' : ''}`}
-                onClick={() => scrollToPage(1)}
-                aria-label="Seite 2 (4 Kategorien)"
-              />
+              {Array.from({ length: Math.max(1, Math.ceil(categoriesData.length / 5)) }).map((_, idx) => (
+                <button
+                  key={idx}
+                  className={`slider-dot ${currentPage === idx ? 'active' : ''}`}
+                  onClick={() => scrollToPage(idx)}
+                  aria-label={`Seite ${idx + 1}`}
+                />
+              ))}
             </div>
 
             <button
@@ -119,7 +117,10 @@ export default function Categories({ selectedCategory, onSelectCategory }) {
 
                 {/* Category Info */}
                 <div className="category-oval-info">
-                  <strong className="category-oval-name">{cat.name}</strong>
+                  <strong className="category-oval-name">
+                    {cat.name}
+                    {cat.sub && <span style={{ display: 'block', fontSize: '11px', fontWeight: '500', opacity: 0.85 }}>{cat.sub}</span>}
+                  </strong>
                   {cat.count && <span className="category-oval-count">{cat.count}</span>}
                 </div>
               </button>

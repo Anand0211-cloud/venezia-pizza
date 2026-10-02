@@ -10,6 +10,10 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), emailPlugin(), sumupPlugin()],
+    server: {
+      host: true,
+      allowedHosts: 'all',
+    },
   };
 });
 

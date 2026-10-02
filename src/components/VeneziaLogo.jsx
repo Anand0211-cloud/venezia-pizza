@@ -1,8 +1,10 @@
 import React from 'react';
 
-export default function VeneziaLogo({ variant = 'dark', height = 46, className = '' }) {
-  const isDark = variant === 'dark';
-  const logoSrc = isDark ? '/logo-header.png' : '/logo-light.png';
+export default function VeneziaLogo({ variant = 'dark', height, className = '' }) {
+  const isNavbar = variant === 'dark' || variant === 'navbar';
+  const logoSrc = isNavbar ? '/logo_Navbar.png' : '/logo_footer.png';
+  const defaultHeight = isNavbar ? 50 : 58;
+  const currentHeight = height || defaultHeight;
 
   return (
     <div
@@ -18,15 +20,11 @@ export default function VeneziaLogo({ variant = 'dark', height = 46, className =
         src={logoSrc}
         alt="Venezia Pizza Service Plauen"
         style={{
-          height: `${height}px`,
+          height: `${currentHeight}px`,
           width: 'auto',
           maxHeight: '100%',
           objectFit: 'contain',
           display: 'block'
-        }}
-        onError={(e) => {
-          e.target.onerror = null;
-          e.target.src = '/venezia logo another concept-01.png';
         }}
       />
     </div>
