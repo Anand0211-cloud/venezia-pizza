@@ -66,83 +66,186 @@ export default function AdminLogin({ onLoginSuccess, onBackToStore }) {
       {/* Italian Ribbon Top Accent (matching frontend Navbar & Account page) */}
       <div
         style={{
-          height: '5px',
+          height: '4px',
           width: '100%',
           background: 'linear-gradient(to right, #008c45 33.3%, #ffffff 33.3%, #ffffff 66.6%, #cd212a 66.6%)'
         }}
       />
 
-      {/* Header Bar matching AccountPage.jsx / Store Header */}
-      <header
-        style={{
-          background: '#0f172a',
-          color: '#ffffff',
-          padding: '18px 20px',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.12)'
-        }}
-      >
-        <div
-          style={{
-            maxWidth: '960px',
-            margin: '0 auto',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '12px'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <button
-              type="button"
-              onClick={onBackToStore}
-              style={{
-                background: 'rgba(255, 255, 255, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                color: '#ffffff',
-                borderRadius: '8px',
-                padding: '8px 14px',
-                fontSize: '13px',
-                fontWeight: '700',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '7px',
-                cursor: 'pointer',
-                transition: 'background 0.15s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.18)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-              }}
-            >
-              <ArrowLeft size={16} />
-              <span>Zurück zum Shop</span>
-            </button>
+      <style>{`
+        .admin-login-header {
+          background: #0f172a;
+          color: #ffffff;
+          padding: 14px 20px;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+        }
+        .admin-login-header-inner {
+          max-width: 960px;
+          margin: 0 auto;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .admin-login-back-btn {
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          color: #ffffff;
+          border-radius: 8px;
+          padding: 7px 12px;
+          font-size: 13px;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          cursor: pointer;
+          transition: background 0.15s ease;
+          flex-shrink: 0;
+        }
+        .admin-login-back-btn:hover {
+          background: rgba(255, 255, 255, 0.18);
+        }
+        .admin-login-brand {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .admin-login-brand h1 {
+          margin: 0;
+          font-size: 17px;
+          font-weight: 800;
+          letter-spacing: -0.3px;
+          color: #ffffff;
+        }
+        .admin-login-secure-badge {
+          background: #e30613;
+          color: #ffffff;
+          font-size: 10px;
+          font-weight: 800;
+          padding: 2px 7px;
+          border-radius: 12px;
+          letter-spacing: 0.4px;
+          text-transform: uppercase;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+        }
+        .admin-login-subtitle {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #94a3b8;
+          font-size: 12px;
+        }
+        .admin-login-main {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 28px 16px 48px;
+        }
+        .admin-login-card {
+          width: 100%;
+          max-width: 440px;
+          background: #ffffff;
+          border-radius: 18px;
+          box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+          border: 1px solid #e2e8f0;
+          overflow: hidden;
+          animation: modalSlideUp 0.25s ease-out;
+        }
+        .admin-login-card-body {
+          padding: 28px 24px 22px;
+        }
+        .back-text-mobile {
+          display: none;
+        }
+        .back-text-desktop {
+          display: inline;
+        }
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '800', letterSpacing: '-0.3px' }}>
-                Venezia Admin-Portal
-              </h1>
-              <span
-                style={{
-                  background: '#e30613',
-                  color: '#ffffff',
-                  fontSize: '10.5px',
-                  fontWeight: '800',
-                  padding: '2px 8px',
-                  borderRadius: '12px',
-                  letterSpacing: '0.4px',
-                  textTransform: 'uppercase'
-                }}
-              >
-                Geschützt
-              </span>
-            </div>
+        @media (max-width: 640px) {
+          .admin-login-header {
+            padding: 10px 14px !important;
+          }
+          .admin-login-header-inner {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            width: 100% !important;
+          }
+          .admin-login-back-btn {
+            padding: 6px 10px !important;
+            font-size: 12px !important;
+            border-radius: 7px !important;
+          }
+          .back-text-desktop {
+            display: none !important;
+          }
+          .back-text-mobile {
+            display: inline !important;
+          }
+          .admin-login-brand h1 {
+            font-size: 14.5px !important;
+          }
+          .admin-login-subtitle {
+            display: none !important;
+          }
+          .admin-login-main {
+            padding: 16px 12px 32px !important;
+            align-items: flex-start !important;
+          }
+          .admin-login-card {
+            border-radius: 14px !important;
+          }
+          .admin-login-card-body {
+            padding: 22px 16px 18px !important;
+          }
+          .admin-login-icon-wrap {
+            width: 46px !important;
+            height: 46px !important;
+            margin-bottom: 10px !important;
+          }
+          .admin-login-icon-wrap svg {
+            width: 20px !important;
+            height: 20px !important;
+          }
+          .admin-login-card h2 {
+            font-size: 18px !important;
+            margin-bottom: 4px !important;
+          }
+          .admin-login-card p {
+            font-size: 12px !important;
+          }
+          .admin-login-submit-btn {
+            padding: 11px 14px !important;
+            font-size: 13.5px !important;
+          }
+        }
+      `}</style>
+
+      {/* Header Bar */}
+      <header className="admin-login-header">
+        <div className="admin-login-header-inner">
+          <button
+            type="button"
+            className="admin-login-back-btn"
+            onClick={onBackToStore}
+          >
+            <ArrowLeft size={15} />
+            <span className="back-text-desktop">Zurück zum Shop</span>
+            <span className="back-text-mobile">Shop</span>
+          </button>
+
+          <div className="admin-login-brand">
+            <h1>Venezia Admin</h1>
+            <span className="admin-login-secure-badge">
+              <ShieldCheck size={11} />
+              <span>Geschützt</span>
+            </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '12.5px' }}>
+          <div className="admin-login-subtitle">
             <span>Pizzeria Venezia Plauen</span>
             <span>•</span>
             <span style={{ color: '#ffffff', fontWeight: '600' }}>Management</span>
@@ -151,27 +254,8 @@ export default function AdminLogin({ onLoginSuccess, onBackToStore }) {
       </header>
 
       {/* Main Login Container */}
-      <main
-        style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '36px 16px 64px'
-        }}
-      >
-        <div
-          style={{
-            width: '100%',
-            maxWidth: '480px',
-            background: '#ffffff',
-            borderRadius: '20px',
-            boxShadow: '0 10px 35px rgba(0, 0, 0, 0.08)',
-            border: '1px solid #e2e8f0',
-            overflow: 'hidden',
-            animation: 'modalSlideUp 0.25s ease-out'
-          }}
-        >
+      <main className="admin-login-main">
+        <div className="admin-login-card">
           {/* Italian Ribbon Inside Card Header Accent */}
           <div
             style={{
@@ -181,30 +265,31 @@ export default function AdminLogin({ onLoginSuccess, onBackToStore }) {
             }}
           />
 
-          <div style={{ padding: '32px 28px 24px' }}>
-            {/* Header info matching AccountModal / AccountPage */}
-            <div style={{ textAlign: 'center', marginBottom: '26px' }}>
+          <div className="admin-login-card-body">
+            {/* Header info */}
+            <div style={{ textAlign: 'center', marginBottom: '22px' }}>
               <div
+                className="admin-login-icon-wrap"
                 style={{
-                  width: '56px',
-                  height: '56px',
+                  width: '52px',
+                  height: '52px',
                   borderRadius: '50%',
                   background: '#fff1f2',
                   color: '#e30613',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  margin: '0 auto 12px',
+                  margin: '0 auto 10px',
                   boxShadow: '0 4px 14px rgba(227, 6, 19, 0.15)'
                 }}
               >
-                <Lock size={26} />
+                <Lock size={24} />
               </div>
-              <h2 style={{ margin: '0 0 6px', fontSize: '22px', fontWeight: '800', color: '#0f172a' }}>
+              <h2 style={{ margin: '0 0 6px', fontSize: '21px', fontWeight: '800', color: '#0f172a' }}>
                 Administrator-Anmeldung
               </h2>
-              <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: 1.5 }}>
-                Melden Sie sich mit Ihren autorisierten Zugangsdaten an, um Bestellungen, Speisekarte und Fahrer zu verwalten.
+              <p style={{ margin: 0, fontSize: '12.5px', color: '#64748b', lineHeight: 1.5 }}>
+                Melden Sie sich mit Ihren Zugangsdaten an, um Bestellungen, Speisekarte und Fahrer zu verwalten.
               </p>
             </div>
 
@@ -361,6 +446,7 @@ export default function AdminLogin({ onLoginSuccess, onBackToStore }) {
               {/* Submit Button matching AccountModal / AccountPage */}
               <button
                 type="submit"
+                className="admin-login-submit-btn"
                 disabled={loading}
                 style={{
                   width: '100%',

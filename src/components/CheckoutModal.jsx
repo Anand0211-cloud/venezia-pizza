@@ -42,12 +42,8 @@ import {
   subscribeToOrders,
   updateOrderStatus,
   getCurrentCustomerUser,
-  checkCustomerAccountExists,
-  signUpCustomerUser,
-  signInCustomerUser,
-  resetCustomerPassword,
-  sendPasswordResetOtp,
-  verifyOtpAndResetPassword,
+  sendCustomerPhoneOtp,
+  verifyCustomerPhoneOtp,
   subscribeToCustomerAuth,
   supabase
 } from '../lib/supabaseClient';
@@ -89,34 +85,23 @@ export default function CheckoutModal({
     note: ''
   });
 
-  // Customer Auth & Account State
+  // Customer Auth & Mobile Phone OTP State on Checkout
   const [customerUser, setCustomerUser] = useState(null);
-  const [accountPassword, setAccountPassword] = useState('');
-  const [showAccountPassword, setShowAccountPassword] = useState(false);
-  const [showQuickLogin, setShowQuickLogin] = useState(false);
-  const [quickLoginEmail, setQuickLoginEmail] = useState('');
-  const [quickLoginPassword, setQuickLoginPassword] = useState('');
-  const [quickLoginError, setQuickLoginError] = useState('');
-  const [resetNotice, setResetNotice] = useState('');
+  const [checkoutPhoneStep, setCheckoutPhoneStep] = useState('phone'); // 'phone' | 'otp'
+  const [checkoutOtpCode, setCheckoutOtpCode] = useState('');
+  const [checkoutOtpError, setCheckoutOtpError] = useState('');
+  const [checkoutOtpSuccess, setCheckoutOtpSuccess] = useState('');
+  const [checkoutResendCooldown, setCheckoutResendCooldown] = useState(0);
+  const [isSendingCheckoutOtp, setIsSendingCheckoutOtp] = useState(false);
 
-  // Password Reset (OTP) State on Checkout
-  const [isResetMode, setIsResetMode] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
-  const [resetOtp, setResetOtp] = useState('');
-  const [resetNewPassword, setResetNewPassword] = useState('');
-  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
-  const [showResetNewPassword, setShowResetNewPassword] = useState(false);
-  const [resetError, setResetError] = useState('');
-  const [isResetSubmitting, setIsResetSubmitting] = useState(false);
-
-  // Existing Customer Account Detection & Inline Login State
-  const [existingAccount, setExistingAccount] = useState(null); // { exists: boolean, profile?: ... }
-  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
-  const [existingPassword, setExistingPassword] = useState('');
-  const [showExistingPassword, setShowExistingPassword] = useState(false);
-  const [existingLoginError, setExistingLoginError] = useState('');
-  const [isInlineLoggingIn, setIsInlineLoggingIn] = useState(false);
-  const [continueAsGuest, setContinueAsGuest] = useState(false);
+  // Resend SMS cooldown timer
+  useEffect(() => {
+    if (checkoutResendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCheckoutResendCooldown(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [checkoutResendCooldown]);
 
   // Payment Selection (Strictly 2 Production Options: SumUp & COD)
   const [paymentMethod, setPaymentMethod] = useState('sumup'); // 'sumup' or 'cash'
@@ -287,66 +272,101 @@ export default function CheckoutModal({
   // Strict email format validation regex (waits until full email e.g. name@domain.com is entered)
   const EMAIL_FORMAT_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
 
-  const checkEmailAccount = async (targetEmail) => {
-    if (customerUser) {
-      setExistingAccount(null);
-      setIsCheckingEmail(false);
+  // Send SMS OTP for unauthenticated customer at checkout
+  const handleSendCheckoutOtp = async () => {
+    setCheckoutOtpError('');
+    setCheckoutOtpSuccess('');
+    const rawPhone = (formData.phone || '').trim();
+    if (!rawPhone) {
+      alert('Bitte geben Sie Ihre Mobilfunknummer ein.');
       return;
     }
-    const emailToTest = (targetEmail || '').trim().toLowerCase();
-    // Do NOT check halfway typed emails like "anand@" or "anand@intelloft"
-    if (!emailToTest || !EMAIL_FORMAT_REGEX.test(emailToTest)) {
-      setExistingAccount(null);
-      setIsCheckingEmail(false);
-      return;
-    }
-
-    setIsCheckingEmail(true);
+    setIsSendingCheckoutOtp(true);
     try {
-      const res = await checkCustomerAccountExists(emailToTest);
-      if (res && res.exists) {
-        setExistingAccount(res);
-        setContinueAsGuest(false);
-        if (res.profile) {
-          setFormData((prev) => ({
-            ...prev,
-            name: prev.name ? prev.name : (res.profile.full_name || ''),
-            phone: prev.phone ? prev.phone : (res.profile.phone || ''),
-            street: prev.street ? prev.street : (res.profile.street || '')
-          }));
-        }
+      const res = await sendCustomerPhoneOtp(rawPhone);
+      if (res.success) {
+        setCheckoutPhoneStep('otp');
+        setCheckoutOtpSuccess(`SMS-Code an ${res.phone || rawPhone} gesendet!`);
+        setCheckoutResendCooldown(30);
       } else {
-        setExistingAccount(null);
+        setCheckoutOtpError(res.error || 'Fehler beim Senden des SMS-Codes.');
+        setCheckoutPhoneStep('otp');
       }
     } catch (err) {
-      console.warn('Check customer email error:', err);
+      setCheckoutOtpError(err.message || 'Fehler beim Senden des SMS-Codes.');
+      setCheckoutPhoneStep('otp');
     } finally {
-      setIsCheckingEmail(false);
+      setIsSendingCheckoutOtp(false);
     }
   };
 
-  // Automatically check if entered email belongs to an existing customer
-  // Only triggers when the user has typed a complete, valid email address
-  useEffect(() => {
-    if (customerUser) {
-      setExistingAccount(null);
+  // Verify SMS OTP for customer at checkout and log them in
+  const handleVerifyCheckoutOtp = async () => {
+    setCheckoutOtpError('');
+    if (!checkoutOtpCode.trim() || checkoutOtpCode.trim().length < 6) {
+      setCheckoutOtpError('Bitte geben Sie den 6-stelligen SMS-Code ein.');
       return;
     }
-    const emailToTest = (formData.email || '').trim().toLowerCase();
-    if (!emailToTest || !EMAIL_FORMAT_REGEX.test(emailToTest)) {
-      setExistingAccount(null);
-      setIsCheckingEmail(false);
-      return;
+    setIsSendingCheckoutOtp(true);
+    try {
+      const res = await verifyCustomerPhoneOtp({
+        phone: formData.phone.trim(),
+        token: checkoutOtpCode.trim()
+      });
+      if (res.success && res.user) {
+        setCustomerUser(res.user);
+        setCheckoutPhoneStep('phone');
+        setCheckoutOtpCode('');
+        setFormData(prev => ({
+          ...prev,
+          name: prev.name || res.user.full_name || '',
+          phone: res.user.phone || prev.phone,
+          street: prev.street || res.user.street || ''
+        }));
+        // Proceed directly to step 2 (payment)!
+        setStep(2);
+      } else {
+        setCheckoutOtpError(res.error || 'Ungültiger oder abgelaufener SMS-Code.');
+      }
+    } catch (err) {
+      setCheckoutOtpError(err.message || 'Ungültiger oder abgelaufener SMS-Code.');
+    } finally {
+      setIsSendingCheckoutOtp(false);
     }
+  };
 
-    const timer = setTimeout(() => {
-      checkEmailAccount(emailToTest);
-    }, 600);
+  const handleCheckoutOtpInputChange = (raw) => {
+    const val = raw.replace(/\D/g, '').slice(0, 6);
+    setCheckoutOtpCode(val);
+    if (val.length === 6) {
+      setTimeout(() => {
+        verifyCustomerPhoneOtp({
+          phone: formData.phone.trim(),
+          token: val
+        }).then(res => {
+          if (res.success && res.user) {
+            setCustomerUser(res.user);
+            setCheckoutPhoneStep('phone');
+            setCheckoutOtpCode('');
+            setFormData(prev => ({
+              ...prev,
+              name: prev.name || res.user.full_name || '',
+              phone: res.user.phone || prev.phone,
+              street: prev.street || res.user.street || ''
+            }));
+            setStep(2);
+          } else {
+            setCheckoutOtpError(res.error || 'Ungültiger oder abgelaufener SMS-Code.');
+          }
+        });
+      }, 100);
+    }
+  };
 
-    return () => clearTimeout(timer);
-  }, [formData.email, customerUser]);
-
-  if (!isOpen) return null;
+  const handleResendCheckoutOtp = async () => {
+    if (checkoutResendCooldown > 0 || isSendingCheckoutOtp) return;
+    await handleSendCheckoutOtp();
+  };
 
   // Pricing calculations
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
@@ -836,24 +856,19 @@ export default function CheckoutModal({
     </div>
   );
 
-  // Step 1 Validation & Proceed to Payment (Strict Authentication & Account Enforcement)
+  // Step 1 Validation & Proceed to Payment (Phone OTP verified if not logged in)
   const handleProceedToPayment = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     if (!isStoreOpen) {
       alert('Unser Restaurant hat zurzeit geschlossen. Online-Bestellungen sind pausiert.');
       return;
     }
     if (!formData.name.trim()) {
-      alert('Bitte geben Sie Ihren Namen an.');
+      alert('Bitte geben Sie Ihren Vor- und Nachnamen an.');
       return;
     }
     if (!formData.phone.trim()) {
-      alert('Bitte geben Sie eine Telefonnummer für eventuelle Rückfragen an.');
-      return;
-    }
-    const effectiveEmail = (customerUser?.email || formData.email || '').toLowerCase().trim();
-    if (!effectiveEmail || !effectiveEmail.includes('@') || effectiveEmail.length < 5) {
-      alert('Bitte geben Sie eine gültige E-Mail-Adresse für Ihr Kundenkonto an.');
+      alert('Bitte geben Sie Ihre Mobilfunknummer an.');
       return;
     }
     if (orderType === 'delivery') {
@@ -875,160 +890,22 @@ export default function CheckoutModal({
       }
     }
 
-    // 1. If user is already authenticated, directly proceed to payment
+    // CASE 1: If user is ALREADY logged in -> DO NOT ask for OTP -> Proceed directly to payment!
     if (customerUser) {
       setStep(2);
       return;
     }
 
-    // 2. User is NOT yet logged in. Check if email belongs to an existing account.
-    setIsInlineLoggingIn(true);
-    let isExisting = !!existingAccount?.exists;
-
-    if (!isExisting) {
-      try {
-        const checkRes = await checkCustomerAccountExists(effectiveEmail);
-        if (checkRes?.exists) {
-          isExisting = true;
-          setExistingAccount(checkRes);
-          if (checkRes.profile) {
-            setFormData(prev => ({
-              ...prev,
-              name: prev.name || checkRes.profile.full_name || '',
-              phone: prev.phone || checkRes.profile.phone || '',
-              street: prev.street || checkRes.profile.street || ''
-            }));
-          }
-        }
-      } catch (err) {
-        console.warn('Direct email account check notice:', err);
-      }
-    }
-
-    // CASE A: EXISTING CUSTOMER ACCOUNT DETECTED
-    if (isExisting) {
-      if (!existingPassword || !existingPassword.trim()) {
-        setIsInlineLoggingIn(false);
-        setExistingLoginError('Unter dieser E-Mail existiert bereits ein Kundenkonto. Bitte geben Sie Ihr Passwort ein.');
-        const pwdEl = document.getElementById('checkout-existing-password-input');
-        if (pwdEl) {
-          pwdEl.focus();
-          pwdEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-        return; // STRICT STOP: Do not advance to step 2 without password!
-      }
-
-      try {
-        const res = await signInCustomerUser({
-          email: effectiveEmail,
-          password: existingPassword.trim()
-        });
-
-        if (res.success && res.user) {
-          setCustomerUser(res.user);
-          setExistingAccount(null);
-          setExistingPassword('');
-          setExistingLoginError('');
-          setIsInlineLoggingIn(false);
-          setStep(2); // Proceed to payment
-          return;
-        } else {
-          setIsInlineLoggingIn(false);
-          setExistingLoginError(res.error || 'Ungültiges Passwort für dieses Kundenkonto.');
-          const pwdEl = document.getElementById('checkout-existing-password-input');
-          if (pwdEl) {
-            pwdEl.focus();
-            pwdEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-          return; // STRICT STOP!
-        }
-      } catch (err) {
-        setIsInlineLoggingIn(false);
-        setExistingLoginError(err.message || 'Anmeldung fehlgeschlagen.');
-        return; // STRICT STOP!
-      }
-    }
-
-    // CASE B: NEW CUSTOMER ACCOUNT
-    if (continueAsGuest) {
-      setIsInlineLoggingIn(false);
-      setStep(2);
+    // CASE 2: User is NOT yet logged in -> Send OTP and prompt verification inline
+    if (checkoutPhoneStep !== 'otp') {
+      await handleSendCheckoutOtp();
       return;
-    }
-
-    if (!accountPassword || accountPassword.trim().length < 6) {
-      setIsInlineLoggingIn(false);
-      alert('Bitte vergeben Sie ein sicheres Passwort für Ihr Kundenkonto (mindestens 6 Zeichen) oder aktivieren Sie "Als Gast bestellen".');
-      const newPwdEl = document.getElementById('checkout-new-password-input');
-      if (newPwdEl) {
-        newPwdEl.focus();
-        newPwdEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      if (!checkoutOtpCode || checkoutOtpCode.trim().length < 6) {
+        setCheckoutOtpError('Bitte geben Sie den 6-stelligen SMS-Code ein.');
+        return;
       }
-      return; // STRICT STOP: Do not advance without password!
-    }
-
-    try {
-      const fullStreetForAuth = orderType === 'delivery'
-        ? `${formData.street} ${formData.houseNr}`.trim()
-        : '';
-      const reg = await signUpCustomerUser({
-        email: effectiveEmail,
-        password: accountPassword.trim(),
-        full_name: formData.name,
-        phone: formData.phone,
-        street: fullStreetForAuth,
-        zip_city: formData.zipCity || '08525 Plauen'
-      });
-
-      if (reg.alreadyExists) {
-        // Email was already registered in Supabase Auth!
-        setExistingAccount({
-          exists: true,
-          profile: { email: effectiveEmail, full_name: formData.name }
-        });
-        // Test if the password entered by the user matches their account
-        const loginAttempt = await signInCustomerUser({
-          email: effectiveEmail,
-          password: accountPassword.trim()
-        });
-
-        if (loginAttempt.success && loginAttempt.user) {
-          setCustomerUser(loginAttempt.user);
-          setExistingAccount(null);
-          setExistingPassword('');
-          setIsInlineLoggingIn(false);
-          setStep(2); // Proceed to payment
-          return;
-        } else {
-          setIsInlineLoggingIn(false);
-          setExistingPassword(accountPassword);
-          setExistingLoginError('Unter dieser E-Mail existiert bereits ein Kundenkonto. Bitte geben Sie Ihr bestehendes Passwort ein.');
-          const pwdEl = document.getElementById('checkout-existing-password-input');
-          if (pwdEl) {
-            pwdEl.focus();
-            pwdEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-          return; // STRICT STOP!
-        }
-      }
-
-      if (!reg.success) {
-        setIsInlineLoggingIn(false);
-        alert(reg.error || 'Fehler beim Erstellen des Kundenkontos. Bitte überprüfen Sie Ihre Daten.');
-        return; // STRICT STOP!
-      }
-
-      // Successful registration
-      if (reg.user) {
-        setCustomerUser(reg.user);
-      }
-      setIsInlineLoggingIn(false);
-      setStep(2);
-      return;
-    } catch (regErr) {
-      setIsInlineLoggingIn(false);
-      alert('Registrierungsfehler: ' + (regErr.message || 'Bitte versuchen Sie es erneut.'));
-      return; // STRICT STOP!
+      await handleVerifyCheckoutOtp();
     }
   };
 
@@ -1042,7 +919,7 @@ export default function CheckoutModal({
     setIsProcessing(true);
     setProcessingStatusText('Bestelldaten werden vorbereitet...');
 
-    const effectiveEmail = (customerUser?.email || formData.email || '').toLowerCase().trim();
+    const effectiveEmail = (customerUser?.email || (formData.phone ? `${formData.phone.replace(/\D/g, '')}@customer.venezia.internal` : 'kunde@veneziapizzas.de')).toLowerCase().trim();
     const orderNumber = `VP-${Math.floor(1000 + Math.random() * 9000)}`;
     const fullStreet = orderType === 'delivery'
       ? `${formData.street} ${formData.houseNr} ${formData.floorApartment ? `(${formData.floorApartment})` : ''}`.trim()
@@ -1171,10 +1048,28 @@ export default function CheckoutModal({
     }
   };
 
+  // Escape key listener to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // CRITICAL: Do NOT render anything when modal is closed!
+  if (!isOpen) return null;
+
   const currentStatusIndex = getStatusStepIndex(confirmedOrder?.status || 'new');
 
   return (
-    <div className="checkout-modal-overlay" style={{
+    <div
+      className="checkout-modal-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      style={{
       position: 'fixed',
       inset: 0,
       background: 'rgba(15, 23, 42, 0.75)',
@@ -1240,6 +1135,7 @@ export default function CheckoutModal({
           </div>
 
           <button
+            type="button"
             onClick={onClose}
             aria-label="Schließen"
             style={{
@@ -1374,120 +1270,8 @@ export default function CheckoutModal({
                     Angemeldet als <strong>{customerUser.full_name || customerUser.email}</strong> • Ihre Daten wurden automatisch übernommen.
                   </span>
                 </div>
-              ) : (
-                <div style={{
-                  background: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '10px',
-                  padding: '10px 14px',
-                  fontSize: '12px',
-                  marginBottom: '18px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569' }}>
-                      <User size={14} color="var(--red)" />
-                      <span>Bereits ein Kundenkonto bei uns?</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowQuickLogin(!showQuickLogin)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--red)',
-                        fontWeight: '800',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        padding: 0
-                      }}
-                    >
-                      {showQuickLogin ? '✕ Schließen' : 'Hier anmelden'}
-                    </button>
-                  </div>
+              ) : null}
 
-                  {showQuickLogin && (
-                    <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1' }}>
-                      {isResetMode ? (
-                        renderPasswordResetBox()
-                      ) : (
-                        <>
-                          {quickLoginError && (
-                            <div style={{ color: '#b91c1c', fontSize: '11.5px', marginBottom: '8px', fontWeight: '600' }}>
-                              {quickLoginError}
-                            </div>
-                          )}
-                          {resetNotice && (
-                            <div style={{ color: '#15803d', fontSize: '11.5px', marginBottom: '8px', fontWeight: '700' }}>
-                              ✓ {resetNotice}
-                            </div>
-                          )}
-                          <div className="checkout-quick-login-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', gap: '8px', alignItems: 'center' }}>
-                            <input
-                              type="email"
-                              placeholder="E-Mail-Adresse"
-                              value={quickLoginEmail}
-                              onChange={(e) => setQuickLoginEmail(e.target.value)}
-                              style={{
-                                padding: '7px 10px',
-                                borderRadius: '6px',
-                                border: '1px solid #cbd5e1',
-                                fontSize: '12px',
-                                background: '#ffffff'
-                              }}
-                            />
-                            <input
-                              type="password"
-                              placeholder="Passwort"
-                              value={quickLoginPassword}
-                              onChange={(e) => setQuickLoginPassword(e.target.value)}
-                              style={{
-                                padding: '7px 10px',
-                                borderRadius: '6px',
-                                border: '1px solid #cbd5e1',
-                                fontSize: '12px',
-                                background: '#ffffff'
-                              }}
-                            />
-                            <button
-                              type="button"
-                              onClick={handleQuickLogin}
-                              style={{
-                                background: 'var(--red)',
-                                color: '#ffffff',
-                                border: 'none',
-                                borderRadius: '6px',
-                                padding: '7px 14px',
-                                fontSize: '12px',
-                                fontWeight: '800',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Anmelden
-                            </button>
-                          </div>
-                          <div style={{ textAlign: 'right', marginTop: '6px' }}>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenResetMode(quickLoginEmail || formData.email)}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#0284c7',
-                                fontSize: '11px',
-                                fontWeight: '600',
-                                cursor: 'pointer',
-                                textDecoration: 'underline'
-                              }}
-                            >
-                              Passwort vergessen? Bestätigungscode (OTP) eingeben
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
               {/* Delivery vs Pickup Choice */}
               <div className="checkout-order-type-grid" style={{
                 display: 'grid',
@@ -1552,185 +1336,6 @@ export default function CheckoutModal({
                 </button>
               </div>
 
-              {/* Timing Selection */}
-              <div style={{
-                background: '#f8fafc',
-                padding: '14px 16px',
-                borderRadius: '12px',
-                border: '1px solid #e2e8f0',
-                marginBottom: '20px'
-              }}>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '10px' }}>
-                  Wann soll die Bestellung fertig sein?
-                </div>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={() => setDeliveryTiming('asap')}
-                    style={{
-                      padding: '8px 14px',
-                      borderRadius: '8px',
-                      fontSize: '12.5px',
-                      fontWeight: '700',
-                      border: `1.5px solid ${deliveryTiming === 'asap' ? 'var(--red)' : '#cbd5e1'}`,
-                      background: deliveryTiming === 'asap' ? 'var(--red)' : '#ffffff',
-                      color: deliveryTiming === 'asap' ? '#ffffff' : '#334155',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    ⚡ Schnellstmöglich ({orderType === 'delivery' ? 'ca. 30–45 Min' : 'ca. 15–20 Min'})
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setDeliveryTiming('scheduled')}
-                    style={{
-                      padding: '8px 14px',
-                      borderRadius: '8px',
-                      fontSize: '12.5px',
-                      fontWeight: '700',
-                      border: `1.5px solid ${deliveryTiming === 'scheduled' ? 'var(--red)' : '#cbd5e1'}`,
-                      background: deliveryTiming === 'scheduled' ? 'var(--red)' : '#ffffff',
-                      color: deliveryTiming === 'scheduled' ? '#ffffff' : '#334155',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    🕒 Wunschzeit vorbestellen
-                  </button>
-
-                  {deliveryTiming === 'scheduled' && (
-                    <select
-                      value={scheduledTime}
-                      onChange={(e) => setScheduledTime(e.target.value)}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: '8px',
-                        border: '1.5px solid var(--red)',
-                        background: '#ffffff',
-                        fontSize: '12.5px',
-                        fontWeight: '700',
-                        color: '#0f172a',
-                        outline: 'none'
-                      }}
-                    >
-                      <option value="18:30">Heute um 18:30 Uhr</option>
-                      <option value="19:00">Heute um 19:00 Uhr</option>
-                      <option value="19:30">Heute um 19:30 Uhr</option>
-                      <option value="20:00">Heute um 20:00 Uhr</option>
-                      <option value="20:30">Heute um 20:30 Uhr</option>
-                      <option value="21:00">Heute um 21:00 Uhr</option>
-                      <option value="21:30">Heute um 21:30 Uhr</option>
-                    </select>
-                  )}
-                </div>
-              </div>
-
-              {/* Contact Information */}
-              <div style={{ marginBottom: '20px' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a', marginBottom: '12px' }}>
-                  Persönliche Kontaktdaten
-                </h4>
-
-                <div className="checkout-form-row checkout-contact-row" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
-                      Vor- und Nachname *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="z.B. Maximilian Müller"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        borderRadius: '8px',
-                        border: '1px solid #cbd5e1',
-                        fontSize: '13px',
-                        outline: 'none',
-                        background: '#ffffff'
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
-                      Telefonnummer (für Fahrer) *
-                    </label>
-                    <input
-                      type="tel"
-                      required
-                      placeholder="0171 1234567"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        borderRadius: '8px',
-                        border: '1px solid #cbd5e1',
-                        fontSize: '13px',
-                        outline: 'none',
-                        background: '#ffffff'
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
-                    E-Mail-Adresse (für Kundenkonto &amp; Bestellbestätigung) *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    readOnly={!!customerUser}
-                    placeholder="max.mueller@example.de"
-                    value={customerUser ? customerUser.email : formData.email}
-                    onChange={(e) => !customerUser && setFormData({ ...formData, email: e.target.value })}
-                    onBlur={(e) => !customerUser && checkEmailAccount(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '13px',
-                      outline: 'none',
-                      background: customerUser ? '#f1f5f9' : '#ffffff',
-                      color: customerUser ? '#334155' : '#0f172a',
-                      cursor: customerUser ? 'not-allowed' : 'text'
-                    }}
-                  />
-                  {customerUser && (
-                    <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: '600', marginTop: '4px' }}>
-                      ✓ Angemeldet als {customerUser.email}
-                    </div>
-                  )}
-                  {!customerUser && isCheckingEmail && (
-                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                      Kundenkonto wird geprüft...
-                    </div>
-                  )}
-                  {!customerUser && existingAccount?.exists && (
-                    <div style={{
-                      fontSize: '11.5px',
-                      color: '#0284c7',
-                      fontWeight: '700',
-                      marginTop: '5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px'
-                    }}>
-                      <UserCheck size={14} />
-                      <span>Bestehendes Kundenkonto erkannt – Bitte melden Sie sich unten an</span>
-                    </div>
-                  )}
-                  {!customerUser && isResetMode && !showQuickLogin && !existingAccount?.exists && (
-                    renderPasswordResetBox()
-                  )}
-                </div>
-              </div>
-
               {/* Delivery Address (only if delivery chosen) */}
               {orderType === 'delivery' && (
                 <div style={{ marginBottom: '20px' }}>
@@ -1738,7 +1343,7 @@ export default function CheckoutModal({
                     Lieferadresse in Plauen
                   </h4>
 
-                  <div className="checkout-form-row checkout-street-row" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.6fr', gap: '12px', marginBottom: '12px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.6fr', gap: '12px', marginBottom: '12px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
                         Straße &amp; Hausnummer *
@@ -1756,12 +1361,13 @@ export default function CheckoutModal({
                           border: '1px solid #cbd5e1',
                           fontSize: '13px',
                           outline: 'none',
-                          background: '#ffffff'
+                          background: '#ffffff',
+                          boxSizing: 'border-box'
                         }}
                       />
                     </div>
 
-                    <div className="checkout-form-row checkout-city-row" style={{ display: 'grid', gridTemplateColumns: '95px 1fr', gap: '8px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '95px 1fr', gap: '8px' }}>
                       <div>
                         <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
                           PLZ *
@@ -1789,7 +1395,8 @@ export default function CheckoutModal({
                             fontWeight: '700',
                             textAlign: 'center',
                             outline: 'none',
-                            background: '#ffffff'
+                            background: '#ffffff',
+                            boxSizing: 'border-box'
                           }}
                         />
                       </div>
@@ -1819,7 +1426,8 @@ export default function CheckoutModal({
                             border: '1px solid #cbd5e1',
                             fontSize: '13px',
                             outline: 'none',
-                            background: '#ffffff'
+                            background: '#ffffff',
+                            boxSizing: 'border-box'
                           }}
                         />
                         <datalist id="supported-areas-list">
@@ -1909,244 +1517,223 @@ export default function CheckoutModal({
                         border: '1px solid #cbd5e1',
                         fontSize: '13px',
                         outline: 'none',
-                        background: '#ffffff'
+                        background: '#ffffff',
+                        boxSizing: 'border-box'
                       }}
                     />
                   </div>
                 </div>
               )}
 
-              {/* Dynamic Account Handler: If existing account detected -> prompt login, otherwise offer new account creation */}
-              {!customerUser && existingAccount?.exists && (
-                isResetMode ? (
-                  renderPasswordResetBox()
-                ) : (
+              {/* Contact Information */}
+              <div style={{ marginBottom: '20px' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a', marginBottom: '12px' }}>
+                  Persönliche Kontaktdaten
+                </h4>
+
+                <div className="checkout-form-row checkout-contact-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '10px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                      Vor- und Nachname *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="z.B. Maximilian Müller"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '13px',
+                        outline: 'none',
+                        background: '#ffffff',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>
+                        Mobilfunknummer *
+                      </label>
+                      {customerUser ? (
+                        <span style={{ fontSize: '10.5px', color: '#16a34a', fontWeight: '800', background: '#dcfce7', padding: '1px 7px', borderRadius: '999px' }}>
+                          ✓ Verifiziert
+                        </span>
+                      ) : null}
+                    </div>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="tel"
+                        required
+                        readOnly={!!customerUser}
+                        placeholder="0171 1234567 oder +49..."
+                        value={customerUser ? (customerUser.phone || formData.phone) : formData.phone}
+                        onChange={(e) => !customerUser && setFormData({ ...formData, phone: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: '1.5px solid #cbd5e1',
+                          fontSize: '13px',
+                          fontWeight: customerUser ? '700' : '500',
+                          outline: 'none',
+                          background: customerUser ? '#f1f5f9' : '#ffffff',
+                          color: customerUser ? '#334155' : '#0f172a',
+                          cursor: customerUser ? 'not-allowed' : 'text',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {customerUser && (
+                  <div style={{ fontSize: '11.5px', color: '#15803d', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                    <CheckCircle2 size={14} color="#16a34a" />
+                    <span>Angemeldet als Stammkunde: {customerUser.full_name || customerUser.phone}</span>
+                  </div>
+                )}
+
+                {/* Inline OTP Verification Card (ONLY shown when user is NOT logged in and OTP is requested) */}
+                {!customerUser && checkoutPhoneStep === 'otp' && (
                   <div style={{
-                    background: '#f0f9ff',
-                    border: '2px solid #0284c7',
+                    background: '#fff1f2',
+                    border: '2px solid var(--red)',
                     borderRadius: '14px',
                     padding: '16px 18px',
-                    marginBottom: '20px',
-                    boxShadow: '0 4px 16px rgba(2, 132, 199, 0.12)'
+                    marginTop: '12px',
+                    marginBottom: '16px',
+                    boxShadow: '0 4px 16px rgba(225, 29, 72, 0.12)'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800', fontSize: '13.5px', color: '#0369a1' }}>
-                        <UserCheck size={18} color="#0284c7" />
-                        <span>Kundenkonto bereits vorhanden!</span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800', fontSize: '13.5px', color: '#9f1239' }}>
+                        <ShieldCheck size={18} color="var(--red)" />
+                        <span>SMS-Code bestätigen</span>
                       </div>
-                      <span style={{
-                        background: '#0284c7',
-                        color: '#ffffff',
-                        fontSize: '10px',
-                        fontWeight: '800',
-                        padding: '3px 8px',
-                        borderRadius: '10px'
-                      }}>
-                        Bitte anmelden
+                      <span style={{ fontSize: '11px', color: '#9f1239', fontWeight: '700' }}>
+                        Einmal-Login
                       </span>
                     </div>
 
-                    <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#0c4a6e', lineHeight: '1.45' }}>
-                      Unter <strong>{formData.email}</strong> existiert bereits ein Kundenkonto bei uns. Bitte geben Sie Ihr Passwort ein, um sich anzumelden und Ihre Bestellung aufzugeben:
+                    <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#475569', lineHeight: '1.45' }}>
+                      Wir haben einen 6-stelligen Bestätigungscode per SMS an <strong>{formData.phone}</strong> gesendet.
                     </p>
 
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <div style={{ position: 'relative', flex: '1 1 200px' }}>
-                        <input
-                          id="checkout-existing-password-input"
-                          type={showExistingPassword ? 'text' : 'password'}
-                          placeholder="Ihr bestehendes Passwort"
-                          value={existingPassword}
-                          onChange={(e) => {
-                            setExistingPassword(e.target.value);
-                            if (existingLoginError) setExistingLoginError('');
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleInlineExistingLogin();
-                            }
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '10px 38px 10px 12px',
-                            borderRadius: '8px',
-                            border: existingLoginError ? '2px solid #ef4444' : '1.5px solid #0284c7',
-                            fontSize: '13px',
-                            outline: 'none',
-                            background: '#ffffff',
-                            boxSizing: 'border-box'
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowExistingPassword(!showExistingPassword)}
-                          style={{
-                            position: 'absolute',
-                            right: '10px',
-                            top: '10px',
-                            background: 'none',
-                            border: 'none',
-                            color: '#64748b',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          {showExistingPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={handleInlineExistingLogin}
-                        disabled={isInlineLoggingIn}
-                        style={{
-                          background: '#0284c7',
-                          color: '#ffffff',
-                          border: 'none',
-                          borderRadius: '8px',
-                          padding: '10px 18px',
-                          fontSize: '13px',
-                          fontWeight: '800',
-                          cursor: isInlineLoggingIn ? 'wait' : 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
-                        }}
-                      >
-                        <LogIn size={15} />
-                        <span>{isInlineLoggingIn ? 'Wird angemeldet...' : 'Anmelden'}</span>
-                      </button>
-                    </div>
-
-                    {existingLoginError && (
+                    {checkoutOtpError && (
                       <div style={{
                         color: '#dc2626',
-                        background: '#fef2f2',
+                        background: '#fee2e2',
                         border: '1px solid #fecaca',
-                        borderRadius: '6px',
-                        padding: '6px 10px',
-                        fontSize: '11.5px',
+                        borderRadius: '8px',
+                        padding: '8px 12px',
+                        fontSize: '12px',
                         fontWeight: '600',
-                        marginTop: '10px'
+                        marginBottom: '10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
                       }}>
-                        ⚠️ {existingLoginError}
+                        <AlertCircle size={15} />
+                        <span>{checkoutOtpError}</span>
                       </div>
                     )}
 
-                    <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', marginTop: '12px', fontSize: '11px' }}>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        autoFocus
+                        placeholder="••••••"
+                        value={checkoutOtpCode}
+                        onChange={(e) => handleCheckoutOtpInputChange(e.target.value)}
+                        style={{
+                          flex: '1 1 140px',
+                          padding: '10px 14px',
+                          borderRadius: '8px',
+                          border: '2px solid var(--red)',
+                          fontSize: '18px',
+                          fontWeight: '900',
+                          letterSpacing: '6px',
+                          textAlign: 'center',
+                          outline: 'none',
+                          background: '#ffffff',
+                          fontFamily: 'monospace',
+                          boxSizing: 'border-box'
+                        }}
+                      />
                       <button
                         type="button"
-                        onClick={() => handleOpenResetMode(formData.email)}
+                        onClick={handleVerifyCheckoutOtp}
+                        disabled={isSendingCheckoutOtp || checkoutOtpCode.length < 6}
+                        style={{
+                          background: 'var(--red)',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '11px 18px',
+                          fontSize: '13px',
+                          fontWeight: '800',
+                          cursor: (isSendingCheckoutOtp || checkoutOtpCode.length < 6) ? 'not-allowed' : 'pointer',
+                          opacity: (isSendingCheckoutOtp || checkoutOtpCode.length < 6) ? 0.6 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <CheckCircle2 size={16} />
+                        <span>{isSendingCheckoutOtp ? 'Wird geprüft...' : 'Bestätigen & Weiter'}</span>
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '14px', marginTop: '10px', fontSize: '11.5px' }}>
+                      <button
+                        type="button"
+                        onClick={handleResendCheckoutOtp}
+                        disabled={checkoutResendCooldown > 0 || isSendingCheckoutOtp}
                         style={{
                           background: 'none',
                           border: 'none',
-                          color: '#0284c7',
+                          color: checkoutResendCooldown > 0 ? '#94a3b8' : 'var(--red)',
                           fontWeight: '700',
+                          cursor: checkoutResendCooldown > 0 ? 'not-allowed' : 'pointer',
+                          padding: 0,
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        {checkoutResendCooldown > 0 ? `Code erneut senden (${checkoutResendCooldown}s)` : 'SMS erneut senden'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCheckoutPhoneStep('phone');
+                          setCheckoutOtpCode('');
+                          setCheckoutOtpError('');
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#64748b',
+                          fontWeight: '600',
                           cursor: 'pointer',
                           padding: 0,
                           textDecoration: 'underline'
                         }}
                       >
-                        Passwort vergessen? Bestätigungscode (OTP) eingeben
+                        Nummer ändern
                       </button>
                     </div>
                   </div>
-                )
-              )}
+                )}
+              </div>
 
-              {!customerUser && !existingAccount?.exists && (
-                <div style={{
-                  background: '#f8fafc',
-                  border: '1.5px solid #002B49',
-                  borderRadius: '12px',
-                  padding: '14px 16px',
-                  marginBottom: '20px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800', fontSize: '13px', color: '#0f172a' }}>
-                      <Lock size={15} color="#002B49" />
-                      <span>Kundenkonto erstellen</span>
-                    </div>
-                    <span style={{
-                      background: '#002B49',
-                      color: '#ffffff',
-                      fontSize: '10px',
-                      fontWeight: '700',
-                      padding: '2px 8px',
-                      borderRadius: '10px',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      Konto-Passwort *
-                    </span>
-                  </div>
-                  <p style={{ margin: '0 0 12px 0', fontSize: '11.5px', color: '#64748b', lineHeight: '1.4' }}>
-                    Vergeben Sie ein sicheres Passwort für Ihr Kundenkonto, um Ihre Bestellung live zu verfolgen und bei zukünftigen Bestellungen Zeit zu sparen.
-                  </p>
 
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
-                      Passwort für Ihr Kundenkonto (mind. 6 Zeichen) *
-                    </label>
-                    <div style={{ position: 'relative', maxWidth: '340px' }}>
-                      <input
-                        id="checkout-new-password-input"
-                        type={showAccountPassword ? 'text' : 'password'}
-                        required={!continueAsGuest}
-                        disabled={continueAsGuest}
-                        minLength={6}
-                        placeholder={continueAsGuest ? 'Gastbestellung aktiv' : 'Sicheres Passwort (mind. 6 Zeichen) *'}
-                        value={continueAsGuest ? '' : accountPassword}
-                        onChange={(e) => setAccountPassword(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '9px 38px 9px 12px',
-                          borderRadius: '8px',
-                          border: '1px solid #cbd5e1',
-                          fontSize: '13px',
-                          outline: 'none',
-                          background: continueAsGuest ? '#f1f5f9' : '#ffffff',
-                          color: continueAsGuest ? '#94a3b8' : '#0f172a',
-                          boxSizing: 'border-box'
-                        }}
-                      />
-                      {!continueAsGuest && (
-                        <button
-                          type="button"
-                          onClick={() => setShowAccountPassword(!showAccountPassword)}
-                          style={{
-                            position: 'absolute',
-                            right: '10px',
-                            top: '9px',
-                            background: 'none',
-                            border: 'none',
-                            color: '#94a3b8',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          {showAccountPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input
-                      type="checkbox"
-                      id="checkout-guest-checkbox"
-                      checked={continueAsGuest}
-                      onChange={(e) => setContinueAsGuest(e.target.checked)}
-                      style={{ cursor: 'pointer', width: '15px', height: '15px' }}
-                    />
-                    <label
-                      htmlFor="checkout-guest-checkbox"
-                      style={{ fontSize: '12px', color: '#64748b', cursor: 'pointer', userSelect: 'none' }}
-                    >
-                      Als Gast bestellen (kein Kundenkonto erstellen)
-                    </label>
-                  </div>
-                </div>
-              )}
 
               {/* Order Note */}
               <div style={{ marginBottom: '24px' }}>

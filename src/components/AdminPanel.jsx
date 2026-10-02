@@ -34,6 +34,7 @@ import {
   Printer,
   Receipt,
   Calendar,
+  ChevronLeft,
   ChevronRight,
   History,
   Flame,
@@ -81,23 +82,45 @@ import {
   calzoneSizes,
   pizzaExtraToppingsList
 } from '../data/menuData';
-import { notifyMenuUpdated } from '../data/liveMenuState';
+import { notifyMenuUpdated, getItemCanonicalCategory } from '../data/liveMenuState';
 import { getDeliveryZone, DELIVERY_ZONES_CONFIG, ALL_SUPPORTED_AREAS } from '../lib/deliveryZones';
 
 // Category emoji mapping for UI
 const CATEGORY_EMOJIS = {
+  all: '🍽️',
+  pizzen: '🍕',
   pizza: '🍕',
-  calzone: '🌯',
+  calzone: '🥟',
   pasta: '🍝',
-  doner: '🥙',
-  'burger-snacks': '🍔',
+  gnocchi: '🥔',
+  'pasta-al-forno': '🍲',
+  vegetarisch: '🌱',
+  auflaeufe: '🫕',
+  reisgerichte: '🍚',
+  fleischgerichte: '🥩',
   schnitzel: '🥩',
+  gyros: '🥙',
+  doner: '🥙',
+  salate: '🥗',
   salad: '🥗',
-  'dessert-drinks': '🍰',
+  'grill-menue': '🔥',
+  'american-food': '🍔',
+  'burger-snacks': '🍔',
+  indisch: '🍛',
+  lamm: '🍖',
+  steaks: '🥩',
+  fischgerichte: '🐟',
+  mexikanisch: '🌮',
+  chinesisch: '🥡',
+  beilagen: '🍟',
+  toasts: '🥪',
+  omelette: '🍳',
+  getraenke: '🥤',
+  'dessert-drinks': '🥤',
   deals: '🏷️'
 };
 
-// Frontend categories with clean German names (no icons)
+// Frontend categories with clean German names (mirroring store)
 const FRONTEND_CATEGORIES = [
   { id: 'all', name_de: 'Alle Gerichte', name_en: 'All Dishes' },
   { id: 'pizzen', name_de: 'Pizzen', name_en: 'Pizzas' },
@@ -108,7 +131,7 @@ const FRONTEND_CATEGORIES = [
   { id: 'auflaeufe', name_de: 'Aufläufe', name_en: 'Casseroles' },
   { id: 'reisgerichte', name_de: 'Reisgerichte im Ofen überbacken', name_en: 'Baked Rice Dishes' },
   { id: 'fleischgerichte', name_de: 'Fleischgerichte', name_en: 'Meat Dishes' },
-  { id: 'gyros', name_de: 'Gyros', name_en: 'Gyros & Döner' },
+  { id: 'gyros', name_de: 'Gyros & Döner', name_en: 'Gyros & Döner' },
   { id: 'salate', name_de: 'Salate', name_en: 'Salads' },
   { id: 'grill-menue', name_de: 'Grill Menü', name_en: 'Grill Menu' },
   { id: 'american-food', name_de: 'American Food', name_en: 'American Food & Burgers' },
@@ -121,7 +144,8 @@ const FRONTEND_CATEGORIES = [
   { id: 'beilagen', name_de: 'Extra Beilagen', name_en: 'Side Dishes' },
   { id: 'toasts', name_de: 'Toasts', name_en: 'Toasts' },
   { id: 'omelette', name_de: 'Omelette mit Käse überbacken', name_en: 'Baked Cheese Omelette' },
-  { id: 'getraenke', name_de: 'Getränke', name_en: 'Beverages' }
+  { id: 'getraenke', name_de: 'Getränke & Desserts', name_en: 'Beverages & Desserts' },
+  { id: 'deals', name_de: 'Spar-Menüs & Deals', name_en: 'Deals & Offers' }
 ];
 
 // Preset images available in public/images
@@ -987,8 +1011,7 @@ const DEMO_ORDERS = [
 
 // Helper to normalize items from DB or local
 const normalizeItem = (i) => {
-  const isDeal = i.id?.startsWith('A') || i.id?.startsWith('offer-') || i.category_id === 'deals' || i.category === 'deals';
-  const cat = isDeal ? 'deals' : (i.category_id || i.category || 'pizza');
+  const cat = getItemCanonicalCategory(i);
   const unitPrice = typeof i.price === 'number'
     ? i.price
     : (i.prices?.single || i.prices?.small || 9.00);
@@ -996,13 +1019,16 @@ const normalizeItem = (i) => {
     ? i.prices.allowed_toppings
     : (Array.isArray(i.allowed_toppings) ? i.allowed_toppings : null);
 
+  const isCalzone = cat === 'calzone' || (i.name && i.name.toLowerCase().includes('calzone'));
+  const isPizza = cat === 'pizzen' || cat === 'pizza' || isCalzone;
+
   return {
     ...i,
     category_id: cat,
     category: cat,
     price: unitPrice,
-    sizes_available: i.sizes_available ?? i.sizesAvailable ?? (cat === 'pizza'),
-    calzone_sizes: i.calzone_sizes ?? i.calzoneSizes ?? (cat === 'calzone'),
+    sizes_available: i.sizes_available ?? i.sizesAvailable ?? isPizza,
+    calzone_sizes: i.calzone_sizes ?? i.calzoneSizes ?? isCalzone,
     supports_american: !!(i.supports_american ?? i.supportsAmerican),
     dietary: Array.isArray(i.dietary) ? i.dietary : [],
     allowed_toppings: allowedToppings
@@ -1137,6 +1163,25 @@ export default function AdminPanel({ onBackToStore }) {
   const [newOrderAlert, setNewOrderAlert] = useState(null);
   const [menuSearch, setMenuSearch] = useState('');
   const [selectedCategoryTab, setSelectedCategoryTab] = useState('all');
+  const adminCatTrackRef = useRef(null);
+  const [canScrollCatLeft, setCanScrollCatLeft] = useState(false);
+  const [canScrollCatRight, setCanScrollCatRight] = useState(true);
+
+  const checkAdminCatScroll = () => {
+    if (adminCatTrackRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = adminCatTrackRef.current;
+      setCanScrollCatLeft(scrollLeft > 6);
+      setCanScrollCatRight(scrollLeft + clientWidth < scrollWidth - 6);
+    }
+  };
+
+  const scrollAdminCat = (direction) => {
+    if (adminCatTrackRef.current) {
+      const scrollAmount = direction === 'left' ? -280 : 280;
+      adminCatTrackRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+      setTimeout(checkAdminCatScroll, 320);
+    }
+  };
 
   // Store Online/Offline Open Status State
   const [isStoreOpen, setIsStoreOpen] = useState(true);
@@ -1536,7 +1581,7 @@ export default function AdminPanel({ onBackToStore }) {
 
   const handleCategoryChange = (newCatId) => {
     setDishForm(prev => {
-      const isPizza = newCatId === 'pizza';
+      const isPizza = newCatId === 'pizzen' || newCatId === 'pizza';
       const isCalzone = newCatId === 'calzone';
       let updatedSizes = { ...(prev.sizes_config || DEFAULT_SIZES_CONFIG) };
 
@@ -1914,11 +1959,9 @@ export default function AdminPanel({ onBackToStore }) {
       ? item.price
       : (item.prices?.single || item.prices?.small || 9.00);
 
-    const isDeal = item.id?.startsWith('A') || item.id?.startsWith('offer-') || item.category_id === 'deals' || item.category === 'deals';
-    const categoryId = isDeal ? 'deals' : (item.category_id || item.category || 'pizza');
-
+    const categoryId = getItemCanonicalCategory(item);
     const isCalzone = categoryId === 'calzone' || !!(item.calzone_sizes ?? item.calzoneSizes);
-    const isPizza = categoryId === 'pizza' || !!(item.sizes_available ?? item.sizesAvailable);
+    const isPizza = categoryId === 'pizzen' || categoryId === 'pizza' || !!(item.sizes_available ?? item.sizesAvailable);
     const hasSizes = !!(item.prices && (item.prices.small !== undefined || item.prices.large !== undefined)) || isPizza || isCalzone;
 
     // Build sizes_config with exact prices from item.prices or unitPrice
@@ -2052,14 +2095,29 @@ export default function AdminPanel({ onBackToStore }) {
     prices.custom_toppings = customToppings;
 
     const finalBasePrice = firstEnabledPrice !== null ? firstEnabledPrice : numPrice;
-    const isCalzone = dishForm.category_id === 'calzone';
-    const isDeal = dishForm.category_id === 'deals' || id.startsWith('A') || id.startsWith('offer-');
+    const canonicalCat = getItemCanonicalCategory({ ...dishForm, id });
+    const isCalzone = canonicalCat === 'calzone' || dishForm.category_id === 'calzone';
+    const isDeal = canonicalCat === 'deals' || dishForm.category_id === 'deals' || id.startsWith('A') || id.startsWith('offer-');
+
+    // Safe DB category_id mapping to respect foreign key constraint on categories(id) in Supabase
+    const dbCategoryId = isDeal ? null : (
+      dishForm.category_id === 'pizzen' ? 'pizza' :
+      dishForm.category_id === 'fleischgerichte' ? 'schnitzel' :
+      dishForm.category_id === 'gyros' ? 'doner' :
+      dishForm.category_id === 'salate' ? 'salad' :
+      dishForm.category_id === 'american-food' ? 'burger-snacks' :
+      dishForm.category_id === 'getraenke' ? 'dessert-drinks' :
+      (['pizza', 'calzone', 'pasta', 'doner', 'burger-snacks', 'schnitzel', 'salad', 'dessert-drinks'].includes(dishForm.category_id)
+        ? dishForm.category_id
+        : (['pasta-al-forno', 'gnocchi'].includes(dishForm.category_id) ? 'pasta' : null))
+    );
+
+    prices.frontend_category = dishForm.category_id;
 
     const payload = {
       id,
       number: dishForm.number,
-      // For foreign key constraint in categories table: deals category_id is stored as NULL in categories table
-      category_id: isDeal ? null : dishForm.category_id,
+      category_id: dbCategoryId,
       name_de: dishForm.name,
       name_en: dishForm.name,
       desc_de: dishForm.desc,
@@ -2092,11 +2150,12 @@ export default function AdminPanel({ onBackToStore }) {
       }
     }
 
-    const displayCategory = isDeal ? 'deals' : dishForm.category_id;
+    const displayCategory = dishForm.category_id;
     const formattedItem = {
       ...payload,
       category: displayCategory,
       category_id: displayCategory,
+      frontend_category: displayCategory,
       allowed_toppings: prices.allowed_toppings,
       custom_sizes: customSizes,
       custom_toppings: customToppings
@@ -2199,8 +2258,7 @@ export default function AdminPanel({ onBackToStore }) {
   });
 
   const filteredMenuItems = menuItems.filter(item => {
-    const isDeal = item.id?.startsWith('A') || item.id?.startsWith('offer-') || item.category_id === 'deals' || item.category === 'deals';
-    const itemCat = isDeal ? 'deals' : (item.category_id || item.category || 'pizza');
+    const itemCat = getItemCanonicalCategory(item);
     const matchesCat = selectedCategoryTab === 'all' || itemCat === selectedCategoryTab;
     const matchesSearch =
       (item.name_de || item.name || '').toLowerCase().includes(menuSearch.toLowerCase()) ||
@@ -2213,11 +2271,7 @@ export default function AdminPanel({ onBackToStore }) {
   // Calculate items per category count
   const getCatCount = (catId) => {
     if (catId === 'all') return menuItems.length;
-    return menuItems.filter(item => {
-      const isDeal = item.id?.startsWith('A') || item.id?.startsWith('offer-') || item.category_id === 'deals' || item.category === 'deals';
-      const itemCat = isDeal ? 'deals' : (item.category_id || item.category || 'pizza');
-      return itemCat === catId;
-    }).length;
+    return menuItems.filter(item => getItemCanonicalCategory(item) === catId).length;
   };
 
   // 1. Loading state while verifying Supabase session
@@ -2585,22 +2639,465 @@ export default function AdminPanel({ onBackToStore }) {
           box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15) !important;
           outline: none !important;
         }
+
+        /* --------------------------------------------------------- */
+        /* 3. MOBILE & TABLET RESPONSIVENESS SYSTEM                  */
+        /* --------------------------------------------------------- */
+        .admin-portal {
+          overflow-x: hidden !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
+        }
+        .admin-portal *, .admin-portal *::before, .admin-portal *::after {
+          box-sizing: border-box !important;
+        }
+        .admin-main-content {
+          box-sizing: border-box !important;
+          width: 100% !important;
+        }
+
+        @media (max-width: 1024px) {
+          .admin-studio-grid {
+            grid-template-columns: 1fr !important;
+            gap: 20px !important;
+          }
+          .admin-studio-preview-col {
+            position: static !important;
+            top: auto !important;
+            order: 2 !important;
+            width: 100% !important;
+          }
+        }
+
+        /* Desktop & Mobile visibility utilities */
+        .back-btn-text-mobile {
+          display: none;
+        }
+        .back-btn-text-full {
+          display: inline;
+        }
+        .admin-theme-toggle-desktop {
+          display: flex;
+        }
+        .admin-theme-toggle-mobile {
+          display: none !important;
+        }
+        .logout-text-desktop {
+          display: inline;
+        }
+        .back-btn-text-mobile {
+          display: none;
+        }
+        .back-btn-text-full {
+          display: inline;
+        }
+        .theme-text-desktop {
+          display: inline;
+        }
+        .switcher-label-mobile {
+          display: none;
+        }
+        .switcher-label-desktop {
+          display: inline;
+        }
+        .admin-live-badge-desktop {
+          display: inline-flex;
+        }
+        .admin-live-dot-mobile {
+          display: none !important;
+        }
+        .admin-header-desktop {
+          display: flex !important;
+          padding: 16px 48px !important;
+        }
+        .admin-header-mobile {
+          display: none !important;
+        }
+        .admin-main-nav {
+          padding: 0 48px !important;
+        }
+        .admin-main-content {
+          padding: 24px 48px !important;
+        }
+
+        @media (max-width: 1200px) and (min-width: 769px) {
+          .admin-header-desktop {
+            padding: 16px 32px !important;
+          }
+          .admin-main-nav {
+            padding: 0 32px !important;
+          }
+          .admin-main-content {
+            padding: 22px 32px !important;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .admin-header-desktop {
+            display: none !important;
+          }
+          .admin-header-mobile {
+            display: flex !important;
+          }
+          .admin-top-header {
+            padding: 12px 16px !important;
+            gap: 10px !important;
+          }
+          .admin-header-line-1 {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            width: 100% !important;
+            padding-bottom: 8px !important;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.18) !important;
+          }
+          .admin-header-line-1 h1 {
+            font-size: 15px !important;
+          }
+          .admin-header-logout-btn {
+            padding: 6px 12px !important;
+            font-size: 12px !important;
+            gap: 6px !important;
+          }
+          .admin-header-line-2 {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            width: 100% !important;
+            gap: 10px !important;
+            padding-bottom: 8px !important;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.15) !important;
+          }
+          .back-btn-text-full {
+            display: none !important;
+          }
+          .back-btn-text-mobile {
+            display: inline !important;
+          }
+          .admin-header-back-btn {
+            padding: 6px 12px !important;
+            font-size: 12px !important;
+            gap: 6px !important;
+          }
+          .admin-header-tools {
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+          }
+          .theme-text-desktop {
+            display: none !important;
+          }
+          .admin-header-line-3 {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            width: 100% !important;
+            gap: 10px !important;
+            padding-top: 2px !important;
+          }
+          .admin-shop-status-pill {
+            padding: 5px 10px !important;
+            max-width: none !important;
+            gap: 8px !important;
+          }
+          .admin-shop-status-pill span:first-of-type {
+            font-size: 10.5px !important;
+          }
+          .admin-email-text {
+            max-width: 95px !important;
+            font-size: 11px !important;
+          }
+          .admin-user-badge {
+            padding: 5px 10px !important;
+            gap: 6px !important;
+          }
+          .admin-main-nav {
+            padding: 0 10px !important;
+            gap: 4px !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch;
+          }
+          .admin-main-nav button {
+            padding: 10px 10px !important;
+            font-size: 12.5px !important;
+            flex: 1 1 auto !important;
+            justify-content: center !important;
+          }
+          .admin-main-content {
+            padding: 12px 10px !important;
+          }
+          .admin-order-alert-banner {
+            padding: 12px 14px !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+          }
+          .admin-order-alert-banner button {
+            width: 100% !important;
+            justify-content: center !important;
+          }
+          .admin-orders-header {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 10px !important;
+          }
+          .switcher-label-desktop {
+            display: none !important;
+          }
+          .switcher-label-mobile {
+            display: inline !important;
+            font-weight: 800 !important;
+          }
+          .admin-order-view-switcher {
+            width: 100% !important;
+            display: flex !important;
+            padding: 3px !important;
+            gap: 3px !important;
+          }
+          .admin-order-view-switcher button {
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            padding: 7px 4px !important;
+            font-size: 11px !important;
+            justify-content: center !important;
+            gap: 3px !important;
+            white-space: nowrap !important;
+          }
+          .admin-order-view-switcher .switcher-icon {
+            width: 13px !important;
+            height: 13px !important;
+            flex-shrink: 0 !important;
+          }
+          .admin-order-view-switcher .switcher-badge {
+            flex-shrink: 0 !important;
+            padding: 1px 4px !important;
+            font-size: 10px !important;
+            min-width: 16px !important;
+            text-align: center !important;
+          }
+          .admin-metrics-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 10px !important;
+            margin-bottom: 14px !important;
+          }
+          .admin-metrics-grid > div {
+            padding: 11px 12px !important;
+          }
+          .admin-metrics-grid > div > div {
+            font-size: 18px !important;
+          }
+          .admin-orders-filters-bar {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            padding: 10px 12px !important;
+            gap: 10px !important;
+            margin-bottom: 14px !important;
+          }
+          .admin-orders-search-wrap {
+            max-width: 100% !important;
+            width: 100% !important;
+            flex: 1 1 100% !important;
+          }
+          .admin-orders-status-pills {
+            overflow-x: auto !important;
+            flex-wrap: nowrap !important;
+            width: 100% !important;
+            padding-bottom: 4px !important;
+            -webkit-overflow-scrolling: touch;
+            gap: 5px !important;
+          }
+          .admin-orders-status-pills button {
+            flex-shrink: 0 !important;
+            white-space: nowrap !important;
+            padding: 5px 10px !important;
+            font-size: 11.5px !important;
+          }
+          .admin-orders-grid {
+            grid-template-columns: 1fr !important;
+            gap: 14px !important;
+          }
+          .admin-order-card {
+            padding: 14px 12px !important;
+          }
+          .admin-order-modal-overlay {
+            padding: 8px !important;
+            align-items: flex-end !important;
+          }
+          .admin-order-modal-card {
+            max-height: 94vh !important;
+            border-radius: 14px 14px 0 0 !important;
+            width: 100% !important;
+          }
+          .admin-order-modal-header {
+            padding: 12px 14px !important;
+            flex-wrap: wrap !important;
+            gap: 8px !important;
+          }
+          .admin-order-modal-body {
+            grid-template-columns: 1fr !important;
+            padding: 14px 12px !important;
+            gap: 16px !important;
+          }
+          .admin-modal-edit-grid-2col {
+            grid-template-columns: 1fr !important;
+          }
+          .admin-modal-edit-grid-3col {
+            grid-template-columns: 1fr !important;
+          }
+          .admin-menu-header {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+            margin-bottom: 14px !important;
+          }
+          .admin-menu-header button {
+            width: 100% !important;
+            justify-content: center !important;
+            padding: 11px 16px !important;
+          }
+          .admin-menu-search-bar {
+            padding: 10px 12px !important;
+            margin-bottom: 14px !important;
+          }
+          .admin-menu-grid {
+            grid-template-columns: 1fr !important;
+            gap: 12px !important;
+          }
+          .admin-menu-card {
+            padding: 14px 12px !important;
+          }
+          .admin-studio-top-bar {
+            padding: 12px 14px !important;
+            gap: 10px !important;
+          }
+          .admin-studio-hero-banner {
+            padding: 14px 16px !important;
+          }
+          .admin-studio-card {
+            padding: 16px 14px !important;
+            border-radius: 14px !important;
+          }
+          .admin-studio-sizes-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .admin-studio-toppings-grid {
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+          }
+          .admin-studio-bottom-bar {
+            flex-direction: column !important;
+            padding: 12px 14px !important;
+            gap: 10px !important;
+          }
+          .admin-studio-bottom-bar button {
+            width: 100% !important;
+            justify-content: center !important;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .admin-top-header {
+            padding: 10px 12px !important;
+            gap: 9px !important;
+          }
+          .admin-header-line-1 {
+            padding-bottom: 7px !important;
+          }
+          .admin-header-line-1 h1 {
+            font-size: 14.5px !important;
+          }
+          .admin-header-logout-btn {
+            padding: 5px 10px !important;
+            font-size: 11.5px !important;
+          }
+          .admin-header-line-2 {
+            padding-bottom: 7px !important;
+          }
+          .admin-header-back-btn {
+            padding: 5px 10px !important;
+            font-size: 11.5px !important;
+          }
+          .admin-header-tools {
+            gap: 6px !important;
+          }
+          .admin-shop-status-pill {
+            padding: 4px 8px !important;
+            gap: 6px !important;
+          }
+          .admin-shop-status-pill span:first-of-type {
+            font-size: 10.5px !important;
+          }
+          .admin-email-text {
+            max-width: 80px !important;
+            font-size: 10.5px !important;
+          }
+          .admin-user-badge {
+            padding: 4px 8px !important;
+          }
+          .admin-main-nav button {
+            padding: 9px 8px !important;
+            font-size: 12px !important;
+            gap: 5px !important;
+          }
+          .admin-main-content {
+            padding: 10px 6px !important;
+          }
+          .admin-metrics-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+          }
+          .admin-metrics-grid > div {
+            padding: 9px 10px !important;
+          }
+          .admin-metrics-grid > div > span {
+            font-size: 10.5px !important;
+          }
+          .admin-metrics-grid > div > div {
+            font-size: 16px !important;
+          }
+          .admin-order-card {
+            padding: 12px 10px !important;
+            gap: 10px !important;
+          }
+          .admin-studio-grid-1-2 {
+            grid-template-columns: 1fr !important;
+            gap: 10px !important;
+          }
+          .admin-studio-prep-stock-grid {
+            grid-template-columns: 1fr !important;
+            gap: 10px !important;
+          }
+          .admin-studio-toppings-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .admin-studio-presets-grid {
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 6px !important;
+          }
+          .admin-studio-custom-topping-inputs {
+            grid-template-columns: 1fr !important;
+          }
+        }
       `}</style>
 
-      {/* Top Admin Header */}
-      <header style={{
-        background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',
-        borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
-        padding: '16px 24px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '12px',
-        position: 'sticky',
-        top: 0,
-        zIndex: 100
-      }}>
+      {/* 1. Top Admin Header - Desktop View (exact original as before) */}
+      <header
+        className="admin-header-desktop"
+        style={{
+          background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',
+          borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
+          padding: '16px 48px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)'
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button
             onClick={onBackToStore}
@@ -2895,15 +3392,354 @@ export default function AdminPanel({ onBackToStore }) {
         </div>
       </header>
 
+      {/* 2. Top Admin Header - Mobile View (3-Tier Dedicated Layout) */}
+      <header
+        className="admin-header-mobile admin-top-header"
+        style={{
+          background: isLight ? 'rgba(255, 255, 255, 0.96)' : '#131b2e',
+          borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
+          padding: '14px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '11px',
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          boxShadow: isLight ? '0 2px 8px rgba(0, 0, 0, 0.04)' : '0 4px 16px rgba(0, 0, 0, 0.25)'
+        }}
+      >
+        {/* LINE 1: Venezia Admin Portal Title (Left) + Logout Button (Right) */}
+        <div
+          className="admin-header-line-1"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            gap: '14px',
+            paddingBottom: '9px',
+            borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255, 255, 255, 0.08)'
+          }}
+        >
+          {/* Brand Heading */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h1 style={{
+              fontSize: '17px',
+              fontWeight: '900',
+              margin: 0,
+              letterSpacing: '-0.3px',
+              color: isLight ? '#0f172a' : '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '9px'
+            }}>
+              <span>Venezia Admin Portal</span>
+              <span
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: isConnected ? '#10b981' : '#f59e0b',
+                  boxShadow: isConnected ? '0 0 8px #10b981' : '0 0 8px #f59e0b',
+                  display: 'inline-block',
+                  marginLeft: '2px'
+                }}
+                title={isConnected ? 'Online (Supabase)' : 'Offline'}
+              />
+            </h1>
+          </div>
+
+          {/* Logout Button (Moved to top right side as requested) */}
+          {adminUser && (
+            <button
+              type="button"
+              className="admin-header-logout-btn"
+              onClick={handleAdminLogout}
+              title={lang === 'de' ? 'Abmelden' : 'Sign out'}
+              style={{
+                background: isLight ? '#fee2e2' : 'rgba(239, 68, 68, 0.15)',
+                border: isLight ? '1px solid #fca5a5' : '1px solid rgba(239, 68, 68, 0.35)',
+                color: isLight ? '#dc2626' : '#f87171',
+                borderRadius: '8px',
+                padding: '7px 14px',
+                fontSize: '12.5px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '7px',
+                transition: 'all 0.15s ease',
+                flexShrink: 0
+              }}
+            >
+              <LogOut size={14} />
+              <span>{lang === 'de' ? 'Abmelden' : 'Logout'}</span>
+            </button>
+          )}
+        </div>
+
+        {/* LINE 2: Back to Shop (Left) + Rest of Utility Buttons (Right) */}
+        <div
+          className="admin-header-line-2"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            gap: '12px',
+            paddingBottom: '9px',
+            borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255, 255, 255, 0.08)'
+          }}
+        >
+          {/* Back to Shop */}
+          <button
+            onClick={onBackToStore}
+            className="admin-header-back-btn"
+            style={{
+              background: isLight ? '#0f172a' : '#1e293b',
+              color: '#ffffff',
+              border: isLight ? 'none' : '1px solid #334155',
+              borderRadius: '8px',
+              padding: '7px 14px',
+              fontSize: '12.5px',
+              fontWeight: '700',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '7px',
+              cursor: 'pointer',
+              boxShadow: isLight ? '0 2px 6px rgba(15, 23, 42, 0.12)' : 'none',
+              flexShrink: 0
+            }}
+          >
+            <ArrowLeft size={15} color="#ffffff" />
+            <span className="back-btn-text-full">{t.backToStore}</span>
+            <span className="back-btn-text-mobile">Zum Shop</span>
+          </button>
+
+          {/* Quick Utility Cluster: Theme Toggle, Language Toggle (Refresh removed as requested) */}
+          <div className="admin-header-tools" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+            {/* Theme Toggle */}
+            <div style={{
+              background: isLight ? '#f1f5f9' : '#0b0f19',
+              padding: '3px',
+              borderRadius: '8px',
+              display: 'flex',
+              gap: '2px',
+              border: isLight ? '1px solid #cbd5e1' : '1px solid #334155'
+            }}>
+              <button
+                type="button"
+                onClick={() => handleThemeChange('light')}
+                title={t.themeLight}
+                style={{
+                  background: adminTheme === 'light' ? (isLight ? '#0f172a' : '#0284c7') : 'transparent',
+                  color: adminTheme === 'light' ? '#ffffff' : (isLight ? '#64748b' : '#94a3b8'),
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '5px 10px',
+                  fontSize: '11.5px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}
+              >
+                <Sun size={13} />
+                <span className="theme-text-desktop">{t.themeLight}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleThemeChange('dark')}
+                title={t.themeDark}
+                style={{
+                  background: adminTheme === 'dark' ? '#1e293b' : 'transparent',
+                  color: adminTheme === 'dark' ? '#ffffff' : (isLight ? '#64748b' : '#94a3b8'),
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '5px 10px',
+                  fontSize: '11.5px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}
+              >
+                <Moon size={13} />
+                <span className="theme-text-desktop">{t.themeDark}</span>
+              </button>
+            </div>
+
+            {/* Language Toggle DE / EN */}
+            <div style={{
+              background: isLight ? '#f1f5f9' : '#0b0f19',
+              padding: '3px',
+              borderRadius: '8px',
+              display: 'flex',
+              gap: '2px',
+              border: isLight ? '1px solid #cbd5e1' : '1px solid #334155'
+            }}>
+              <button
+                onClick={() => setLang('de')}
+                style={{
+                  background: lang === 'de' ? '#e11d48' : 'transparent',
+                  color: lang === 'de' ? '#ffffff' : (isLight ? '#64748b' : '#94a3b8'),
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '5px 10px',
+                  fontSize: '11.5px',
+                  fontWeight: '800',
+                  cursor: 'pointer'
+                }}
+              >
+                DE
+              </button>
+              <button
+                onClick={() => setLang('en')}
+                style={{
+                  background: lang === 'en' ? '#e11d48' : 'transparent',
+                  color: lang === 'en' ? '#ffffff' : (isLight ? '#64748b' : '#94a3b8'),
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '5px 10px',
+                  fontSize: '11.5px',
+                  fontWeight: '800',
+                  cursor: 'pointer'
+                }}
+              >
+                EN
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* LINE 3: Store Operations (Shop Open/Closed Toggle + Logged-in Staff) */}
+        <div
+          className="admin-header-line-3"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            gap: '12px',
+            paddingTop: '2px'
+          }}
+        >
+          {/* Shop Online / Offline Toggle Control */}
+          <div
+            className="admin-shop-status-pill"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              background: isStoreOpen
+                ? (isLight ? '#f0fdf4' : 'rgba(22, 163, 74, 0.15)')
+                : (isLight ? '#fef2f2' : 'rgba(239, 68, 68, 0.15)'),
+              border: isStoreOpen
+                ? (isLight ? '1.5px solid #86efac' : '1.5px solid rgba(34, 197, 94, 0.4)')
+                : (isLight ? '1.5px solid #fca5a5' : '1.5px solid rgba(239, 68, 68, 0.4)'),
+              borderRadius: '8px',
+              padding: '6px 12px',
+              boxShadow: isStoreOpen ? '0 1px 6px rgba(34, 197, 94, 0.12)' : '0 1px 6px rgba(239, 68, 68, 0.12)',
+              transition: 'all 0.2s ease',
+              flex: '1 1 auto',
+              maxWidth: '280px'
+            }}
+          >
+            <div style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: isStoreOpen ? '#16a34a' : '#ef4444',
+              boxShadow: isStoreOpen ? '0 0 6px #22c55e' : '0 0 6px #ef4444',
+              flexShrink: 0
+            }} />
+            <span style={{
+              fontSize: '11px',
+              fontWeight: '800',
+              color: isStoreOpen ? (isLight ? '#15803d' : '#4ade80') : (isLight ? '#b91c1c' : '#f87171'),
+              letterSpacing: '0.3px',
+              whiteSpace: 'nowrap',
+              flex: 1
+            }}>
+              {isStoreOpen ? 'SHOP GEÖFFNET' : 'SHOP GESCHLOSSEN'}
+            </span>
+
+            <button
+              type="button"
+              onClick={handleToggleStoreStatus}
+              disabled={isUpdatingStoreStatus}
+              title={isStoreOpen ? 'Klicken, um Shop zu schließen' : 'Klicken, um Shop zu öffnen'}
+              style={{
+                position: 'relative',
+                width: '38px',
+                height: '20px',
+                borderRadius: '10px',
+                background: isStoreOpen ? '#16a34a' : '#94a3b8',
+                border: 'none',
+                cursor: isUpdatingStoreStatus ? 'wait' : 'pointer',
+                transition: 'background 0.2s ease',
+                padding: '2px',
+                flexShrink: 0,
+                opacity: isUpdatingStoreStatus ? 0.6 : 1,
+                marginLeft: '4px'
+              }}
+            >
+              <div style={{
+                width: '16px',
+                height: '16px',
+                borderRadius: '50%',
+                background: '#ffffff',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+                transform: isStoreOpen ? 'translateX(18px)' : 'translateX(0px)',
+                transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+              }} />
+            </button>
+          </div>
+
+          {/* Admin User Badge */}
+          {adminUser && (
+            <div
+              className="admin-user-badge"
+              style={{
+                background: isLight ? '#f1f5f9' : 'rgba(15, 23, 42, 0.8)',
+                border: isLight ? '1px solid #cbd5e1' : '1px solid #334155',
+                borderRadius: '8px',
+                padding: '6px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '11.5px',
+                fontWeight: '600',
+                color: isLight ? '#334155' : '#94a3b8',
+                flexShrink: 0
+              }}
+              title={adminUser.email}
+            >
+              <User size={14} color="#e11d48" />
+              <span className="admin-email-text" style={{ maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {adminUser.email}
+              </span>
+            </div>
+          )}
+        </div>
+      </header>
+
       {/* Main Navigation Tabs */}
-      <nav style={{
-        background: isLight ? 'rgba(255, 255, 255, 0.95)' : '#131b2e',
-        borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
-        padding: '0 24px',
-        display: 'flex',
-        gap: '8px',
-        overflowX: 'auto'
-      }}>
+      <nav
+        className="admin-main-nav"
+        style={{
+          background: isLight ? 'rgba(255, 255, 255, 0.95)' : '#131b2e',
+          borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
+          padding: '0 48px',
+          display: 'flex',
+          gap: '8px',
+          overflowX: 'auto'
+        }}
+      >
         {[
           {
             key: 'orders',
@@ -2973,7 +3809,7 @@ export default function AdminPanel({ onBackToStore }) {
       </nav>
 
       {/* Main Container */}
-      <main style={{ maxWidth: '1440px', margin: '0 auto', padding: '24px' }}>
+      <main className="admin-main-content" style={{ maxWidth: '1440px', margin: '0 auto', padding: '24px 48px' }}>
 
         {/* Store Status Change Notification Banner */}
         {storeStatusNotice && (
@@ -3012,7 +3848,7 @@ export default function AdminPanel({ onBackToStore }) {
 
         {/* Live Audio-Visual New Order Alert Banner */}
         {newOrderAlert && (
-          <div style={{
+          <div className="admin-order-alert-banner" style={{
             background: 'linear-gradient(135deg, #e11d48, #be123c)',
             color: '#ffffff',
             borderRadius: '14px',
@@ -3098,14 +3934,14 @@ export default function AdminPanel({ onBackToStore }) {
         {activeTab === 'orders' && (
           <div>
             {/* Header: Title & Sub-tabs (Active vs History vs All) */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '18px' }}>
+            <div className="admin-orders-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '18px' }}>
               <div>
                 <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0, color: isLight ? '#0f172a' : '#ffffff' }}>{t.orders.title}</h2>
                 <p style={{ fontSize: '13px', color: isLight ? '#475569' : '#94a3b8', margin: '4px 0 0' }}>{t.orders.subtitle}</p>
               </div>
 
               {/* Main View Switcher: Aktive Aufträge vs Bestellhistorie vs Alle */}
-              <div style={{
+              <div className="admin-order-view-switcher" style={{
                 background: isLight ? '#f1f5f9' : '#131b2e',
                 padding: '4px',
                 borderRadius: '10px',
@@ -3122,28 +3958,34 @@ export default function AdminPanel({ onBackToStore }) {
                     color: ordersTab === 'active' ? '#ffffff' : (isLight ? '#334155' : '#94a3b8'),
                     border: 'none',
                     borderRadius: '8px',
-                    padding: '8px 16px',
+                    padding: '8px 14px',
                     fontSize: '13px',
                     fontWeight: '700',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
+                    gap: '6px',
                     boxShadow: ordersTab === 'active' ? '0 2px 8px rgba(225, 29, 72, 0.3)' : 'none',
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <ShoppingBag size={15} />
-                  <span>{t.orders.activeOrders}</span>
-                  <span style={{
-                    background: ordersTab === 'active' ? 'rgba(255,255,255,0.25)' : (isLight ? '#ffffff' : '#1e293b'),
-                    color: ordersTab === 'active' ? '#ffffff' : (isLight ? '#334155' : '#cbd5e1'),
-                    border: ordersTab === 'active' ? 'none' : (isLight ? '1px solid #cbd5e1' : 'none'),
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    padding: '1px 6px',
-                    borderRadius: '10px'
-                  }}>
+                  <ShoppingBag size={14} className="switcher-icon" />
+                  <span className="switcher-label-desktop">{t.orders.activeOrders}</span>
+                  <span className="switcher-label-mobile">{lang === 'de' ? 'Aktiv' : 'Active'}</span>
+                  <span
+                    className="switcher-badge"
+                    style={{
+                      background: ordersTab === 'active' ? 'rgba(255,255,255,0.25)' : (isLight ? '#ffffff' : '#1e293b'),
+                      color: ordersTab === 'active' ? '#ffffff' : (isLight ? '#334155' : '#cbd5e1'),
+                      border: ordersTab === 'active' ? 'none' : (isLight ? '1px solid #cbd5e1' : 'none'),
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      padding: '1px 6px',
+                      borderRadius: '10px',
+                      marginLeft: '2px',
+                      flexShrink: 0
+                    }}
+                  >
                     {orders.filter(o => o.status === 'new' || o.status === 'preparing' || o.status === 'out_for_delivery').length}
                   </span>
                 </button>
@@ -3156,28 +3998,34 @@ export default function AdminPanel({ onBackToStore }) {
                     color: ordersTab === 'history' ? '#ffffff' : (isLight ? '#334155' : '#94a3b8'),
                     border: 'none',
                     borderRadius: '8px',
-                    padding: '8px 16px',
+                    padding: '8px 14px',
                     fontSize: '13px',
                     fontWeight: '700',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
+                    gap: '6px',
                     boxShadow: ordersTab === 'history' ? '0 2px 8px rgba(2, 132, 199, 0.3)' : 'none',
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <History size={15} />
-                  <span>{t.orders.orderHistory}</span>
-                  <span style={{
-                    background: ordersTab === 'history' ? 'rgba(255,255,255,0.25)' : (isLight ? '#ffffff' : '#1e293b'),
-                    color: ordersTab === 'history' ? '#ffffff' : (isLight ? '#334155' : '#cbd5e1'),
-                    border: ordersTab === 'history' ? 'none' : (isLight ? '1px solid #cbd5e1' : 'none'),
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    padding: '1px 6px',
-                    borderRadius: '10px'
-                  }}>
+                  <History size={14} className="switcher-icon" />
+                  <span className="switcher-label-desktop">{t.orders.orderHistory}</span>
+                  <span className="switcher-label-mobile">{lang === 'de' ? 'Historie' : 'History'}</span>
+                  <span
+                    className="switcher-badge"
+                    style={{
+                      background: ordersTab === 'history' ? 'rgba(255,255,255,0.25)' : (isLight ? '#ffffff' : '#1e293b'),
+                      color: ordersTab === 'history' ? '#ffffff' : (isLight ? '#334155' : '#cbd5e1'),
+                      border: ordersTab === 'history' ? 'none' : (isLight ? '1px solid #cbd5e1' : 'none'),
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      padding: '1px 6px',
+                      borderRadius: '10px',
+                      marginLeft: '2px',
+                      flexShrink: 0
+                    }}
+                  >
                     {orders.filter(o => o.status === 'delivered' || o.status === 'cancelled').length}
                   </span>
                 </button>
@@ -3201,16 +4049,23 @@ export default function AdminPanel({ onBackToStore }) {
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <span>{t.orders.allOrders}</span>
-                  <span style={{
-                    background: ordersTab === 'all' ? 'rgba(255,255,255,0.25)' : (isLight ? '#ffffff' : '#1e293b'),
-                    color: ordersTab === 'all' ? '#ffffff' : (isLight ? '#334155' : '#cbd5e1'),
-                    border: ordersTab === 'all' ? 'none' : (isLight ? '1px solid #cbd5e1' : 'none'),
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    padding: '1px 6px',
-                    borderRadius: '10px'
-                  }}>
+                  <Receipt size={14} className="switcher-icon" />
+                  <span className="switcher-label-desktop">{t.orders.allOrders}</span>
+                  <span className="switcher-label-mobile">{lang === 'de' ? 'Alle' : 'All'}</span>
+                  <span
+                    className="switcher-badge"
+                    style={{
+                      background: ordersTab === 'all' ? 'rgba(255,255,255,0.25)' : (isLight ? '#ffffff' : '#1e293b'),
+                      color: ordersTab === 'all' ? '#ffffff' : (isLight ? '#334155' : '#cbd5e1'),
+                      border: ordersTab === 'all' ? 'none' : (isLight ? '1px solid #cbd5e1' : 'none'),
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      padding: '1px 6px',
+                      borderRadius: '10px',
+                      marginLeft: '2px',
+                      flexShrink: 0
+                    }}
+                  >
                     {orders.length}
                   </span>
                 </button>
@@ -3218,7 +4073,7 @@ export default function AdminPanel({ onBackToStore }) {
             </div>
 
             {/* Quick Metrics & Gateway Status Bar */}
-            <div style={{
+            <div className="admin-metrics-grid" style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
               gap: '12px',
@@ -3292,7 +4147,7 @@ export default function AdminPanel({ onBackToStore }) {
             </div>
 
             {/* Search & Status Pill Filters Bar */}
-            <div style={{
+            <div className="admin-orders-filters-bar" style={{
               background: isLight ? 'rgba(255, 255, 255, 0.9)' : '#131b2e',
               border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
               borderRadius: '12px',
@@ -3306,7 +4161,7 @@ export default function AdminPanel({ onBackToStore }) {
               boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.02)' : 'none'
             }}>
               {/* Search Field */}
-              <div style={{ position: 'relative', flex: '1 1 260px', maxWidth: '420px' }}>
+              <div className="admin-orders-search-wrap" style={{ position: 'relative', flex: '1 1 260px', maxWidth: '420px' }}>
                 <Search size={15} color={isLight ? '#64748b' : '#94a3b8'} style={{ position: 'absolute', left: '12px', top: '10px' }} />
                 <input
                   type="text"
@@ -3326,7 +4181,7 @@ export default function AdminPanel({ onBackToStore }) {
               </div>
 
               {/* Status Pills */}
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              <div className="admin-orders-status-pills" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 {[
                   { id: 'all', label: t.orders.filterAll },
                   { id: 'new', label: t.orders.filterNew },
@@ -3378,7 +4233,7 @@ export default function AdminPanel({ onBackToStore }) {
                 )}
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '18px' }}>
+              <div className="admin-orders-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '18px' }}>
                 {filteredOrders.map(order => {
                   const isNew = order.status === 'new';
                   const isPrep = order.status === 'preparing';
@@ -3406,6 +4261,7 @@ export default function AdminPanel({ onBackToStore }) {
                   return (
                     <div
                       key={order.id}
+                      className="admin-order-card"
                       style={{
                         background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',
                         borderRadius: '12px',
@@ -3797,19 +4653,22 @@ export default function AdminPanel({ onBackToStore }) {
             {/* ORDER DETAILS MODAL (FULL BREAKDOWN & PAYMENT GATEWAY TEST) */}
             {/* ================================================================ */}
             {selectedOrder && (
-              <div style={{
-                position: 'fixed',
-                inset: 0,
-                background: 'rgba(0, 0, 0, 0.75)',
-                backdropFilter: 'blur(6px)',
-                zIndex: 1200,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '20px'
-              }}>
+              <div
+                className="admin-order-modal-overlay"
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  background: 'rgba(0, 0, 0, 0.75)',
+                  backdropFilter: 'blur(6px)',
+                  zIndex: 1200,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '20px'
+                }}
+              >
                 <div
-                  className="admin-card"
+                  className="admin-card admin-order-modal-card"
                   style={{
                     background: isLight ? '#ffffff' : '#131b2e',
                     border: isLight ? '1px solid #cbd5e1' : '1px solid #334155',
@@ -3825,17 +4684,20 @@ export default function AdminPanel({ onBackToStore }) {
                   }}
                 >
                   {/* Modal Header */}
-                  <div style={{
-                    padding: '20px 24px',
-                    borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    position: 'sticky',
-                    top: 0,
-                    background: isLight ? '#ffffff' : '#131b2e',
-                    zIndex: 10
-                  }}>
+                  <div
+                    className="admin-order-modal-header"
+                    style={{
+                      padding: '20px 24px',
+                      borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      position: 'sticky',
+                      top: 0,
+                      background: isLight ? '#ffffff' : '#131b2e',
+                      zIndex: 10
+                    }}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <div style={{
                         background: '#e11d48',
@@ -3955,7 +4817,10 @@ export default function AdminPanel({ onBackToStore }) {
                   </div>
 
                   {/* Modal Body: 2 Columns */}
-                  <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px' }}>
+                  <div
+                    className="admin-order-modal-body"
+                    style={{ padding: '24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px' }}
+                  >
                     {/* LEFT COLUMN: Customer & Itemized Breakdown */}
                     {isEditingOrder && editOrderForm ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -3970,7 +4835,7 @@ export default function AdminPanel({ onBackToStore }) {
                             </span>
                           </div>
 
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                          <div className="admin-modal-edit-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                             <div>
                               <label style={{ display: 'block', fontSize: '11.5px', color: '#94a3b8', fontWeight: '700', marginBottom: '4px' }}>
                                 {t.orders.customerName}
@@ -4040,7 +4905,7 @@ export default function AdminPanel({ onBackToStore }) {
 
                           {/* Address fields if delivery */}
                           {editOrderForm.delivery_type === 'delivery' && (
-                            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                            <div className="admin-modal-edit-grid-3col" style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1fr', gap: '10px', marginBottom: '12px' }}>
                               <div>
                                 <label style={{ display: 'block', fontSize: '11.5px', color: '#94a3b8', fontWeight: '700', marginBottom: '4px' }}>
                                   {t.orders.streetLabel}
@@ -4840,7 +5705,7 @@ export default function AdminPanel({ onBackToStore }) {
         {activeTab === 'menu' && (
           <div>
             {/* Header & Add Button */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+            <div className="admin-menu-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
               <div>
                 <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0, color: isLight ? '#0f172a' : '#ffffff' }}>{t.menu.title}</h2>
                 <p style={{ fontSize: '13px', color: isLight ? '#475569' : '#94a3b8', margin: '4px 0 0' }}>{t.menu.subtitle}</p>
@@ -4871,57 +5736,144 @@ export default function AdminPanel({ onBackToStore }) {
               </button>
             </div>
 
-            {/* Category Navigation Pills (Exact Front-End Mirror) */}
-            <div style={{
-              display: 'flex',
-              gap: '8px',
-              overflowX: 'auto',
-              paddingBottom: '12px',
-              marginBottom: '16px'
-            }}>
-              {FRONTEND_CATEGORIES.map(cat => {
-                const isSelected = selectedCategoryTab === cat.id;
-                const count = getCatCount(cat.id);
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategoryTab(cat.id)}
-                    style={{
-                      background: isSelected ? '#e11d48' : (isLight ? '#ffffff' : '#131b2e'),
-                      color: isSelected ? '#ffffff' : (isLight ? '#334155' : '#cbd5e1'),
-                      border: `1px solid ${isSelected ? '#e11d48' : (isLight ? '#cbd5e1' : '#1e293b')}`,
-                      borderRadius: '30px',
-                      padding: '8px 16px',
-                      fontSize: '13px',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      whiteSpace: 'nowrap',
-                      transition: 'all 0.15s ease',
-                      boxShadow: isSelected ? '0 4px 12px rgba(225, 29, 72, 0.35)' : (isLight ? '0 1px 3px rgba(0, 0, 0, 0.04)' : 'none')
-                    }}
-                  >
-                    <span>{lang === 'de' ? cat.name_de : (cat.name_en || cat.name_de)}</span>
-                    <span style={{
-                      background: isSelected ? 'rgba(255,255,255,0.25)' : (isLight ? '#f1f5f9' : '#1e293b'),
-                      color: isSelected ? '#ffffff' : (isLight ? '#334155' : '#ffffff'),
-                      border: isSelected ? 'none' : (isLight ? '1px solid #cbd5e1' : 'none'),
-                      fontSize: '11px',
-                      fontWeight: '800',
-                      padding: '1px 6px',
-                      borderRadius: '10px'
-                    }}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* Category Navigation Bar (Horizontal Scroll with Arrow Nav & Clean Badges) */}
+            <div className="admin-cat-nav-wrapper" style={{ position: 'relative', marginBottom: '18px' }}>
+              {/* Left Scroll Button */}
+              {canScrollCatLeft && (
+                <button
+                  type="button"
+                  onClick={() => scrollAdminCat('left')}
+                  aria-label="Kategorien nach links scrollen"
+                  title="Nach links scrollen"
+                  style={{
+                    position: 'absolute',
+                    left: '-10px',
+                    top: '50%',
+                    transform: 'translateY(-65%)',
+                    zIndex: 10,
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '50%',
+                    background: isLight ? '#ffffff' : '#1e293b',
+                    color: isLight ? '#0f172a' : '#ffffff',
+                    border: isLight ? '1px solid #cbd5e1' : '1px solid #334155',
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <ChevronLeft size={18} />
+                </button>
+              )}
+
+              {/* Right Scroll Button */}
+              {canScrollCatRight && (
+                <button
+                  type="button"
+                  onClick={() => scrollAdminCat('right')}
+                  aria-label="Kategorien nach rechts scrollen"
+                  title="Nach rechts scrollen"
+                  style={{
+                    position: 'absolute',
+                    right: '-10px',
+                    top: '50%',
+                    transform: 'translateY(-65%)',
+                    zIndex: 10,
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '50%',
+                    background: isLight ? '#ffffff' : '#1e293b',
+                    color: isLight ? '#0f172a' : '#ffffff',
+                    border: isLight ? '1px solid #cbd5e1' : '1px solid #334155',
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <ChevronRight size={18} />
+                </button>
+              )}
+
+              <div
+                ref={adminCatTrackRef}
+                onScroll={checkAdminCatScroll}
+                className="admin-category-scroll-bar"
+                style={{
+                  display: 'flex',
+                  gap: '10px',
+                  overflowX: 'auto',
+                  padding: '6px 4px 14px 4px',
+                  scrollBehavior: 'smooth',
+                  WebkitOverflowScrolling: 'touch'
+                }}
+              >
+                {FRONTEND_CATEGORIES.map(cat => {
+                  const isSelected = selectedCategoryTab === cat.id;
+                  const count = getCatCount(cat.id);
+                  const emoji = CATEGORY_EMOJIS[cat.id] || '🍽️';
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      className="admin-cat-pill"
+                      onClick={(e) => {
+                        setSelectedCategoryTab(cat.id);
+                        e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                      }}
+                      style={{
+                        flexShrink: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        whiteSpace: 'nowrap',
+                        padding: '9px 18px',
+                        borderRadius: '9999px',
+                        fontSize: '13px',
+                        fontWeight: isSelected ? '700' : '600',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        transition: 'all 0.18s ease',
+                        background: isSelected ? 'linear-gradient(135deg, #e11d48 0%, #be123c 100%)' : (isLight ? '#ffffff' : '#131b2e'),
+                        color: isSelected ? '#ffffff' : (isLight ? '#1e293b' : '#cbd5e1'),
+                        border: isSelected ? '1px solid #e11d48' : (isLight ? '1px solid #e2e8f0' : '1px solid #1e293b'),
+                        boxShadow: isSelected ? '0 4px 14px rgba(225, 29, 72, 0.35)' : (isLight ? '0 1px 3px rgba(0, 0, 0, 0.05)' : 'none')
+                      }}
+                    >
+                      <span style={{ fontSize: '15px', lineHeight: 1 }}>{emoji}</span>
+                      <span>{lang === 'de' ? cat.name_de : (cat.name_en || cat.name_de)}</span>
+                      <span
+                        className="admin-cat-pill-badge"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minWidth: '22px',
+                          height: '20px',
+                          padding: '0 6px',
+                          borderRadius: '10px',
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          lineHeight: 1,
+                          flexShrink: 0,
+                          background: isSelected ? 'rgba(255, 255, 255, 0.25)' : (isLight ? '#f1f5f9' : '#1e293b'),
+                          color: isSelected ? '#ffffff' : (isLight ? '#475569' : '#94a3b8'),
+                          border: isSelected ? 'none' : (isLight ? '1px solid #e2e8f0' : '1px solid #334155')
+                        }}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Search Filter Bar */}
-            <div style={{
+            <div className="admin-menu-search-bar" style={{
               background: isLight ? 'rgba(255, 255, 255, 0.9)' : '#131b2e',
               padding: '12px 16px',
               borderRadius: '10px',
@@ -4952,16 +5904,18 @@ export default function AdminPanel({ onBackToStore }) {
             </div>
 
             {/* Menu Items Cards Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '16px' }}>
+            <div className="admin-menu-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '16px' }}>
               {filteredMenuItems.map(item => {
                 const inStock = item.is_in_stock !== false;
                 const imgSrc = getDishImage(item);
-                const itemCatObj = FRONTEND_CATEGORIES.find(c => c.id === (item.category_id || item.category));
-                const itemCatName = itemCatObj ? (lang === 'de' ? itemCatObj.name_de : (itemCatObj.name_en || itemCatObj.name_de)) : (item.category_id || item.category);
+                const itemCatId = getItemCanonicalCategory(item);
+                const itemCatObj = FRONTEND_CATEGORIES.find(c => c.id === itemCatId);
+                const itemCatName = itemCatObj ? (lang === 'de' ? itemCatObj.name_de : (itemCatObj.name_en || itemCatObj.name_de)) : itemCatId;
 
                 return (
                   <div
                     key={item.id}
+                    className="admin-menu-card"
                     style={{
                       background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',
                       borderRadius: '12px',
@@ -5269,19 +6223,22 @@ export default function AdminPanel({ onBackToStore }) {
           return (
             <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '22px' }}>
               {/* TOP HEADER / ACTION BAR */}
-              <div style={{
-                background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',
-                borderRadius: '16px',
-                border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
-                padding: '16px 22px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '16px',
-                boxShadow: isLight ? '0 4px 20px rgba(0, 0, 0, 0.04)' : '0 4px 20px rgba(0, 0, 0, 0.25)',
-                backdropFilter: 'blur(16px)'
-              }}>
+              <div
+                className="admin-studio-top-bar"
+                style={{
+                  background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',
+                  borderRadius: '16px',
+                  border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
+                  padding: '16px 22px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '16px',
+                  boxShadow: isLight ? '0 4px 20px rgba(0, 0, 0, 0.04)' : '0 4px 20px rgba(0, 0, 0, 0.25)',
+                  backdropFilter: 'blur(16px)'
+                }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
                   {/* Fixed Single-Icon Back Button */}
                   <button
@@ -5309,7 +6266,7 @@ export default function AdminPanel({ onBackToStore }) {
                     <span style={{ color: '#ffffff', fontWeight: '800' }}>{t.form.backToMenu}</span>
                   </button>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: isLight ? '#64748b' : '#94a3b8', fontSize: '13px', fontWeight: '500' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: isLight ? '#64748b' : '#94a3b8', fontSize: '13px', fontWeight: '500', flexWrap: 'wrap' }}>
                     <span style={{ color: isLight ? '#475569' : '#64748b' }}>{t.tabs.menu}</span>
                     <span>/</span>
                     <span style={{ color: isLight ? '#334155' : '#cbd5e1' }}>{categoryTitle}</span>
@@ -5321,7 +6278,7 @@ export default function AdminPanel({ onBackToStore }) {
                 </div>
 
                 {/* Right Top Status & Quick Save */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   {isEditing ? (
                     <span style={{
                       background: dishForm.is_in_stock ? (isLight ? '#dcfce7' : 'rgba(16, 185, 129, 0.15)') : (isLight ? '#fee2e2' : 'rgba(239, 68, 68, 0.15)'),
@@ -5399,20 +6356,23 @@ export default function AdminPanel({ onBackToStore }) {
 
               {/* EDITING HERO BANNER */}
               {isEditing ? (
-                <div style={{
-                  background: isLight ? 'rgba(255, 255, 255, 0.92)' : 'linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%)',
-                  border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(56, 189, 248, 0.35)',
-                  borderRadius: '16px',
-                  padding: '20px 24px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '20px',
-                  flexWrap: 'wrap',
-                  boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.04)' : '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
-                  backdropFilter: 'blur(16px)'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div
+                  className="admin-studio-hero-banner"
+                  style={{
+                    background: isLight ? 'rgba(255, 255, 255, 0.92)' : 'linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%)',
+                    border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(56, 189, 248, 0.35)',
+                    borderRadius: '16px',
+                    padding: '20px 24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '20px',
+                    flexWrap: 'wrap',
+                    boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.04)' : '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
+                    backdropFilter: 'blur(16px)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
                     <div style={{
                       width: '64px',
                       height: '64px',
@@ -5483,19 +6443,22 @@ export default function AdminPanel({ onBackToStore }) {
                   </button>
                 </div>
               ) : (
-                <div style={{
-                  background: isLight ? 'rgba(255, 255, 255, 0.92)' : 'linear-gradient(135deg, rgba(19, 27, 46, 0.9) 0%, rgba(11, 15, 25, 0.95) 100%)',
-                  border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
-                  borderRadius: '16px',
-                  padding: '20px 24px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '16px',
-                  flexWrap: 'wrap',
-                  boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.04)' : 'none',
-                  backdropFilter: 'blur(16px)'
-                }}>
+                <div
+                  className="admin-studio-hero-banner"
+                  style={{
+                    background: isLight ? 'rgba(255, 255, 255, 0.92)' : 'linear-gradient(135deg, rgba(19, 27, 46, 0.9) 0%, rgba(11, 15, 25, 0.95) 100%)',
+                    border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
+                    borderRadius: '16px',
+                    padding: '20px 24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '16px',
+                    flexWrap: 'wrap',
+                    boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.04)' : 'none',
+                    backdropFilter: 'blur(16px)'
+                  }}
+                >
                   <div>
                     <h2 style={{ fontSize: '20px', fontWeight: '800', color: isLight ? '#0f172a' : '#ffffff', margin: 0 }}>
                       {t.form.addNewTitle}
@@ -5508,12 +6471,15 @@ export default function AdminPanel({ onBackToStore }) {
               )}
 
               {/* TWO COLUMN STUDIO WORKSPACE */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1.45fr) minmax(350px, 420px)',
-                gap: '24px',
-                alignItems: 'start'
-              }}>
+              <div
+                className="admin-studio-grid"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1.45fr) minmax(350px, 420px)',
+                  gap: '24px',
+                  alignItems: 'start'
+                }}
+              >
                 {/* ============================================================ */}
                 {/* LEFT COLUMN: THE DISH CONFIGURATION FORM                     */}
                 {/* ============================================================ */}
@@ -5523,14 +6489,17 @@ export default function AdminPanel({ onBackToStore }) {
                   style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}
                 >
                   {/* CARD 1: BASIC INFORMATION */}
-                  <div style={{
-                    background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',
-                    borderRadius: '16px',
-                    border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
-                    padding: '24px',
-                    boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.04)' : '0 4px 15px rgba(0, 0, 0, 0.15)',
-                    backdropFilter: 'blur(16px)'
-                  }}>
+                  <div
+                    className="admin-studio-card"
+                    style={{
+                      background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',
+                      borderRadius: '16px',
+                      border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
+                      padding: '24px',
+                      boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.04)' : '0 4px 15px rgba(0, 0, 0, 0.15)',
+                      backdropFilter: 'blur(16px)'
+                    }}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                       <div style={{
                         width: '32px',
@@ -5556,7 +6525,7 @@ export default function AdminPanel({ onBackToStore }) {
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                       {/* Number & Category */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '14px' }}>
+                      <div className="admin-studio-grid-1-2" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '14px' }}>
                         <div>
                           <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', marginBottom: '6px', color: isLight ? '#0f172a' : '#cbd5e1' }}>
                             {t.form.number}
@@ -5728,14 +6697,17 @@ export default function AdminPanel({ onBackToStore }) {
                   </div>
 
                   {/* CARD 2: SIZES & PRICING */}
-                  <div style={{
-                    background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',
-                    borderRadius: '16px',
-                    border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
-                    padding: '24px',
-                    boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.04)' : '0 4px 15px rgba(0, 0, 0, 0.15)',
-                    backdropFilter: 'blur(16px)'
-                  }}>
+                  <div
+                    className="admin-studio-card"
+                    style={{
+                      background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',
+                      borderRadius: '16px',
+                      border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
+                      padding: '24px',
+                      boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.04)' : '0 4px 15px rgba(0, 0, 0, 0.15)',
+                      backdropFilter: 'blur(16px)'
+                    }}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div style={{
@@ -5806,7 +6778,7 @@ export default function AdminPanel({ onBackToStore }) {
                     </div>
 
                     {dishForm.has_sizes ? (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+                      <div className="admin-studio-sizes-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
                         {sizeDefinitions.map(s => {
                           const conf = dishForm.sizes_config?.[s.key] || { enabled: true, price: '9.00' };
                           const isEnabled = !!conf.enabled;
@@ -5982,6 +6954,7 @@ export default function AdminPanel({ onBackToStore }) {
                           {dishForm.custom_sizes.map((cs, idx) => (
                             <div
                               key={cs.id || idx}
+                              className="admin-studio-custom-size-row"
                               style={{
                                 background: isLight ? '#ffffff' : '#131b2e',
                                 border: isLight ? '1px solid #cbd5e1' : '1px solid #1e293b',
@@ -6115,14 +7088,17 @@ export default function AdminPanel({ onBackToStore }) {
                   </div>
 
                   {/* CARD 3: IMAGE PICKER & PRESETS */}
-                  <div style={{
-                    background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',
-                    borderRadius: '16px',
-                    border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
-                    padding: '24px',
-                    boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.04)' : '0 4px 15px rgba(0, 0, 0, 0.15)',
-                    backdropFilter: 'blur(16px)'
-                  }}>
+                  <div
+                    className="admin-studio-card"
+                    style={{
+                      background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',
+                      borderRadius: '16px',
+                      border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
+                      padding: '24px',
+                      boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.04)' : '0 4px 15px rgba(0, 0, 0, 0.15)',
+                      backdropFilter: 'blur(16px)'
+                    }}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                       <div style={{
                         width: '32px',
@@ -6256,14 +7232,17 @@ export default function AdminPanel({ onBackToStore }) {
                         </div>
                       </div>
 
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(105px, 1fr))',
-                        gap: '10px',
-                        maxHeight: '220px',
-                        overflowY: 'auto',
-                        padding: '4px'
-                      }}>
+                      <div
+                        className="admin-studio-presets-grid"
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fill, minmax(105px, 1fr))',
+                          gap: '10px',
+                          maxHeight: '220px',
+                          overflowY: 'auto',
+                          padding: '4px'
+                        }}
+                      >
                         {filteredPresets.map((preset, idx) => {
                           const isSelected = dishForm.image_url === preset.url;
                           return (
@@ -6326,14 +7305,17 @@ export default function AdminPanel({ onBackToStore }) {
                   </div>
 
                   {/* CARD 4: DIETARY, BADGES, PREP TIME & STOCK */}
-                  <div style={{
-                    background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',
-                    borderRadius: '16px',
-                    border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
-                    padding: '24px',
-                    boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.04)' : '0 4px 15px rgba(0, 0, 0, 0.15)',
-                    backdropFilter: 'blur(16px)'
-                  }}>
+                  <div
+                    className="admin-studio-card"
+                    style={{
+                      background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',
+                      borderRadius: '16px',
+                      border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
+                      padding: '24px',
+                      boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.04)' : '0 4px 15px rgba(0, 0, 0, 0.15)',
+                      backdropFilter: 'blur(16px)'
+                    }}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                       <div style={{
                         width: '32px',
@@ -6427,7 +7409,10 @@ export default function AdminPanel({ onBackToStore }) {
                       </div>
 
                       {/* Prep Time & Stock status */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div
+                        className="admin-studio-prep-stock-grid"
+                        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}
+                      >
                         {/* Prep Time Stepper */}
                         <div style={{ background: isLight ? '#f8fafc' : '#0b0f19', padding: '14px', borderRadius: '12px', border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b' }}>
                           <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: isLight ? '#475569' : '#94a3b8', marginBottom: '8px' }}>
@@ -6529,14 +7514,17 @@ export default function AdminPanel({ onBackToStore }) {
                   </div>
 
                   {/* CARD 5: ALLOWED ADD-ONS / TOPPINGS */}
-                  <div style={{
-                    background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',
-                    borderRadius: '16px',
-                    border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
-                    padding: '24px',
-                    boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.04)' : '0 4px 15px rgba(0, 0, 0, 0.15)',
-                    backdropFilter: 'blur(16px)'
-                  }}>
+                  <div
+                    className="admin-studio-card"
+                    style={{
+                      background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',
+                      borderRadius: '16px',
+                      border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
+                      padding: '24px',
+                      boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.04)' : '0 4px 15px rgba(0, 0, 0, 0.15)',
+                      backdropFilter: 'blur(16px)'
+                    }}
+                  >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div style={{
@@ -6643,7 +7631,10 @@ export default function AdminPanel({ onBackToStore }) {
                           </button>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '8px', alignItems: 'center' }}>
+                        <div
+                          className="admin-studio-custom-topping-inputs"
+                          style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '8px', alignItems: 'center' }}
+                        >
                           <input
                             type="text"
                             placeholder={t.form.newToppingNameLabel}
@@ -6702,14 +7693,17 @@ export default function AdminPanel({ onBackToStore }) {
                       />
                     </div>
 
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-                      gap: '8px',
-                      maxHeight: '260px',
-                      overflowY: 'auto',
-                      padding: '2px'
-                    }}>
+                    <div
+                      className="admin-studio-toppings-grid"
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                        gap: '8px',
+                        maxHeight: '260px',
+                        overflowY: 'auto',
+                        padding: '2px'
+                      }}
+                    >
                       {filteredExtraToppings.map(topping => {
                         const isAllowed = (dishForm.allowed_toppings || []).includes(topping.id);
                         const localizedToppingName = EXTRA_TOPPINGS_TRANSLATIONS[topping.id]?.[lang] || topping.name;
@@ -6776,16 +7770,19 @@ export default function AdminPanel({ onBackToStore }) {
                   </div>
 
                   {/* BOTTOM SUBMIT BUTTONS */}
-                  <div style={{
-                    display: 'flex',
-                    gap: '14px',
-                    padding: '16px 20px',
-                    background: isLight ? 'rgba(255, 255, 255, 0.95)' : '#131b2e',
-                    borderRadius: '16px',
-                    border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
-                    boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.04)' : 'none',
-                    backdropFilter: 'blur(16px)'
-                  }}>
+                  <div
+                    className="admin-studio-bottom-bar"
+                    style={{
+                      display: 'flex',
+                      gap: '14px',
+                      padding: '16px 20px',
+                      background: isLight ? 'rgba(255, 255, 255, 0.95)' : '#131b2e',
+                      borderRadius: '16px',
+                      border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
+                      boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.04)' : 'none',
+                      backdropFilter: 'blur(16px)'
+                    }}
+                  >
                     <button
                       type="submit"
                       style={{
@@ -6836,13 +7833,16 @@ export default function AdminPanel({ onBackToStore }) {
                 {/* ============================================================ */}
                 {/* RIGHT COLUMN: STICKY LIVE MENU CARD PREVIEW                   */}
                 {/* ============================================================ */}
-                <div style={{
-                  position: 'sticky',
-                  top: '80px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '16px'
-                }}>
+                <div
+                  className="admin-studio-preview-col"
+                  style={{
+                    position: 'sticky',
+                    top: '80px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px'
+                  }}
+                >
                   {/* Preview Container Header */}
                   <div style={{
                     background: isLight ? 'rgba(255, 255, 255, 0.92)' : '#131b2e',

@@ -483,7 +483,7 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
                           image: offer.image,
                           desc: offer.description.replace(/\n/g, ', ')
                         })}
-                        title="Angebot in den Warenkorb"
+                        title="Hinzufügen"
                       >
                         <Plus size={15} />
                       </button>
@@ -551,6 +551,7 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
                       {inStock ? (
                         <button
                           className="add-to-cart-btn"
+                          title="Hinzufügen"
                           onClick={() => onAddToCart({
                             id: offer.id,
                             name: `${offer.code} - ${offer.title}`,
@@ -561,7 +562,7 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
                           })}
                         >
                           <Plus size={16} />
-                          <span>In den Warenkorb</span>
+                          <span>Hinzufügen</span>
                         </button>
                       ) : (
                         <button
@@ -705,10 +706,10 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
                             type="button"
                             className="add-cart-btn"
                             onClick={() => handleQuickAdd(item)}
-                            title="Direkt in den Warenkorb"
+                            title="Hinzufügen"
                           >
                             <Plus size={16} />
-                            <span>In den Warenkorb</span>
+                            <span>Hinzufügen</span>
                           </button>
                         </>
                       ) : (

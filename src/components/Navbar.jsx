@@ -258,7 +258,7 @@ export default function Navbar({
                             <button
                               className={`search-add-btn ${addedItemId === item.id ? 'added' : ''}`}
                               onClick={(e) => handleQuickAdd(e, item)}
-                              title="In den Warenkorb"
+                              title="Hinzufügen"
                             >
                               {addedItemId === item.id ? <Check size={14} /> : <Plus size={14} />}
                             </button>

@@ -7729,3 +7729,610 @@ img {
     display: none !important;
   }
 }
+
+/* ==========================================================================
+   ADMIN DASHBOARD CATEGORY NAVIGATION BAR
+   ========================================================================== */
+.admin-category-scroll-bar {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px 4px 14px 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(225, 29, 72, 0.4) transparent;
+}
+
+.admin-category-scroll-bar::-webkit-scrollbar {
+  height: 6px;
+}
+
+.admin-category-scroll-bar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 9999px;
+}
+
+.admin-category-scroll-bar::-webkit-scrollbar-thumb {
+  background: rgba(225, 29, 72, 0.35);
+  border-radius: 9999px;
+}
+
+.admin-category-scroll-bar::-webkit-scrollbar-thumb:hover {
+  background: rgba(225, 29, 72, 0.7);
+}
+
+.admin-cat-pill {
+  flex-shrink: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  white-space: nowrap !important;
+  padding: 9px 18px !important;
+  border-radius: 9999px !important;
+  font-size: 13.5px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.admin-cat-pill:hover {
+  transform: translateY(-1px);
+}
+
+.admin-cat-pill:active {
+  transform: translateY(0);
+}
+
+.admin-cat-pill-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 22px !important;
+  height: 20px !important;
+  padding: 0 7px !important;
+  border-radius: 10px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  flex-shrink: 0 !important;
+}
+
+/* ========================================================================== */
+/* VENEZIA ADMIN DASHBOARD - MOBILE RESPONSIVENESS SYSTEM                     */
+/* ========================================================================== */
+
+.admin-portal {
+  overflow-x: hidden !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.admin-portal *,
+.admin-portal *::before,
+.admin-portal *::after {
+  box-sizing: border-box !important;
+}
+
+.admin-main-content {
+  box-sizing: border-box !important;
+  width: 100% !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* TABLETS & SCREENS UNDER 1024px                                             */
+/* -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  /* Studio workspace: stack form and live preview vertically */
+  .admin-studio-grid {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+  }
+
+  .admin-studio-preview-col {
+    position: static !important;
+    top: auto !important;
+    order: 2 !important;
+    width: 100% !important;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* MOBILE LANDSCAPE & TABLETS UNDER 768px                                     */
+/* -------------------------------------------------------------------------- */
+/* Desktop / Base defaults for responsive header items */
+.back-btn-text-mobile {
+  display: none;
+}
+.back-btn-text-full {
+  display: inline;
+}
+.theme-text-desktop {
+  display: inline;
+}
+.admin-theme-toggle-desktop {
+  display: flex;
+}
+.admin-theme-toggle-mobile {
+  display: none !important;
+}
+.logout-text-desktop {
+  display: inline;
+}
+.switcher-label-mobile {
+  display: none;
+}
+.switcher-label-desktop {
+  display: inline;
+}
+.admin-live-badge-desktop {
+  display: inline-flex;
+}
+.admin-live-dot-mobile {
+  display: none !important;
+}
+.admin-header-desktop {
+  display: flex !important;
+  padding: 16px 48px !important;
+}
+.admin-header-mobile {
+  display: none !important;
+}
+.admin-main-nav {
+  padding: 0 48px !important;
+}
+.admin-main-content {
+  padding: 24px 48px !important;
+}
+
+@media (max-width: 1200px) and (min-width: 769px) {
+  .admin-header-desktop {
+    padding: 16px 32px !important;
+  }
+  .admin-main-nav {
+    padding: 0 32px !important;
+  }
+  .admin-main-content {
+    padding: 22px 32px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-header-desktop {
+    display: none !important;
+  }
+  .admin-header-mobile {
+    display: flex !important;
+  }
+
+  /* 1. Admin Top Header (Clean 3-tier layout: Line 1 Brand+Logout, Line 2 Nav+Tools, Line 3 Status+User) */
+  .admin-top-header {
+    padding: 12px 16px !important;
+    gap: 10px !important;
+  }
+
+  .admin-header-line-1 {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    padding-bottom: 8px !important;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18) !important;
+  }
+
+  .admin-header-line-1 h1 {
+    font-size: 15px !important;
+  }
+
+  .admin-header-logout-btn {
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+    gap: 6px !important;
+  }
+
+  .admin-header-line-2 {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    gap: 10px !important;
+    padding-bottom: 8px !important;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.15) !important;
+  }
+
+  .back-btn-text-full {
+    display: none !important;
+  }
+
+  .back-btn-text-mobile {
+    display: inline !important;
+  }
+
+  .admin-header-back-btn {
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+    gap: 6px !important;
+  }
+
+  .admin-header-tools {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  .theme-text-desktop {
+    display: none !important;
+  }
+
+  .admin-header-line-3 {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    gap: 10px !important;
+    padding-top: 2px !important;
+  }
+
+  .admin-shop-status-pill {
+    padding: 5px 10px !important;
+    max-width: none !important;
+    gap: 8px !important;
+  }
+
+  .admin-shop-status-pill span:first-of-type {
+    font-size: 10.5px !important;
+  }
+
+  .admin-email-text {
+    max-width: 95px !important;
+    font-size: 11px !important;
+  }
+
+  .admin-user-badge {
+    padding: 5px 10px !important;
+    gap: 6px !important;
+  }
+
+  /* 2. Main Navigation Tabs */
+  .admin-main-nav {
+    padding: 0 10px !important;
+    gap: 4px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-main-nav button {
+    padding: 10px 10px !important;
+    font-size: 12.5px !important;
+    flex: 1 1 auto !important;
+    justify-content: center !important;
+  }
+
+  /* 3. Main Container */
+  .admin-main-content {
+    padding: 12px 10px !important;
+  }
+
+  /* 4. Alert & Notice Banners */
+  .admin-order-alert-banner {
+    padding: 12px 14px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  .admin-order-alert-banner button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* 5. Tab 1: Orders Section */
+  .admin-orders-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .switcher-label-desktop {
+    display: none !important;
+  }
+
+  .switcher-label-mobile {
+    display: inline !important;
+    font-weight: 800 !important;
+  }
+
+  .admin-order-view-switcher {
+    width: 100% !important;
+    display: flex !important;
+    padding: 3px !important;
+    gap: 3px !important;
+  }
+
+  .admin-order-view-switcher button {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    padding: 7px 4px !important;
+    font-size: 11px !important;
+    justify-content: center !important;
+    gap: 3px !important;
+    white-space: nowrap !important;
+  }
+
+  .admin-order-view-switcher .switcher-icon {
+    width: 13px !important;
+    height: 13px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .admin-order-view-switcher .switcher-badge {
+    flex-shrink: 0 !important;
+    padding: 1px 4px !important;
+    font-size: 10px !important;
+    min-width: 16px !important;
+    text-align: center !important;
+  }
+
+  .admin-metrics-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .admin-metrics-grid > div {
+    padding: 11px 12px !important;
+  }
+
+  .admin-metrics-grid > div > div {
+    font-size: 18px !important;
+  }
+
+  .admin-orders-filters-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 10px 12px !important;
+    gap: 10px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .admin-orders-search-wrap {
+    max-width: 100% !important;
+    width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
+  .admin-orders-status-pills {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    width: 100% !important;
+    padding-bottom: 4px !important;
+    -webkit-overflow-scrolling: touch;
+    gap: 5px !important;
+  }
+
+  .admin-orders-status-pills button {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    padding: 5px 10px !important;
+    font-size: 11.5px !important;
+  }
+
+  .admin-orders-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+
+  .admin-order-card {
+    padding: 14px 12px !important;
+  }
+
+  /* 6. Order Details Modal */
+  .admin-order-modal-overlay {
+    padding: 8px !important;
+    align-items: flex-end !important;
+  }
+
+  .admin-order-modal-card {
+    max-height: 94vh !important;
+    border-radius: 14px 14px 0 0 !important;
+    width: 100% !important;
+  }
+
+  .admin-order-modal-header {
+    padding: 12px 14px !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .admin-order-modal-body {
+    grid-template-columns: 1fr !important;
+    padding: 14px 12px !important;
+    gap: 16px !important;
+  }
+
+  .admin-modal-edit-grid-2col {
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-modal-edit-grid-3col {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* 7. Tab 2: Menu & Stock Section */
+  .admin-menu-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .admin-menu-header button {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 11px 16px !important;
+  }
+
+  .admin-menu-search-bar {
+    padding: 10px 12px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .admin-menu-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .admin-menu-card {
+    padding: 14px 12px !important;
+  }
+
+  /* 8. Tab 3: Studio Add / Edit Section */
+  .admin-studio-top-bar {
+    padding: 12px 14px !important;
+    gap: 10px !important;
+  }
+
+  .admin-studio-hero-banner {
+    padding: 14px 16px !important;
+  }
+
+  .admin-studio-card {
+    padding: 16px 14px !important;
+    border-radius: 14px !important;
+  }
+
+  .admin-studio-sizes-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-studio-toppings-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+  }
+
+  .admin-studio-bottom-bar {
+    flex-direction: column !important;
+    padding: 12px 14px !important;
+    gap: 10px !important;
+  }
+
+  .admin-studio-bottom-bar button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* PHONES & NARROW SCREENS UNDER 480px                                        */
+/* -------------------------------------------------------------------------- */
+@media (max-width: 480px) {
+  /* 1. Header Compactness */
+  .admin-top-header {
+    padding: 10px 12px !important;
+    gap: 9px !important;
+  }
+
+  .admin-header-line-1 {
+    padding-bottom: 7px !important;
+  }
+
+  .admin-header-line-1 h1 {
+    font-size: 14.5px !important;
+  }
+
+  .admin-header-logout-btn {
+    padding: 5px 10px !important;
+    font-size: 11.5px !important;
+  }
+
+  .admin-header-line-2 {
+    padding-bottom: 7px !important;
+  }
+
+  .admin-header-back-btn {
+    padding: 5px 10px !important;
+    font-size: 11.5px !important;
+  }
+
+  .admin-header-tools {
+    gap: 6px !important;
+  }
+
+  .admin-shop-status-pill {
+    padding: 4px 8px !important;
+    gap: 6px !important;
+  }
+
+  .admin-shop-status-pill span:first-of-type {
+    font-size: 10.5px !important;
+  }
+
+  .admin-email-text {
+    max-width: 80px !important;
+    font-size: 10.5px !important;
+  }
+
+  .admin-user-badge {
+    padding: 4px 8px !important;
+  }
+
+  /* 2. Navigation */
+  .admin-main-nav button {
+    padding: 9px 8px !important;
+    font-size: 12px !important;
+    gap: 5px !important;
+  }
+
+  /* 3. Main Container Padding */
+  .admin-main-content {
+    padding: 10px 6px !important;
+  }
+
+  /* 4. Orders Metrics */
+  .admin-metrics-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .admin-metrics-grid > div {
+    padding: 9px 10px !important;
+  }
+
+  .admin-metrics-grid > div > span {
+    font-size: 10.5px !important;
+  }
+
+  .admin-metrics-grid > div > div {
+    font-size: 16px !important;
+  }
+
+  /* 5. Order Card internal spacing */
+  .admin-order-card {
+    padding: 12px 10px !important;
+    gap: 10px !important;
+  }
+
+  /* 6. Studio Cards Inputs */
+  .admin-studio-grid-1-2 {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .admin-studio-prep-stock-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .admin-studio-toppings-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-studio-presets-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+  }
+
+  .admin-studio-custom-topping-inputs {
+    grid-template-columns: 1fr !important;
+  }
+}

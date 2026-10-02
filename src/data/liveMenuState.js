@@ -27,13 +27,242 @@ export function getFallbackImage(cat, name = '', toppings = '') {
   return images.heroPizza;
 }
 
+export function getItemCanonicalCategory(item) {
+  if (!item) return 'pizzen';
+  if (item.id?.startsWith('A') || item.id?.startsWith('offer-') || item.category_id === 'deals' || item.category === 'deals') {
+    return 'deals';
+  }
+  if (item.prices?.frontend_category) return item.prices.frontend_category;
+  if (item.frontend_category) return item.frontend_category;
+  const cat = String(item.category_id || item.category || '').toLowerCase().trim();
+  const name = String(item.name_de || item.name || '').toLowerCase();
+  const id = String(item.id || '').toLowerCase();
+
+  // 1. Pizzas & Calzones (only pizza/calzone)
+  if (
+    cat === 'pizzen' ||
+    cat === 'pizza' ||
+    cat === 'calzone' ||
+    id.startsWith('pizza-') ||
+    id.startsWith('calzone-') ||
+    name.startsWith('pizza ') ||
+    name.startsWith('calzone ') ||
+    name === 'pizza' ||
+    name === 'calzone'
+  ) {
+    return 'pizzen';
+  }
+
+  // 2. Pasta al Forno (Überbackene Nudelgerichte)
+  if (
+    cat === 'pasta-al-forno' ||
+    cat === 'al-forno' ||
+    name.includes('al forno') ||
+    name.includes('lasagne') ||
+    name.includes('cannelloni') ||
+    name.includes('überbackene nudeln')
+  ) {
+    return 'pasta-al-forno';
+  }
+
+  // 3. Gnocchi
+  if (cat === 'gnocchi' || name.includes('gnocchi')) {
+    return 'gnocchi';
+  }
+
+  // 4. Classic Pasta
+  if (
+    cat === 'pasta' ||
+    id.startsWith('pasta-') ||
+    name.startsWith('spaghetti') ||
+    name.startsWith('rigatoni') ||
+    name.startsWith('tortellini') ||
+    name.startsWith('tagliatelle') ||
+    name.startsWith('penne') ||
+    name.startsWith('maccheroni')
+  ) {
+    return 'pasta';
+  }
+
+  // 5. Reisgerichte
+  if (cat === 'reisgerichte' || cat === 'reis' || name.includes('reisgericht') || name.includes('risotto')) {
+    return 'reisgerichte';
+  }
+
+  // 6. Vegetarisch überbacken
+  if (cat === 'vegetarisch' || cat === 'vegetarisch-ueberbacken' || name.includes('vegetarisch überbacken')) {
+    return 'vegetarisch';
+  }
+
+  // 7. Aufläufe
+  if (cat === 'auflaeufe' || cat === 'auflauf' || name.includes('auflauf') || name.includes('gratin')) {
+    return 'auflaeufe';
+  }
+
+  // 8. Fleischgerichte & Schnitzel
+  if (
+    cat === 'fleischgerichte' ||
+    cat === 'schnitzel' ||
+    cat === 'fleisch' ||
+    name.includes('schnitzel') ||
+    name.includes('cordon bleu')
+  ) {
+    return 'fleischgerichte';
+  }
+
+  // 9. Gyros & Döner
+  if (
+    cat === 'gyros' ||
+    cat === 'doner' ||
+    cat === 'döner' ||
+    name.includes('gyros') ||
+    name.includes('döner') ||
+    name.includes('doner')
+  ) {
+    return 'gyros';
+  }
+
+  // 10. Salate
+  if (cat === 'salate' || cat === 'salad' || name.includes('salat')) {
+    return 'salate';
+  }
+
+  // 11. Grill Menü
+  if (cat === 'grill-menue' || cat === 'grill' || name.includes('grill-teller') || name.includes('vom rost')) {
+    return 'grill-menue';
+  }
+
+  // 12. American Food & Burgers
+  if (
+    cat === 'american-food' ||
+    cat === 'burger-snacks' ||
+    cat === 'burger' ||
+    name.includes('burger') ||
+    name.includes('chicken wings') ||
+    name.includes('nuggets') ||
+    name.includes('fingerfood')
+  ) {
+    return 'american-food';
+  }
+
+  // 13. Indische Hauptgerichte
+  if (
+    cat === 'indisch' ||
+    cat === 'indian' ||
+    name.includes('curry') ||
+    name.includes('tikka') ||
+    name.includes('korma') ||
+    name.includes('biryani') ||
+    name.includes('paneer')
+  ) {
+    return 'indisch';
+  }
+
+  // 14. Lamm Spezialitäten
+  if (cat === 'lamm' || cat === 'lamb' || name.includes('lammfleisch') || name.includes('lamm ')) {
+    return 'lamm';
+  }
+
+  // 15. Steaks
+  if (cat === 'steaks' || cat === 'steak' || name.includes('rumpsteak') || name.includes('hüftsteak') || name.includes('steak')) {
+    return 'steaks';
+  }
+
+  // 16. Fischgerichte
+  if (
+    cat === 'fischgerichte' ||
+    cat === 'fisch' ||
+    name.includes('lachs') ||
+    name.includes('calamari') ||
+    name.includes('zander') ||
+    name.includes('forelle') ||
+    name.includes('garnelen')
+  ) {
+    return 'fischgerichte';
+  }
+
+  // 17. Mexikanisch
+  if (
+    cat === 'mexikanisch' ||
+    cat === 'mexican' ||
+    name.includes('tacos') ||
+    name.includes('burrito') ||
+    name.includes('enchilada') ||
+    name.includes('fajita') ||
+    name.includes('nachos') ||
+    name.includes('quesadilla')
+  ) {
+    return 'mexikanisch';
+  }
+
+  // 18. Chinesisch
+  if (
+    cat === 'chinesisch' ||
+    cat === 'chinese' ||
+    cat === 'asia' ||
+    name.includes('chop suey') ||
+    name.includes('gebratene nudeln') ||
+    name.includes('gebratener reis') ||
+    name.includes('bami goreng') ||
+    name.includes('nasi goreng') ||
+    name.includes('süß-sauer')
+  ) {
+    return 'chinesisch';
+  }
+
+  // 19. Extra Beilagen
+  if (
+    cat === 'beilagen' ||
+    cat === 'extra-beilagen' ||
+    name.includes('pommes') ||
+    name.includes('kroketten') ||
+    name.includes('knoblauchbrot') ||
+    name.includes('zaziki') ||
+    name.includes('tzatziki') ||
+    name.includes('pizzabrötchen') ||
+    name.includes('sauce') ||
+    name.includes('dip')
+  ) {
+    return 'beilagen';
+  }
+
+  // 20. Toasts
+  if (cat === 'toasts' || cat === 'toast' || name.includes('toast')) {
+    return 'toasts';
+  }
+
+  // 21. Omelette
+  if (cat === 'omelette' || name.includes('omelett')) {
+    return 'omelette';
+  }
+
+  // 22. Getränke & Desserts
+  if (
+    cat === 'getraenke' ||
+    cat === 'drinks' ||
+    cat === 'dessert-drinks' ||
+    name.includes('cola') ||
+    name.includes('fanta') ||
+    name.includes('sprite') ||
+    name.includes('wasser') ||
+    name.includes('bier') ||
+    name.includes('wein') ||
+    name.includes('tiramisu') ||
+    name.includes('dessert')
+  ) {
+    return 'getraenke';
+  }
+
+  return 'pizzen';
+}
+
 // Convert Supabase database row to frontend menu item format
 export function formatMenuItemFromDb(dbItem, localMap) {
-  const local = localMap.get(dbItem.id);
+  const local = localMap ? localMap.get(dbItem.id) : null;
   const isDeal = dbItem.id?.startsWith('A') || dbItem.id?.startsWith('offer-') || dbItem.category_id === 'deals' || local?.category === 'deals';
-  const category = isDeal ? 'deals' : (dbItem.category_id || local?.category || 'pizza');
+  const category = isDeal ? 'deals' : getItemCanonicalCategory({ ...local, ...dbItem });
 
-  const image = dbItem.image_url || local?.image || getFallbackImage(category, dbItem.name_de || dbItem.name, dbItem.toppings_de);
+  const image = dbItem.image_url || local?.image || getFallbackImage(category === 'pizzen' ? 'pizza' : category, dbItem.name_de || dbItem.name, dbItem.toppings_de);
 
   // Use prices object from DB if it exists, otherwise fallback to local
   let prices = dbItem.prices || local?.prices || null;
