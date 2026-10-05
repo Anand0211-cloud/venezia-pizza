@@ -46,8 +46,23 @@ export default function PopularPizzas({ onAddToCart, onShowAllMenu }) {
   const menuItems = (rawMenuItems || []).map(item => {
     try {
       const overrides = JSON.parse(localStorage.getItem('venezia_admin_dishes_override') || '{}');
-      if (overrides && overrides[item.id]) {
-        return { ...item, ...overrides[item.id], has_custom_image: true };
+      const override = overrides ? overrides[item.id] : null;
+      if (override) {
+        const hasDbCustomImage = !!(item.image_url && typeof item.image_url === 'string' && (item.image_url.startsWith('http') || item.image_url.startsWith('/images/dishes/')));
+        const overrideImage = override.image_url || override.image;
+        const hasOverrideCustomImage = !!(overrideImage && typeof overrideImage === 'string' && (overrideImage.startsWith('http') || overrideImage.startsWith('/images/dishes/')));
+
+        const finalImage = hasDbCustomImage 
+          ? item.image_url 
+          : (hasOverrideCustomImage ? overrideImage : (item.image_url || item.image || overrideImage));
+
+        return { 
+          ...item, 
+          ...override, 
+          image_url: finalImage,
+          image: finalImage,
+          has_custom_image: hasDbCustomImage || hasOverrideCustomImage || !!override.has_custom_image 
+        };
       }
     } catch (e) {}
     return item;
@@ -63,7 +78,8 @@ export default function PopularPizzas({ onAddToCart, onShowAllMenu }) {
 
     const numPrice = Number(unitPrice) || 9.0;
 
-    const resolvedImage = live.image_url || live.image || p.image;
+    const hasLiveCustom = !!(live.image_url && typeof live.image_url === 'string' && (live.image_url.startsWith('http') || live.image_url.startsWith('/images/dishes/')));
+    const resolvedImage = hasLiveCustom ? live.image_url : (live.image_url || live.image || p.image);
 
     return {
       ...p,

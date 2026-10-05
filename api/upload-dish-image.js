@@ -17,51 +17,49 @@ export default async function handler(req, res) {
     }
 
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                        process.env.VITE_SUPABASE_ANON_KEY ||
+                        process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+                        process.env.SUPABASE_ANON_KEY;
     const BUCKET = 'menu-dishes';
+
+    if (!supabaseUrl || !supabaseKey) {
+      return res.status(500).json({ success: false, error: 'Supabase configuration missing on server.' });
+    }
 
     const ext = (fileName && fileName.split('.').pop().toLowerCase()) || 'jpg';
     const cleanDishId = String(dishId || 'dish').replace(/[^a-zA-Z0-9_-]/g, '_');
     const fileNameSaved = `dishes/${cleanDishId}_${Date.now()}.${ext}`;
 
-    // 1. If service role key is configured, upload to Supabase Storage bucket
-    if (supabaseUrl && serviceKey) {
-      try {
-        const supabaseAdmin = createClient(supabaseUrl, serviceKey);
-        const base64Data = fileData.replace(/^data:image\/\w+;base64,/, '');
-        const buffer = Buffer.from(base64Data, 'base64');
-        const mimeType = fileData.match(/^data:(image\/\w+);base64,/)?.[1] || (ext === 'png' ? 'image/png' : 'image/jpeg');
+    const supabaseClient = createClient(supabaseUrl, supabaseKey);
+    const base64Data = fileData.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    const mimeType = fileData.match(/^data:(image\/\w+);base64,/)?.[1] || (ext === 'png' ? 'image/png' : 'image/jpeg');
 
-        const { data: uploadRes, error: uploadErr } = await supabaseAdmin.storage
-          .from(BUCKET)
-          .upload(fileNameSaved, buffer, {
-            contentType: mimeType,
-            upsert: true
-          });
+    const { data: uploadRes, error: uploadErr } = await supabaseClient.storage
+      .from(BUCKET)
+      .upload(fileNameSaved, buffer, {
+        contentType: mimeType,
+        upsert: true
+      });
 
-        if (!uploadErr && uploadRes) {
-          const { data: pubUrlData } = supabaseAdmin.storage
-            .from(BUCKET)
-            .getPublicUrl(fileNameSaved);
-
-          if (pubUrlData?.publicUrl) {
-            return res.status(200).json({
-              success: true,
-              url: pubUrlData.publicUrl,
-              storage: 'supabase_storage'
-            });
-          }
-        }
-      } catch (err) {
-        console.warn('Storage upload notice:', err.message);
-      }
+    if (uploadErr) {
+      console.error('[API Upload Dish Image] Supabase storage error:', uploadErr);
+      return res.status(500).json({ success: false, error: uploadErr.message });
     }
 
-    // 2. Return the optimized data URL so it can be saved in Supabase Postgres menu_items table
+    const { data: pubUrlData } = supabaseClient.storage
+      .from(BUCKET)
+      .getPublicUrl(fileNameSaved);
+
+    if (!pubUrlData?.publicUrl) {
+      return res.status(500).json({ success: false, error: 'Failed to retrieve public image URL' });
+    }
+
     return res.status(200).json({
       success: true,
-      url: fileData,
-      storage: 'database_payload'
+      url: pubUrlData.publicUrl,
+      storage: 'supabase_storage'
     });
   } catch (err) {
     console.error('Upload dish image error:', err);

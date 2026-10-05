@@ -371,11 +371,27 @@ export function notifyMenuUpdated() {
   }
 }
 
-// Clear stale caches immediately
+// Clear stale caches and sanitize local overrides immediately
 if (typeof window !== 'undefined') {
   try {
     localStorage.removeItem('venezia_live_menu_cache');
     localStorage.removeItem('venezia_live_menu_cache_v2');
+
+    const rawOverrides = localStorage.getItem('venezia_admin_dishes_override');
+    if (rawOverrides) {
+      const parsed = JSON.parse(rawOverrides);
+      let changed = false;
+      for (const id in parsed) {
+        if (parsed[id]?.image && !parsed[id].image.startsWith('http') && !parsed[id].image.startsWith('/images/dishes/')) {
+          delete parsed[id].image;
+          delete parsed[id].image_url;
+          changed = true;
+        }
+      }
+      if (changed) {
+        localStorage.setItem('venezia_admin_dishes_override', JSON.stringify(parsed));
+      }
+    }
   } catch (e) {}
 }
 

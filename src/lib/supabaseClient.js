@@ -2402,20 +2402,26 @@ export async function uploadDishImage(file, dishId = 'dish') {
 
   try {
     const cleanId = String(dishId || 'dish').replace(/[^a-zA-Z0-9_-]/g, '_');
-    const ext = file.name ? file.name.split('.').pop().toLowerCase() : 'png';
+    const isPng = file.type === 'image/png';
+    const ext = isPng ? 'png' : 'jpg';
+    const mimeType = isPng ? 'image/png' : 'image/jpeg';
     const fileNameSaved = `${cleanId}_${Date.now()}.${ext}`;
     const storagePath = `dishes/${fileNameSaved}`;
+
+    // 1. Optimize the image client-side to crisp, lightweight 800x800 JPEG/PNG (~50KB)
+    const { blob, dataUrl } = await optimizeImageFile(file, 800, 800, 0.85);
+    const uploadPayload = blob || file;
 
     let publicUrl = null;
     let storageType = 'supabase_storage';
 
-    // 1. Try uploading directly to Supabase Storage bucket 'menu-dishes'
+    // 2. Try uploading directly to Supabase Storage bucket 'menu-dishes'
     if (supabase) {
       try {
         const { data: uploadData, error: uploadErr } = await supabase.storage
           .from('menu-dishes')
-          .upload(storagePath, file, {
-            contentType: file.type || (ext === 'png' ? 'image/png' : 'image/jpeg'),
+          .upload(storagePath, uploadPayload, {
+            contentType: mimeType,
             upsert: true
           });
 
@@ -2427,30 +2433,29 @@ export async function uploadDishImage(file, dishId = 'dish') {
             publicUrl = pubData.publicUrl;
             console.log('[Supabase Storage] File uploaded successfully to bucket menu-dishes:', publicUrl);
           }
-        } else {
-          console.warn('[Supabase Storage] Direct upload notice:', uploadErr?.message);
+        } else if (uploadErr) {
+          console.warn('[Supabase Storage] Direct upload notice:', uploadErr.message);
         }
       } catch (stEx) {
         console.warn('[Supabase Storage] Exception:', stEx);
       }
     }
 
-    // 2. If direct storage upload was blocked by RLS, try server-side upload endpoint
-    if (!publicUrl) {
+    // 3. Fallback: try server-side upload endpoint (works on Vercel and local backend)
+    if (!publicUrl && dataUrl) {
       try {
-        const { dataUrl } = await optimizeImageFile(file, 720, 720, 0.85);
         const res = await fetch('/api/upload-dish-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            fileName: file.name,
+            fileName: file.name || fileNameSaved,
             fileData: dataUrl,
             dishId: cleanId
           })
         });
         if (res.ok) {
           const json = await res.json();
-          if (json.success && json.url) {
+          if (json.success && json.url && json.url.startsWith('http')) {
             publicUrl = json.url;
             storageType = json.storage || 'server_upload';
           }
@@ -2460,11 +2465,8 @@ export async function uploadDishImage(file, dishId = 'dish') {
       }
     }
 
-    // 3. Fallback: if storage not available yet, use optimized data URL
     if (!publicUrl) {
-      const { dataUrl } = await optimizeImageFile(file, 720, 720, 0.82);
-      publicUrl = dataUrl;
-      storageType = 'supabase_database';
+      throw new Error('Das Bild konnte nicht in Supabase Storage hochgeladen werden. Bitte überprüfen Sie Ihre Internetverbindung.');
     }
 
     // 4. Update Supabase PostgreSQL database table 'menu_items' with the public URL

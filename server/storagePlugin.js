@@ -143,23 +143,23 @@ export function storagePlugin() {
 
           loadLocalEnv();
           const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-          const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+          const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
           const BUCKET = 'menu-dishes';
 
           const ext = (fileName && fileName.split('.').pop().toLowerCase()) || 'jpg';
           const cleanDishId = String(dishId || 'dish').replace(/[^a-zA-Z0-9_-]/g, '_');
           const fileNameSaved = `${cleanDishId}_${Date.now()}.${ext}`;
 
-          // 1. If service role key is available, upload directly to Supabase Storage
-          if (supabaseUrl && serviceKey) {
+          // 1. Upload directly to Supabase Storage
+          if (supabaseUrl && supabaseKey) {
             try {
-              const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+              const supabaseClient = createClient(supabaseUrl, supabaseKey);
               const storagePath = `dishes/${fileNameSaved}`;
               const base64Data = fileData.replace(/^data:image\/\w+;base64,/, '');
               const buffer = Buffer.from(base64Data, 'base64');
               const mimeType = fileData.match(/^data:(image\/\w+);base64,/)?.[1] || (ext === 'png' ? 'image/png' : 'image/jpeg');
 
-              const { data: uploadRes, error: uploadErr } = await supabaseAdmin.storage
+              const { data: uploadRes, error: uploadErr } = await supabaseClient.storage
                 .from(BUCKET)
                 .upload(storagePath, buffer, {
                   contentType: mimeType,
@@ -167,7 +167,7 @@ export function storagePlugin() {
                 });
 
               if (!uploadErr && uploadRes) {
-                const { data: pubUrlData } = supabaseAdmin.storage
+                const { data: pubUrlData } = supabaseClient.storage
                   .from(BUCKET)
                   .getPublicUrl(storagePath);
 
@@ -180,9 +180,11 @@ export function storagePlugin() {
                   }));
                   return;
                 }
+              } else if (uploadErr) {
+                console.warn('[storagePlugin] Storage upload error:', uploadErr.message);
               }
             } catch (supErr) {
-              console.warn('[storagePlugin] Service key upload attempt notice:', supErr.message);
+              console.warn('[storagePlugin] Storage upload exception:', supErr.message);
             }
           }
 

@@ -94,8 +94,8 @@ export const allMenuItems = [
     toppings: 'Tomatensauce, Mozzarella',
     desc: 'Klassische italienische Pizza mit feiner Tomatensauce und geschmolzenem Mozzarella.',
     prices: { small: 9.00, large: 10.80, family: 18.60, party: 22.70 },
-    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/pizza-1_1791198696351.png',
-    image_url: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/pizza-1_1791198696351.png',
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/pizza-1_1791203139418.png',
+    image_url: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/pizza-1_1791203139418.png',
     badge: 'Klassiker',
     dietary: ['vegetarisch'],
     sizesAvailable: true,
@@ -2325,8 +2325,8 @@ export const popularPizzasData = [
     ingredients: 'Tomatensauce, Mozzarella',
     price: 9.00,
     formattedPrice: 'ab 9,00 €',
-    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/pizza-1_1791198696351.png',
-    image_url: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/pizza-1_1791198696351.png',
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/pizza-1_1791203139418.png',
+    image_url: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/pizza-1_1791203139418.png',
     badge: 'Klassiker'
   },
   {

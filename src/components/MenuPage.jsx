@@ -97,7 +97,26 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
     try {
       const overrides = JSON.parse(localStorage.getItem('venezia_admin_dishes_override') || '{}');
       if (overrides && Object.keys(overrides).length > 0) {
-        return (rawMenuItems || []).map(item => overrides[item.id] ? { ...item, ...overrides[item.id], has_custom_image: true } : item);
+        return (rawMenuItems || []).map(item => {
+          const override = overrides[item.id];
+          if (!override) return item;
+
+          const hasDbCustomImage = !!(item.image_url && typeof item.image_url === 'string' && (item.image_url.startsWith('http') || item.image_url.startsWith('/images/dishes/')));
+          const overrideImage = override.image_url || override.image;
+          const hasOverrideCustomImage = !!(overrideImage && typeof overrideImage === 'string' && (overrideImage.startsWith('http') || overrideImage.startsWith('/images/dishes/')));
+
+          const finalImage = hasDbCustomImage 
+            ? item.image_url 
+            : (hasOverrideCustomImage ? overrideImage : (item.image_url || item.image || overrideImage));
+
+          return { 
+            ...item, 
+            ...override, 
+            image_url: finalImage,
+            image: finalImage,
+            has_custom_image: hasDbCustomImage || hasOverrideCustomImage || !!override.has_custom_image 
+          };
+        });
       }
     } catch (e) {}
     return rawMenuItems;

@@ -2011,7 +2011,7 @@ export default function AdminPanel({ onBackToStore }) {
       name: item.name_de || item.name || '',
       desc: item.desc_de || item.desc || '',
       toppings: item.toppings_de || item.toppings || '',
-      image_url: item.image_url || getDishImage(item),
+      image_url: (item.image_url && (item.image_url.startsWith('http') || item.image_url.startsWith('/images/dishes/'))) ? item.image_url : '',
       price: unitPrice,
       has_sizes: hasSizes,
       sizes_config,
@@ -2088,6 +2088,20 @@ export default function AdminPanel({ onBackToStore }) {
             console.warn('[AdminPanel] Immediate save error:', upErr);
           }
         }
+
+        // Immediately update localStorage overrides so the front end gets the new image immediately
+        try {
+          const savedOverrides = JSON.parse(localStorage.getItem('venezia_admin_dishes_override') || '{}');
+          if (dishIdentifier && dishIdentifier !== 'dish') {
+            savedOverrides[dishIdentifier] = {
+              ...(savedOverrides[dishIdentifier] || {}),
+              image: res.url,
+              image_url: res.url,
+              has_custom_image: true
+            };
+            localStorage.setItem('venezia_admin_dishes_override', JSON.stringify(savedOverrides));
+          }
+        } catch (e) {}
 
         // Immediately reflect in AdminPanel menuItems list
         if (dishIdentifier && dishIdentifier !== 'dish') {
@@ -2267,9 +2281,10 @@ export default function AdminPanel({ onBackToStore }) {
 
     try {
       const savedOverrides = JSON.parse(localStorage.getItem('venezia_admin_dishes_override') || '{}');
+      const effectiveImg = dishForm.image_url || editingItem?.image_url || savedOverrides[id]?.image_url || '';
       savedOverrides[id] = {
-        image: dishForm.image_url,
-        image_url: dishForm.image_url,
+        image: effectiveImg,
+        image_url: effectiveImg,
         name: dishForm.name,
         name_de: dishForm.name,
         toppings: dishForm.toppings,
