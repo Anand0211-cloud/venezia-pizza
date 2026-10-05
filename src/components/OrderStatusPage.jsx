@@ -602,10 +602,18 @@ export default function OrderStatusPage({
                     <span>Zwischensumme</span>
                     <span>{Number(order.subtotal || 0).toFixed(2).replace('.', ',')} €</span>
                   </div>
-                  {Number(order.delivery_fee || 0) > 0 && (
+                  {order.delivery_type === 'delivery' && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#64748b', marginBottom: '6px' }}>
                       <span>Lieferkosten</span>
-                      <span>{Number(order.delivery_fee || 0).toFixed(2).replace('.', ',')} €</span>
+                      <span style={{ color: Number(order.delivery_fee || 0) > 0 ? '#0f172a' : '#16a34a', fontWeight: '700' }}>
+                        {Number(order.delivery_fee || 0) > 0 ? `${Number(order.delivery_fee).toFixed(2).replace('.', ',')} €` : '0,00 € (Kostenlos)'}
+                      </span>
+                    </div>
+                  )}
+                  {Number(order.low_cart_fee || 0) > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#1e40af', marginBottom: '6px', fontWeight: '600' }}>
+                      <span>Mindermengenzuschlag (Low Cart Fee)</span>
+                      <span>+{Number(order.low_cart_fee).toFixed(2).replace('.', ',')} €</span>
                     </div>
                   )}
                   {Number(order.tip || 0) > 0 && (

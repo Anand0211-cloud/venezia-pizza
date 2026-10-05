@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   CheckCircle2,
@@ -31,7 +31,8 @@ import {
   Eye,
   EyeOff,
   ShoppingBag,
-  KeyRound
+  KeyRound,
+  Loader2
 } from 'lucide-react';
 import { restaurantInfo } from '../data/menuData';
 import {
@@ -42,8 +43,8 @@ import {
   subscribeToOrders,
   updateOrderStatus,
   getCurrentCustomerUser,
-  sendCustomerPhoneOtp,
-  verifyCustomerPhoneOtp,
+  sendCustomerEmailOtp,
+  verifyCustomerEmailOtp,
   subscribeToCustomerAuth,
   supabase
 } from '../lib/supabaseClient';
@@ -53,7 +54,8 @@ import {
   DELIVERY_ZONES_CONFIG,
   ALL_SUPPORTED_AREAS,
   normalizePostcode,
-  getDeliveryZone
+  getDeliveryZone,
+  calculateLowCartFee
 } from '../lib/deliveryZones';
 
 export default function CheckoutModal({
@@ -85,16 +87,19 @@ export default function CheckoutModal({
     note: ''
   });
 
-  // Customer Auth & Mobile Phone OTP State on Checkout
+  // Customer Auth & Email OTP State on Checkout
   const [customerUser, setCustomerUser] = useState(null);
-  const [checkoutPhoneStep, setCheckoutPhoneStep] = useState('phone'); // 'phone' | 'otp'
+  const [checkoutEmailStep, setCheckoutEmailStep] = useState('input'); // 'input' | 'otp'
   const [checkoutOtpCode, setCheckoutOtpCode] = useState('');
   const [checkoutOtpError, setCheckoutOtpError] = useState('');
   const [checkoutOtpSuccess, setCheckoutOtpSuccess] = useState('');
   const [checkoutResendCooldown, setCheckoutResendCooldown] = useState(0);
   const [isSendingCheckoutOtp, setIsSendingCheckoutOtp] = useState(false);
+  const [isVerifyingCheckoutOtp, setIsVerifyingCheckoutOtp] = useState(false);
+  const [isCheckoutOtpVerifiedSuccess, setIsCheckoutOtpVerifiedSuccess] = useState(false);
+  const checkoutOtpRef = useRef(null);
 
-  // Resend SMS cooldown timer
+  // Resend OTP cooldown timer
   useEffect(() => {
     if (checkoutResendCooldown <= 0) return;
     const timer = setInterval(() => {
@@ -108,7 +113,7 @@ export default function CheckoutModal({
   const [cashOption, setCashOption] = useState('exact'); // 'exact', 'change_50', 'change_100'
 
   // Driver Tip & Voucher Code
-  const [tipAmount, setTipAmount] = useState(2.00); // 0, 1.50, 2.00, 3.50, custom
+  const [tipAmount, setTipAmount] = useState(0); // Default tip is 0 (customer can optionally add tip)
   const [customTip, setCustomTip] = useState('');
   const [voucherCode, setVoucherCode] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState(null); // { code, discountPercent, discountAmount }
@@ -272,95 +277,99 @@ export default function CheckoutModal({
   // Strict email format validation regex (waits until full email e.g. name@domain.com is entered)
   const EMAIL_FORMAT_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
 
-  // Send SMS OTP for unauthenticated customer at checkout
+  // Send Email OTP for unauthenticated customer at checkout
   const handleSendCheckoutOtp = async () => {
     setCheckoutOtpError('');
     setCheckoutOtpSuccess('');
-    const rawPhone = (formData.phone || '').trim();
-    if (!rawPhone) {
-      alert('Bitte geben Sie Ihre Mobilfunknummer ein.');
+    const rawEmail = (formData.email || '').toLowerCase().trim();
+    if (!rawEmail || !EMAIL_FORMAT_REGEX.test(rawEmail)) {
+      alert('Bitte geben Sie eine gültige E-Mail-Adresse für den Bestätigungscode ein.');
       return;
     }
+    // Transition immediately to the OTP step so user doesn't wait!
+    setCheckoutEmailStep('otp');
+    setCheckoutOtpSuccess(`Bestätigungscode wird an ${rawEmail} gesendet...`);
     setIsSendingCheckoutOtp(true);
+    // Smoothly scroll OTP card into view without abrupt jerking
+    setTimeout(() => {
+      checkoutOtpRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 60);
     try {
-      const res = await sendCustomerPhoneOtp(rawPhone);
+      const res = await sendCustomerEmailOtp(rawEmail);
       if (res.success) {
-        setCheckoutPhoneStep('otp');
-        setCheckoutOtpSuccess(`SMS-Code an ${res.phone || rawPhone} gesendet!`);
+        setCheckoutOtpSuccess(`Bestätigungscode an ${res.email || rawEmail} gesendet!`);
         setCheckoutResendCooldown(30);
       } else {
-        setCheckoutOtpError(res.error || 'Fehler beim Senden des SMS-Codes.');
-        setCheckoutPhoneStep('otp');
+        setCheckoutOtpError(res.error || 'Fehler beim Senden des Bestätigungscodes.');
       }
     } catch (err) {
-      setCheckoutOtpError(err.message || 'Fehler beim Senden des SMS-Codes.');
-      setCheckoutPhoneStep('otp');
+      setCheckoutOtpError(err.message || 'Fehler beim Senden des Bestätigungscodes.');
     } finally {
       setIsSendingCheckoutOtp(false);
     }
   };
 
-  // Verify SMS OTP for customer at checkout and log them in
-  const handleVerifyCheckoutOtp = async () => {
+  // Verify Email OTP for customer at checkout and log them in
+  const handleVerifyCheckoutOtp = async (directCode) => {
+    if (isVerifyingCheckoutOtp || isCheckoutOtpVerifiedSuccess) return;
     setCheckoutOtpError('');
-    if (!checkoutOtpCode.trim() || checkoutOtpCode.trim().length < 6) {
-      setCheckoutOtpError('Bitte geben Sie den 6-stelligen SMS-Code ein.');
+    const cleanToken = (directCode !== undefined ? directCode : checkoutOtpCode || '').trim();
+    if (!cleanToken || cleanToken.length < 4) {
+      setCheckoutOtpError('Bitte geben Sie den vollständigen Bestätigungscode aus der E-Mail ein.');
       return;
     }
-    setIsSendingCheckoutOtp(true);
+    const cleanEmail = (formData.email || '').toLowerCase().trim();
+    setIsVerifyingCheckoutOtp(true);
+    const startTime = Date.now();
     try {
-      const res = await verifyCustomerPhoneOtp({
-        phone: formData.phone.trim(),
-        token: checkoutOtpCode.trim()
+      const res = await verifyCustomerEmailOtp({
+        email: cleanEmail,
+        token: cleanToken
       });
+
+      // Ensure smooth, satisfying 2.2 - 2.5s loading experience as requested
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 2300) {
+        await new Promise(r => setTimeout(r, 2300 - elapsed));
+      }
+
       if (res.success && res.user) {
+        setIsVerifyingCheckoutOtp(false);
+        setIsCheckoutOtpVerifiedSuccess(true);
+
+        // Show "OTP verifiziert! ✓" message for 1.2s before advancing to Step 2
+        await new Promise(r => setTimeout(r, 1200));
+
         setCustomerUser(res.user);
-        setCheckoutPhoneStep('phone');
+        setCheckoutEmailStep('input');
         setCheckoutOtpCode('');
+        setIsCheckoutOtpVerifiedSuccess(false);
         setFormData(prev => ({
           ...prev,
           name: prev.name || res.user.full_name || '',
-          phone: res.user.phone || prev.phone,
+          phone: prev.phone || res.user.phone || '',
+          email: res.user.email || prev.email,
           street: prev.street || res.user.street || ''
         }));
         // Proceed directly to step 2 (payment)!
         setStep(2);
       } else {
-        setCheckoutOtpError(res.error || 'Ungültiger oder abgelaufener SMS-Code.');
+        setIsVerifyingCheckoutOtp(false);
+        setCheckoutOtpError(res.error || 'Ungültiger oder abgelaufener Bestätigungscode.');
       }
     } catch (err) {
-      setCheckoutOtpError(err.message || 'Ungültiger oder abgelaufener SMS-Code.');
-    } finally {
-      setIsSendingCheckoutOtp(false);
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 2000) {
+        await new Promise(r => setTimeout(r, 2000 - elapsed));
+      }
+      setIsVerifyingCheckoutOtp(false);
+      setCheckoutOtpError(err.message || 'Ungültiger oder abgelaufener Bestätigungscode.');
     }
   };
 
   const handleCheckoutOtpInputChange = (raw) => {
-    const val = raw.replace(/\D/g, '').slice(0, 6);
+    const val = (raw || '').trim();
     setCheckoutOtpCode(val);
-    if (val.length === 6) {
-      setTimeout(() => {
-        verifyCustomerPhoneOtp({
-          phone: formData.phone.trim(),
-          token: val
-        }).then(res => {
-          if (res.success && res.user) {
-            setCustomerUser(res.user);
-            setCheckoutPhoneStep('phone');
-            setCheckoutOtpCode('');
-            setFormData(prev => ({
-              ...prev,
-              name: prev.name || res.user.full_name || '',
-              phone: res.user.phone || prev.phone,
-              street: prev.street || res.user.street || ''
-            }));
-            setStep(2);
-          } else {
-            setCheckoutOtpError(res.error || 'Ungültiger oder abgelaufener SMS-Code.');
-          }
-        });
-      }, 100);
-    }
   };
 
   const handleResendCheckoutOtp = async () => {
@@ -381,14 +390,24 @@ export default function CheckoutModal({
   const deliveryZone = orderType === 'delivery'
     ? getDeliveryZone(formData.plz, formData.city || formData.street)
     : null;
-  const deliveryFee = orderType === 'pickup'
-    ? 0
-    : (deliveryZone?.isDeliverable ? deliveryZone.fee : 0);
-  const effectiveTip = orderType === 'pickup' ? 0 : (Number(customTip !== '' ? customTip : tipAmount) || 0);
-  const finalTotal = effectiveSubtotal + deliveryFee + effectiveTip;
+  const deliveryFee = 0; // Free delivery for all deliverable zones (0,00 €)
 
-  // Minimum basket/order value: €15.00 for delivery (Pickup has no minimum)
-  const isBelowMinOrder = orderType === 'delivery' && effectiveSubtotal < MIN_ORDER_DELIVERY;
+  // Minimum order value for the detected zone (Zone 1 is 12€, Zone 2 is 30€, Zone 3 is 35€, Zone 4 is 45€)
+  const zoneMinOrder = orderType === 'delivery'
+    ? (deliveryZone?.isDeliverable ? deliveryZone.minOrder : MIN_ORDER_DELIVERY)
+    : 0;
+
+  // Low cart fee calculation:
+  // If order is for delivery and subtotal is below the zone's minimum order,
+  // add the difference to make the total equivalent to the minimum order value!
+  const lowCartFee = (orderType === 'delivery' && deliveryZone?.isDeliverable && effectiveSubtotal < zoneMinOrder)
+    ? Math.max(0, Number((zoneMinOrder - effectiveSubtotal).toFixed(2)))
+    : 0;
+
+  const isBelowMinOrder = orderType === 'delivery' && deliveryZone?.isDeliverable && effectiveSubtotal < zoneMinOrder;
+
+  const effectiveTip = orderType === 'pickup' ? 0 : (Number(customTip !== '' ? customTip : tipAmount) || 0);
+  const finalTotal = effectiveSubtotal + deliveryFee + lowCartFee + effectiveTip;
 
   // Handle Voucher Redemption
   const handleApplyVoucher = (e) => {
@@ -537,8 +556,8 @@ export default function CheckoutModal({
       setResetError('Bitte geben Sie eine gültige E-Mail-Adresse an.');
       return;
     }
-    if (!cleanOtp || cleanOtp.length < 6) {
-      setResetError('Bitte geben Sie den 6-stelligen Bestätigungscode (OTP) aus Ihrer E-Mail ein.');
+    if (!cleanOtp || cleanOtp.length < 4) {
+      setResetError('Bitte geben Sie den Bestätigungscode (OTP) aus Ihrer E-Mail ein.');
       return;
     }
     if (!resetNewPassword || resetNewPassword.length < 6) {
@@ -699,7 +718,7 @@ export default function CheckoutModal({
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
             <label style={{ fontSize: '11px', fontWeight: '700', color: '#0369a1' }}>
-              6-stelliger Bestätigungscode (OTP) *
+              Bestätigungscode (OTP) *
             </label>
             <button
               type="button"
@@ -739,7 +758,7 @@ export default function CheckoutModal({
             }}
           />
           <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>
-            Geben Sie den 6-stelligen Code aus Ihrer E-Mail ein (auch im Spam-Ordner nachsehen).
+            Geben Sie den Bestätigungscode aus Ihrer E-Mail ein (auch im Spam-Ordner nachsehen).
           </div>
         </div>
 
@@ -856,7 +875,7 @@ export default function CheckoutModal({
     </div>
   );
 
-  // Step 1 Validation & Proceed to Payment (Phone OTP verified if not logged in)
+  // Step 1 Validation & Proceed to Payment (Email OTP verified if not logged in)
   const handleProceedToPayment = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     if (!isStoreOpen) {
@@ -867,8 +886,13 @@ export default function CheckoutModal({
       alert('Bitte geben Sie Ihren Vor- und Nachnamen an.');
       return;
     }
+    const cleanEmail = (formData.email || '').toLowerCase().trim();
+    if (!cleanEmail || !EMAIL_FORMAT_REGEX.test(cleanEmail)) {
+      alert('Bitte geben Sie eine gültige E-Mail-Adresse für den Bestätigungscode und die Bestellbestätigung ein.');
+      return;
+    }
     if (!formData.phone.trim()) {
-      alert('Bitte geben Sie Ihre Mobilfunknummer an.');
+      alert('Bitte geben Sie Ihre Mobilfunknummer für eventuelle Rückfragen des Fahrers an.');
       return;
     }
     if (orderType === 'delivery') {
@@ -884,10 +908,6 @@ export default function CheckoutModal({
         alert(deliveryZone?.error || 'Leider liefern wir nicht in diese Region. Bitte wählen Sie Selbstabholung oder eine gültige Lieferadresse.');
         return;
       }
-      if (isBelowMinOrder) {
-        alert(`Der Mindestbestellwert für Lieferung beträgt ${MIN_ORDER_DELIVERY.toFixed(2).replace('.', ',')} €. Bitte wählen Sie Selbstabholung oder fügen Sie weitere Artikel hinzu.`);
-        return;
-      }
     }
 
     // CASE 1: If user is ALREADY logged in -> DO NOT ask for OTP -> Proceed directly to payment!
@@ -897,12 +917,13 @@ export default function CheckoutModal({
     }
 
     // CASE 2: User is NOT yet logged in -> Send OTP and prompt verification inline
-    if (checkoutPhoneStep !== 'otp') {
+    if (checkoutEmailStep !== 'otp') {
       await handleSendCheckoutOtp();
       return;
     } else {
-      if (!checkoutOtpCode || checkoutOtpCode.trim().length < 6) {
-        setCheckoutOtpError('Bitte geben Sie den 6-stelligen SMS-Code ein.');
+      if (!checkoutOtpCode || checkoutOtpCode.trim().length < 4) {
+        setCheckoutOtpError('Bitte geben Sie den Bestätigungscode ein.');
+        checkoutOtpRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
       await handleVerifyCheckoutOtp();
@@ -919,7 +940,7 @@ export default function CheckoutModal({
     setIsProcessing(true);
     setProcessingStatusText('Bestelldaten werden vorbereitet...');
 
-    const effectiveEmail = (customerUser?.email || (formData.phone ? `${formData.phone.replace(/\D/g, '')}@customer.venezia.internal` : 'kunde@veneziapizzas.de')).toLowerCase().trim();
+    const effectiveEmail = (customerUser?.email || formData.email || '').toLowerCase().trim();
     const orderNumber = `VP-${Math.floor(1000 + Math.random() * 9000)}`;
     const fullStreet = orderType === 'delivery'
       ? `${formData.street} ${formData.houseNr} ${formData.floorApartment ? `(${formData.floorApartment})` : ''}`.trim()
@@ -943,11 +964,13 @@ export default function CheckoutModal({
               ? `Barzahlung bei Lieferung (Wechselgeld auf ${cashOption === 'change_50' ? '50€' : '100€'})`
               : 'Barzahlung bei Lieferung (Passend in bar)')
           : 'Online-Zahlung via SumUp (Kreditkarte, Apple Pay, Girocard)',
+        lowCartFee > 0 ? `Mindermengenzuschlag: ${lowCartFee.toFixed(2).replace('.', ',')} € (Mindestbestellwert ${zoneMinOrder.toFixed(2).replace('.', ',')} € für ${deliveryZone?.areaName || 'Liefergebiet'})` : '',
         formData.note ? `Kundennotiz: ${formData.note}` : ''
       ].filter(Boolean).join(' • '),
       subtotal: subtotal,
       discount: totalDiscount,
-      delivery_fee: deliveryFee,
+      delivery_fee: 0,
+      low_cart_fee: lowCartFee,
       tip: effectiveTip,
       total: finalTotal,
       status: 'new',
@@ -1432,7 +1455,7 @@ export default function CheckoutModal({
                         />
                         <datalist id="supported-areas-list">
                           {ALL_SUPPORTED_AREAS.map((a, i) => (
-                            <option key={i} value={a.city}>{a.plz} {a.city} ({a.fee.toFixed(2).replace('.', ',')} €)</option>
+                            <option key={i} value={a.city}>{a.plz} {a.city}</option>
                           ))}
                         </datalist>
                       </div>
@@ -1458,9 +1481,6 @@ export default function CheckoutModal({
                           <CheckCircle2 size={16} color="#16a34a" />
                           <span>Liefergebiet: {deliveryZone.areaName}</span>
                         </div>
-                        <span style={{ fontWeight: '800', background: '#dcfce7', padding: '3px 8px', borderRadius: '6px' }}>
-                          Liefergebühr: {deliveryFee.toFixed(2).replace('.', ',')} €
-                        </span>
                       </div>
                     ) : (
                       <div style={{
@@ -1560,31 +1580,27 @@ export default function CheckoutModal({
                       <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>
                         Mobilfunknummer *
                       </label>
-                      {customerUser ? (
-                        <span style={{ fontSize: '10.5px', color: '#16a34a', fontWeight: '800', background: '#dcfce7', padding: '1px 7px', borderRadius: '999px' }}>
-                          ✓ Verifiziert
-                        </span>
-                      ) : null}
+                      <span style={{ fontSize: '10.5px', color: '#64748b' }}>
+                        Für Fahrer
+                      </span>
                     </div>
                     <div style={{ position: 'relative' }}>
                       <input
                         type="tel"
                         required
-                        readOnly={!!customerUser}
                         placeholder="0171 1234567 oder +49..."
-                        value={customerUser ? (customerUser.phone || formData.phone) : formData.phone}
-                        onChange={(e) => !customerUser && setFormData({ ...formData, phone: e.target.value })}
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                         style={{
                           width: '100%',
                           padding: '10px 12px',
                           borderRadius: '8px',
                           border: '1.5px solid #cbd5e1',
                           fontSize: '13px',
-                          fontWeight: customerUser ? '700' : '500',
+                          fontWeight: '500',
                           outline: 'none',
-                          background: customerUser ? '#f1f5f9' : '#ffffff',
-                          color: customerUser ? '#334155' : '#0f172a',
-                          cursor: customerUser ? 'not-allowed' : 'text',
+                          background: '#ffffff',
+                          color: '#0f172a',
                           boxSizing: 'border-box'
                         }}
                       />
@@ -1592,37 +1608,102 @@ export default function CheckoutModal({
                   </div>
                 </div>
 
+                {/* Email Address (Used for Passwordless OTP & Order Receipt) */}
+                <div style={{ marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>
+                      E-Mail-Adresse *
+                    </label>
+                    {customerUser ? (
+                      <span style={{ fontSize: '10.5px', color: '#16a34a', fontWeight: '800', background: '#dcfce7', padding: '1px 7px', borderRadius: '999px' }}>
+                        ✓ Verifiziert
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '10.5px', color: '#64748b' }}>
+                        Für Login-Code &amp; Rechnung
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="email"
+                    required
+                    readOnly={!!customerUser}
+                    placeholder="z.B. max.mueller@beispiel.de"
+                    value={customerUser ? (customerUser.email || formData.email) : formData.email}
+                    onChange={(e) => !customerUser && setFormData({ ...formData, email: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '13px',
+                      fontWeight: customerUser ? '700' : '500',
+                      outline: 'none',
+                      background: customerUser ? '#f1f5f9' : '#ffffff',
+                      color: customerUser ? '#334155' : '#0f172a',
+                      cursor: customerUser ? 'not-allowed' : 'text',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
                 {customerUser && (
                   <div style={{ fontSize: '11.5px', color: '#15803d', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
                     <CheckCircle2 size={14} color="#16a34a" />
-                    <span>Angemeldet als Stammkunde: {customerUser.full_name || customerUser.phone}</span>
+                    <span>Angemeldet als Stammkunde: {customerUser.full_name || customerUser.email}</span>
                   </div>
                 )}
 
-                {/* Inline OTP Verification Card (ONLY shown when user is NOT logged in and OTP is requested) */}
-                {!customerUser && checkoutPhoneStep === 'otp' && (
-                  <div style={{
-                    background: '#fff1f2',
-                    border: '2px solid var(--red)',
-                    borderRadius: '14px',
-                    padding: '16px 18px',
-                    marginTop: '12px',
-                    marginBottom: '16px',
-                    boxShadow: '0 4px 16px rgba(225, 29, 72, 0.12)'
-                  }}>
+                {/* Inline Email OTP Verification Card (ONLY shown when user is NOT logged in and OTP is requested) */}
+                {!customerUser && checkoutEmailStep === 'otp' && (
+                  <div
+                    ref={checkoutOtpRef}
+                    className="checkout-otp-anim"
+                    style={{
+                      background: '#fff1f2',
+                      border: '2px solid var(--red)',
+                      borderRadius: '14px',
+                      padding: '16px 18px',
+                      marginTop: '12px',
+                      marginBottom: '16px',
+                      boxShadow: '0 6px 20px rgba(225, 29, 72, 0.12)'
+                    }}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800', fontSize: '13.5px', color: '#9f1239' }}>
-                        <ShieldCheck size={18} color="var(--red)" />
-                        <span>SMS-Code bestätigen</span>
+                        <Mail size={18} color="var(--red)" />
+                        <span>E-Mail Bestätigungscode eingeben</span>
                       </div>
-                      <span style={{ fontSize: '11px', color: '#9f1239', fontWeight: '700' }}>
-                        Einmal-Login
+                      <span style={{ fontSize: '11px', color: '#9f1239', fontWeight: '700', background: '#ffe4e6', padding: '2px 8px', borderRadius: '12px' }}>
+                        Passwortlos
                       </span>
                     </div>
 
                     <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#475569', lineHeight: '1.45' }}>
-                      Wir haben einen 6-stelligen Bestätigungscode per SMS an <strong>{formData.phone}</strong> gesendet.
+                      Wir haben einen Bestätigungscode an <strong>{formData.email}</strong> gesendet. Bitte prüfen Sie Ihren Posteingang (und Spam-Ordner).
                     </p>
+
+                    {/* Verified Success State Banner */}
+                    {isCheckoutOtpVerifiedSuccess && (
+                      <div style={{
+                        background: '#ecfdf5',
+                        border: '2px solid #10b981',
+                        borderRadius: '10px',
+                        padding: '12px 14px',
+                        marginBottom: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        color: '#065f46',
+                        fontWeight: '800',
+                        fontSize: '13px',
+                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)',
+                        animation: 'fadeIn 0.25s ease'
+                      }}>
+                        <CheckCircle2 size={18} color="#10b981" />
+                        <span>OTP verifiziert! ✓ Sie sind angemeldet – Weiterleitung...</span>
+                      </div>
+                    )}
 
                     {checkoutOtpError && (
                       <div style={{
@@ -1646,49 +1727,70 @@ export default function CheckoutModal({
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <input
                         type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={6}
+                        maxLength={64}
                         autoFocus
-                        placeholder="••••••"
+                        disabled={isVerifyingCheckoutOtp || isCheckoutOtpVerifiedSuccess}
+                        placeholder="Code hier einfügen"
                         value={checkoutOtpCode}
                         onChange={(e) => handleCheckoutOtpInputChange(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleVerifyCheckoutOtp();
+                          }
+                        }}
                         style={{
-                          flex: '1 1 140px',
-                          padding: '10px 14px',
+                          flex: '1 1 160px',
+                          padding: '11px 14px',
                           borderRadius: '8px',
                           border: '2px solid var(--red)',
-                          fontSize: '18px',
-                          fontWeight: '900',
-                          letterSpacing: '6px',
+                          fontSize: checkoutOtpCode.length > 12 ? '14px' : checkoutOtpCode.length > 8 ? '16px' : '20px',
+                          fontWeight: '800',
+                          letterSpacing: checkoutOtpCode.length > 12 ? '2px' : checkoutOtpCode.length > 8 ? '4px' : '6px',
                           textAlign: 'center',
                           outline: 'none',
-                          background: '#ffffff',
-                          fontFamily: 'monospace',
+                          background: (isVerifyingCheckoutOtp || isCheckoutOtpVerifiedSuccess) ? '#f8fafc' : '#ffffff',
+                          fontFamily: "'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace",
                           boxSizing: 'border-box'
                         }}
                       />
                       <button
                         type="button"
-                        onClick={handleVerifyCheckoutOtp}
-                        disabled={isSendingCheckoutOtp || checkoutOtpCode.length < 6}
+                        onClick={() => handleVerifyCheckoutOtp()}
+                        disabled={isVerifyingCheckoutOtp || isCheckoutOtpVerifiedSuccess || !checkoutOtpCode.trim()}
                         style={{
-                          background: 'var(--red)',
+                          background: isCheckoutOtpVerifiedSuccess ? '#16a34a' : 'var(--red)',
                           color: '#ffffff',
                           border: 'none',
                           borderRadius: '8px',
-                          padding: '11px 18px',
+                          padding: '12px 18px',
                           fontSize: '13px',
                           fontWeight: '800',
-                          cursor: (isSendingCheckoutOtp || checkoutOtpCode.length < 6) ? 'not-allowed' : 'pointer',
-                          opacity: (isSendingCheckoutOtp || checkoutOtpCode.length < 6) ? 0.6 : 1,
+                          cursor: (isVerifyingCheckoutOtp || isCheckoutOtpVerifiedSuccess || !checkoutOtpCode.trim()) ? 'not-allowed' : 'pointer',
+                          opacity: (isVerifyingCheckoutOtp || isCheckoutOtpVerifiedSuccess || !checkoutOtpCode.trim()) && !isVerifyingCheckoutOtp && !isCheckoutOtpVerifiedSuccess ? 0.6 : 1,
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '6px'
+                          gap: '8px',
+                          boxShadow: isCheckoutOtpVerifiedSuccess ? '0 4px 12px rgba(22, 163, 74, 0.3)' : '0 4px 12px rgba(225, 29, 72, 0.25)',
+                          transition: 'all 0.2s ease'
                         }}
                       >
-                        <CheckCircle2 size={16} />
-                        <span>{isSendingCheckoutOtp ? 'Wird geprüft...' : 'Bestätigen & Weiter'}</span>
+                        {isVerifyingCheckoutOtp ? (
+                          <>
+                            <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                            <span>Wird geprüft (2-3 Sek.)...</span>
+                          </>
+                        ) : isCheckoutOtpVerifiedSuccess ? (
+                          <>
+                            <CheckCircle2 size={16} />
+                            <span>OTP verifiziert! ✓</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 size={16} />
+                            <span>Bestätigen &amp; Weiter</span>
+                          </>
+                        )}
                       </button>
                     </div>
 
@@ -1696,23 +1798,24 @@ export default function CheckoutModal({
                       <button
                         type="button"
                         onClick={handleResendCheckoutOtp}
-                        disabled={checkoutResendCooldown > 0 || isSendingCheckoutOtp}
+                        disabled={checkoutResendCooldown > 0 || isSendingCheckoutOtp || isVerifyingCheckoutOtp || isCheckoutOtpVerifiedSuccess}
                         style={{
                           background: 'none',
                           border: 'none',
                           color: checkoutResendCooldown > 0 ? '#94a3b8' : 'var(--red)',
                           fontWeight: '700',
-                          cursor: checkoutResendCooldown > 0 ? 'not-allowed' : 'pointer',
+                          cursor: (checkoutResendCooldown > 0 || isSendingCheckoutOtp || isVerifyingCheckoutOtp || isCheckoutOtpVerifiedSuccess) ? 'not-allowed' : 'pointer',
                           padding: 0,
                           textDecoration: 'underline'
                         }}
                       >
-                        {checkoutResendCooldown > 0 ? `Code erneut senden (${checkoutResendCooldown}s)` : 'SMS erneut senden'}
+                        {checkoutResendCooldown > 0 ? `Code erneut senden (${checkoutResendCooldown}s)` : 'Code erneut senden'}
                       </button>
                       <button
                         type="button"
+                        disabled={isVerifyingCheckoutOtp || isCheckoutOtpVerifiedSuccess}
                         onClick={() => {
-                          setCheckoutPhoneStep('phone');
+                          setCheckoutEmailStep('input');
                           setCheckoutOtpCode('');
                           setCheckoutOtpError('');
                         }}
@@ -1721,12 +1824,12 @@ export default function CheckoutModal({
                           border: 'none',
                           color: '#64748b',
                           fontWeight: '600',
-                          cursor: 'pointer',
+                          cursor: (isVerifyingCheckoutOtp || isCheckoutOtpVerifiedSuccess) ? 'not-allowed' : 'pointer',
                           padding: 0,
                           textDecoration: 'underline'
                         }}
                       >
-                        Nummer ändern
+                        E-Mail-Adresse ändern
                       </button>
                     </div>
                   </div>
@@ -1758,11 +1861,11 @@ export default function CheckoutModal({
                 />
               </div>
 
-              {/* Minimum Order Warning Box (ONLY displayed if order is below €15.00 for delivery) */}
-              {isBelowMinOrder && (
+              {/* Low Cart Fee Notice (displayed when order is below zone minOrder for delivery) */}
+              {orderType === 'delivery' && lowCartFee > 0 && (
                 <div style={{
-                  background: '#fffbeb',
-                  border: '1.5px solid #fde68a',
+                  background: '#eff6ff',
+                  border: '1.5px solid #bfdbfe',
                   borderRadius: '12px',
                   padding: '12px 14px',
                   marginBottom: '14px',
@@ -1773,9 +1876,9 @@ export default function CheckoutModal({
                   flexWrap: 'wrap'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <AlertCircle size={18} color="#d97706" style={{ flexShrink: 0 }} />
-                    <span style={{ fontSize: '12.5px', color: '#92400e', fontWeight: '600' }}>
-                      Mindestbestellwert für Lieferung ist <strong>15,00 €</strong> (noch <strong>{(MIN_ORDER_DELIVERY - effectiveSubtotal).toFixed(2).replace('.', ',')} €</strong>)
+                    <AlertCircle size={18} color="#2563eb" style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: '12.5px', color: '#1e40af', fontWeight: '600' }}>
+                      Mindermengenzuschlag (Low Cart Fee): <strong>+{lowCartFee.toFixed(2).replace('.', ',')} €</strong> — Der Mindestbestellwert für {deliveryZone?.areaName || 'deinen Ort'} beträgt <strong>{zoneMinOrder.toFixed(2).replace('.', ',')} €</strong>.
                     </span>
                   </div>
                   <button
@@ -1783,8 +1886,8 @@ export default function CheckoutModal({
                     onClick={() => setOrderType('pickup')}
                     style={{
                       background: '#ffffff',
-                      border: '1.5px solid #d97706',
-                      color: '#b45309',
+                      border: '1.5px solid #2563eb',
+                      color: '#1d4ed8',
                       padding: '6px 12px',
                       borderRadius: '8px',
                       fontSize: '12px',
@@ -1792,7 +1895,7 @@ export default function CheckoutModal({
                       cursor: 'pointer'
                     }}
                   >
-                    Auf Selbstabholung wechseln (Kein Mindestwert)
+                    Auf Selbstabholung wechseln (0,00 €)
                   </button>
                 </div>
               )}
@@ -1815,9 +1918,9 @@ export default function CheckoutModal({
                   </div>
                   <div style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a' }}>
                     {finalTotal.toFixed(2).replace('.', ',')} €
-                    {orderType === 'delivery' && deliveryFee > 0 && (
-                      <span style={{ fontSize: '11.5px', fontWeight: '600', color: '#0284c7', marginLeft: '6px' }}>
-                        (inkl. {deliveryFee.toFixed(2).replace('.', ',')} € Lieferung)
+                    {orderType === 'delivery' && lowCartFee > 0 && (
+                      <span style={{ fontSize: '11.5px', fontWeight: '600', color: '#2563eb', marginLeft: '6px' }}>
+                        (inkl. {lowCartFee.toFixed(2).replace('.', ',')} € Mindermengenzuschlag)
                       </span>
                     )}
                   </div>
@@ -1825,9 +1928,9 @@ export default function CheckoutModal({
 
                 <button
                   type="submit"
-                  disabled={orderType === 'delivery' && (!deliveryZone?.isDeliverable || isBelowMinOrder)}
+                  disabled={isSendingCheckoutOtp || isVerifyingCheckoutOtp || (orderType === 'delivery' && !deliveryZone?.isDeliverable)}
                   style={{
-                    background: (orderType === 'delivery' && (!deliveryZone?.isDeliverable || isBelowMinOrder))
+                    background: (orderType === 'delivery' && !deliveryZone?.isDeliverable)
                       ? '#94a3b8'
                       : 'var(--red)',
                     color: '#ffffff',
@@ -1838,25 +1941,33 @@ export default function CheckoutModal({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    boxShadow: (orderType === 'delivery' && (!deliveryZone?.isDeliverable || isBelowMinOrder))
+                    boxShadow: (orderType === 'delivery' && !deliveryZone?.isDeliverable)
                       ? 'none'
                       : '0 4px 12px rgba(227, 6, 19, 0.3)',
-                    cursor: (orderType === 'delivery' && (!deliveryZone?.isDeliverable || isBelowMinOrder))
+                    cursor: (orderType === 'delivery' && !deliveryZone?.isDeliverable)
                       ? 'not-allowed'
                       : 'pointer',
                     transition: 'all 0.15s ease',
                     border: 'none',
-                    opacity: (orderType === 'delivery' && (!deliveryZone?.isDeliverable || isBelowMinOrder)) ? 0.75 : 1
+                    opacity: (orderType === 'delivery' && !deliveryZone?.isDeliverable) ? 0.75 : 1
                   }}
                 >
                   <span>
-                    {orderType === 'delivery' && !deliveryZone?.isDeliverable
-                      ? 'Lieferung nicht möglich'
-                      : (orderType === 'delivery' && isBelowMinOrder
-                          ? 'Mindestbestellwert 15,00 €'
-                          : 'Weiter zur Zahlung')}
+                    {isSendingCheckoutOtp
+                      ? 'Bestätigungscode wird gesendet...'
+                      : isVerifyingCheckoutOtp
+                        ? 'Wird überprüft (2-3 Sek.)...'
+                        : orderType === 'delivery' && !deliveryZone?.isDeliverable
+                          ? 'Lieferung nicht möglich'
+                          : (!customerUser && checkoutEmailStep === 'otp'
+                              ? 'Code bestätigen & Weiter zur Zahlung'
+                              : 'Weiter zur Zahlung')}
                   </span>
-                  <ArrowRight size={17} />
+                  {isSendingCheckoutOtp || isVerifyingCheckoutOtp ? (
+                    <Loader2 size={17} style={{ animation: 'spin 1s linear infinite' }} />
+                  ) : (
+                    <ArrowRight size={17} />
+                  )}
                 </button>
               </div>
             </form>
@@ -2169,7 +2280,6 @@ export default function CheckoutModal({
                         }}
                       >
                         {amount === 0 ? 'Kein Trinkgeld' : `${amount.toFixed(2).replace('.', ',')} €`}
-                        {amount === 2.00 && ' ⭐'}
                       </button>
                     ))}
                   </div>
@@ -2292,12 +2402,25 @@ export default function CheckoutModal({
                   </div>
                 )}
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#64748b', marginBottom: '6px' }}>
-                  <span>Lieferkosten ({orderType === 'delivery' ? (deliveryZone?.areaName || `PLZ ${formData.plz}`) : 'Selbstabholung'}):</span>
-                  <span style={{ fontWeight: '700', color: deliveryFee > 0 ? '#0f172a' : '#16a34a' }}>
-                    {deliveryFee === 0 ? '0,00 € (Selbstabholung)' : `${deliveryFee.toFixed(2).replace('.', ',')} €`}
-                  </span>
-                </div>
+
+
+                {orderType === 'delivery' && lowCartFee > 0 && (
+                  <div style={{
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    borderRadius: '8px',
+                    padding: '8px 10px',
+                    marginBottom: '8px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#1e40af', fontWeight: '700' }}>
+                      <span>Mindermengenzuschlag (Low Cart Fee):</span>
+                      <span>+{lowCartFee.toFixed(2).replace('.', ',')} €</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#2563eb', marginTop: '2px' }}>
+                      Mindestbestellwert für {deliveryZone?.areaName || 'diesen Ort'} ist {zoneMinOrder.toFixed(2).replace('.', ',')} €
+                    </div>
+                  </div>
+                )}
 
                 {orderType === 'delivery' && effectiveTip > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#d97706', marginBottom: '6px' }}>

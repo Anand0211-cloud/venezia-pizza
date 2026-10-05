@@ -8336,3 +8336,38 @@ img {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* =========================================
+   SMOOTH AUTH & OTP TRANSITIONS (NO JERKING)
+========================================= */
+@keyframes authFadeSlide {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes checkoutOtpReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.auth-step-anim {
+  animation: authFadeSlide 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}
+
+.checkout-otp-anim {
+  animation: checkoutOtpReveal 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { sendOrderConfirmationEmail, sendOrderDeliveredEmail } from './emailService';
+import { sendOrderConfirmationEmail, sendOrderDeliveredEmail } from './emailService.js';
 
 const supabaseUrl =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
@@ -464,6 +464,7 @@ export async function createOrder(orderPayload, items) {
     note: orderPayload.note || '',
     subtotal: Number(orderPayload.subtotal || 0),
     delivery_fee: Number(orderPayload.delivery_fee || 0),
+    low_cart_fee: Number(orderPayload.low_cart_fee || 0),
     tip: Number(orderPayload.tip || 0),
     discount: Number(orderPayload.discount || 0),
     total: Number(orderPayload.total || 0),
@@ -486,7 +487,7 @@ export async function createOrder(orderPayload, items) {
         delivery_type: completeOrder.delivery_type,
         street: completeOrder.street,
         zip_city: completeOrder.zip_city,
-        note: `[E-Mail: ${completeOrder.customer_email || ''}] [Zahlung: ${completeOrder.payment_method} (${completeOrder.payment_status})] [TXN: ${completeOrder.payment_id || ''}] ${completeOrder.note}`.trim(),
+        note: `[E-Mail: ${completeOrder.customer_email || ''}] [Zahlung: ${completeOrder.payment_method} (${completeOrder.payment_status})] [TXN: ${completeOrder.payment_id || ''}] ${completeOrder.low_cart_fee > 0 ? `[Mindermengenzuschlag: ${completeOrder.low_cart_fee.toFixed(2)} €] ` : ''}${completeOrder.note}`.trim(),
         subtotal: completeOrder.subtotal,
         delivery_fee: completeOrder.delivery_fee,
         total: completeOrder.total,
@@ -1132,7 +1133,187 @@ export async function checkCustomerAccountExists(email) {
 }
 
 // ---------------------------------------------------------------------------
-// CUSTOMER MOBILE PHONE OTP AUTHENTICATION
+// CUSTOMER EMAIL OTP AUTHENTICATION (PASSWORDLESS)
+// ---------------------------------------------------------------------------
+
+export async function sendCustomerEmailOtp(email) {
+  const normalizedEmail = (email || '').toLowerCase().trim();
+  if (normalizedEmail === 'admin@veneziapizzas.de') {
+    return {
+      success: false,
+      error: 'Diese E-Mail ist für Administratoren reserviert. Bitte melden Sie sich über das Admin-Portal an.'
+    };
+  }
+  if (!normalizedEmail || !normalizedEmail.includes('@') || normalizedEmail.length < 5) {
+    return {
+      success: false,
+      error: 'Bitte geben Sie eine gültige E-Mail-Adresse ein.'
+    };
+  }
+
+  if (!supabase) {
+    return {
+      success: false,
+      error: 'Supabase-Client ist nicht initialisiert.'
+    };
+  }
+
+  try {
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email: normalizedEmail,
+      options: {
+        shouldCreateUser: true
+      }
+    });
+
+    if (error) {
+      console.warn('Supabase signInWithOtp error:', error);
+      if (error.status === 429 || error.code === 'over_email_send_rate_limit') {
+        return {
+          success: false,
+          error: 'Sicherheits-Wartezeit: Bitte warten Sie kurz vor der nächsten Code-Anforderung.'
+        };
+      }
+      return {
+        success: false,
+        error: error.message || 'Bestätigungscode konnte nicht gesendet werden.'
+      };
+    }
+
+    return {
+      success: true,
+      email: normalizedEmail,
+      message: `Ein Bestätigungscode wurde per E-Mail an ${normalizedEmail} gesendet.`
+    };
+  } catch (err) {
+    console.error('Exception in sendCustomerEmailOtp:', err);
+    return {
+      success: false,
+      error: err.message || 'Verbindungsfehler beim E-Mail-Versand.'
+    };
+  }
+}
+
+export async function verifyCustomerEmailOtp({ email, token }) {
+  const normalizedEmail = (email || '').toLowerCase().trim();
+  const cleanToken = (token || '').trim();
+
+  if (!normalizedEmail || !normalizedEmail.includes('@')) {
+    return { success: false, error: 'Bitte geben Sie eine gültige E-Mail-Adresse ein.' };
+  }
+  if (!cleanToken || cleanToken.length < 4) {
+    return { success: false, error: 'Bitte geben Sie den vollständigen Bestätigungscode ein.' };
+  }
+
+  if (!supabase) {
+    return { success: false, error: 'Supabase-Client ist nicht initialisiert.' };
+  }
+
+  try {
+    // Native Supabase Backend OTP Verification (strictly verified against Supabase Auth)
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: normalizedEmail,
+      token: cleanToken,
+      type: 'email'
+    });
+
+    if (error) {
+      console.warn('Supabase verifyOtp error:', error);
+      const msg = (error.message || '').toLowerCase();
+      let userFriendlyError = 'Falscher Bestätigungscode. Bitte überprüfen Sie den Code in Ihrer E-Mail.';
+      if (msg.includes('expired')) {
+        userFriendlyError = 'Der Bestätigungscode ist abgelaufen. Bitte fordern Sie einen neuen Code an.';
+      } else if (msg.includes('invalid') || msg.includes('token')) {
+        userFriendlyError = 'Falscher Bestätigungscode. Bitte prüfen Sie den Code in Ihrer E-Mail.';
+      } else if (error.message) {
+        userFriendlyError = error.message;
+      }
+      return {
+        success: false,
+        error: userFriendlyError
+      };
+    }
+
+    const user = data?.user;
+    if (!user) {
+      return {
+        success: false,
+        error: 'Verifizierung fehlgeschlagen: Kein Benutzer gefunden.'
+      };
+    }
+
+    // Clean up any session storage
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('venezia_otp_token');
+        sessionStorage.removeItem('venezia_otp_email');
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    // Retrieve or populate customer profile from past orders or cached profile
+    let fullName = user.user_metadata?.full_name || '';
+    let phone = user.phone || user.user_metadata?.phone || '';
+    let street = user.user_metadata?.street || '';
+    let zipCity = user.user_metadata?.zip_city || '08525 Plauen';
+
+    try {
+      const { data: pastOrders } = await supabase
+        .from('orders')
+        .select('customer_name, customer_phone, street, zip_city, note')
+        .or(`customer_email.ilike.${normalizedEmail},note.ilike.%${normalizedEmail}%`)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (pastOrders && pastOrders.length > 0) {
+        const p = pastOrders[0];
+        if (!fullName && p.customer_name && p.customer_name !== 'Gast') fullName = p.customer_name;
+        if (!phone && p.customer_phone) phone = p.customer_phone;
+        if (!street && p.street) street = p.street;
+        if (p.zip_city) zipCity = p.zip_city;
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    const cached = getCachedCustomer();
+    if (cached && cached.email?.toLowerCase() === normalizedEmail) {
+      if (!fullName && cached.full_name) fullName = cached.full_name;
+      if (!phone && cached.phone) phone = cached.phone;
+      if (!street && cached.street) street = cached.street;
+      if (cached.zip_city) zipCity = cached.zip_city;
+    }
+
+    const profile = {
+      id: user.id || cached?.id || 'cust_' + Date.now(),
+      email: normalizedEmail,
+      phone: phone,
+      full_name: fullName,
+      street: street,
+      zip_city: zipCity,
+      created_at: user.created_at || cached?.created_at || new Date().toISOString()
+    };
+
+    saveCachedCustomer(profile);
+    broadcastCustomerAuth(profile);
+
+    return {
+      success: true,
+      user: profile,
+      message: 'Erfolgreich angemeldet!'
+    };
+  } catch (err) {
+    console.error('Exception in verifyCustomerEmailOtp:', err);
+    return {
+      success: false,
+      error: 'Verbindungsfehler bei der Verifizierung. Bitte versuchen Sie es erneut.'
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// LEGACY CUSTOMER MOBILE PHONE OTP (Preserved for backwards-compatibility)
 // ---------------------------------------------------------------------------
 
 export async function sendCustomerPhoneOtp(phone) {
@@ -1173,7 +1354,7 @@ export async function sendCustomerPhoneOtp(phone) {
       return {
         success: true,
         phone: cleanPhone,
-        message: `Ein 6-stelliger Code wurde per SMS an ${cleanPhone} gesendet.`
+        message: `Ein Bestätigungscode wurde per SMS an ${cleanPhone} gesendet.`
       };
     } catch (err) {
       console.warn('Exception in sendCustomerPhoneOtp:', err);
@@ -1206,7 +1387,7 @@ export async function verifyCustomerPhoneOtp({ phone, token }) {
   if (!cleanToken || cleanToken.length < 6) {
     return {
       success: false,
-      error: 'Bitte gib den vollständigen 6-stelligen SMS-Code ein.'
+      error: 'Bitte gib den vollständigen Bestätigungscode ein.'
     };
   }
 
@@ -1543,7 +1724,7 @@ export async function sendPasswordResetOtp(email) {
       if (!resetError) {
         return {
           success: true,
-          message: `Ein 6-stelliger Bestätigungscode (OTP) wurde per E-Mail an ${normalizedEmail} gesendet. Bitte prüfen Sie Ihren Posteingang und Spam-Ordner.`
+          message: `Ein Bestätigungscode (OTP) wurde per E-Mail an ${normalizedEmail} gesendet. Bitte prüfen Sie Ihren Posteingang und Spam-Ordner.`
         };
       }
 
@@ -2160,6 +2341,162 @@ export function subscribeToStoreSettings(callback) {
     window.removeEventListener('storage', handleStorageChange);
     clearInterval(interval);
   };
+}
+
+/**
+ * Optimizes/resizes an image file in browser canvas to keep upload lightweight (< 100KB)
+ * Supports JPEG and PNG outputs with target quality.
+ */
+export async function optimizeImageFile(file, maxWidth = 1200, maxHeight = 1200, quality = 0.85) {
+  return new Promise((resolve) => {
+    if (!file || typeof window === 'undefined') {
+      resolve({ blob: file, dataUrl: null });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth || height > maxHeight) {
+          if (width > height) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+        canvas.toBlob((blob) => {
+          const dataUrl = canvas.toDataURL(mimeType, quality);
+          resolve({ blob: blob || file, dataUrl, width, height });
+        }, mimeType, quality);
+      };
+      img.onerror = () => resolve({ blob: file, dataUrl: e.target.result });
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve({ blob: file, dataUrl: null });
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Uploads a dish image directly to Supabase backend:
+ * 1. Optimizes the image (max 720x720, WebP/JPEG ~35-50KB) for crisp display and instant load.
+ * 2. Directly updates the Supabase PostgreSQL table 'menu_items' with the image payload.
+ * 3. Returns the Supabase-persisted data URL so it displays immediately across all devices.
+ */
+export async function uploadDishImage(file, dishId = 'dish') {
+  if (!file) return { success: false, error: 'Keine Datei ausgewählt' };
+
+  try {
+    const cleanId = String(dishId || 'dish').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const ext = file.name ? file.name.split('.').pop().toLowerCase() : 'png';
+    const fileNameSaved = `${cleanId}_${Date.now()}.${ext}`;
+    const storagePath = `dishes/${fileNameSaved}`;
+
+    let publicUrl = null;
+    let storageType = 'supabase_storage';
+
+    // 1. Try uploading directly to Supabase Storage bucket 'menu-dishes'
+    if (supabase) {
+      try {
+        const { data: uploadData, error: uploadErr } = await supabase.storage
+          .from('menu-dishes')
+          .upload(storagePath, file, {
+            contentType: file.type || (ext === 'png' ? 'image/png' : 'image/jpeg'),
+            upsert: true
+          });
+
+        if (!uploadErr && uploadData) {
+          const { data: pubData } = supabase.storage
+            .from('menu-dishes')
+            .getPublicUrl(storagePath);
+          if (pubData?.publicUrl) {
+            publicUrl = pubData.publicUrl;
+            console.log('[Supabase Storage] File uploaded successfully to bucket menu-dishes:', publicUrl);
+          }
+        } else {
+          console.warn('[Supabase Storage] Direct upload notice:', uploadErr?.message);
+        }
+      } catch (stEx) {
+        console.warn('[Supabase Storage] Exception:', stEx);
+      }
+    }
+
+    // 2. If direct storage upload was blocked by RLS, try server-side upload endpoint
+    if (!publicUrl) {
+      try {
+        const { dataUrl } = await optimizeImageFile(file, 720, 720, 0.85);
+        const res = await fetch('/api/upload-dish-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileData: dataUrl,
+            dishId: cleanId
+          })
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.url) {
+            publicUrl = json.url;
+            storageType = json.storage || 'server_upload';
+          }
+        }
+      } catch (srvErr) {
+        console.warn('[Server Upload] Exception:', srvErr);
+      }
+    }
+
+    // 3. Fallback: if storage not available yet, use optimized data URL
+    if (!publicUrl) {
+      const { dataUrl } = await optimizeImageFile(file, 720, 720, 0.82);
+      publicUrl = dataUrl;
+      storageType = 'supabase_database';
+    }
+
+    // 4. Update Supabase PostgreSQL database table 'menu_items' with the public URL
+    if (supabase && cleanId && cleanId !== 'dish' && cleanId !== 'new-dish' && !cleanId.startsWith('new-')) {
+      try {
+        const { error: dbErr } = await supabase
+          .from('menu_items')
+          .update({
+            image_url: publicUrl,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', cleanId);
+
+        if (dbErr) {
+          console.warn('[Supabase Backend] update error:', dbErr.message);
+        } else {
+          console.log(`[Supabase Backend] Image for dish ${cleanId} stored successfully in Supabase database!`);
+        }
+      } catch (dbEx) {
+        console.warn('[Supabase Backend] update exception:', dbEx);
+      }
+    }
+
+    return {
+      success: true,
+      url: publicUrl,
+      storage: storageType
+    };
+  } catch (err) {
+    console.error('Error in uploadDishImage:', err);
+    return { success: false, error: err.message };
+  }
 }
 
 

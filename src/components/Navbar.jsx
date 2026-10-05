@@ -110,7 +110,7 @@ export default function Navbar({
         id: item.id,
         name: item.name,
         price: price,
-        image: item.image,
+        image: item.image_url || item.image,
         desc: item.toppings || item.desc || ''
       });
 
@@ -240,9 +240,10 @@ export default function Navbar({
                           onClick={() => handleSelectResult(item)}
                         >
                           <img
-                            src={item.image}
+                            src={item.image_url || item.image}
                             alt={item.name}
                             className="search-result-thumb"
+                            onError={(e) => { e.currentTarget.src = '/images/pizza1.png'; }}
                           />
                           <div className="search-result-info">
                             <div className="search-result-title">
@@ -406,7 +407,12 @@ export default function Navbar({
                     className="search-result-row"
                     onClick={() => handleSelectResult(item)}
                   >
-                    <img src={item.image} alt={item.name} className="search-result-thumb" />
+                    <img 
+                      src={item.image_url || item.image} 
+                      alt={item.name} 
+                      className="search-result-thumb" 
+                      onError={(e) => { e.currentTarget.src = '/images/pizza1.png'; }}
+                    />
                     <div className="search-result-info">
                       <div className="search-result-title">
                         {item.number && <span className="dish-num">#{item.number}</span>}

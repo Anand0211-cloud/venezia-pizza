@@ -154,7 +154,7 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
       name: customName,
       price: finalUnitPrice,
       quantity: quantity,
-      image: item.image,
+      image: item.image_url || item.image,
       desc: customDescParts.join(' • '),
       menu_item_id: item.id || '',
       selectedSize: activeSize ? `${activeSize.name}${activeSize.dim ? ' (' + activeSize.dim + ')' : ''}` : '',
@@ -184,7 +184,7 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
       <div className="custom-modal-card" onClick={(e) => e.stopPropagation()}>
         {/* Header Hero Image (Domino's/Reference Style) */}
         <div className="custom-modal-hero">
-          <img src={item.image} alt={item.name} />
+          <img src={item.image_url || item.image} alt={item.name} onError={(e) => { e.currentTarget.src = '/images/pizza1.png'; }} />
           <div className="custom-modal-gradient" />
 
           {/* Circular Close Button */}

@@ -23,12 +23,13 @@ import {
   RefreshCw,
   Printer,
   KeyRound,
-  Store
+  Store,
+  Loader2
 } from 'lucide-react';
 import {
   getCurrentCustomerUser,
-  sendCustomerPhoneOtp,
-  verifyCustomerPhoneOtp,
+  sendCustomerEmailOtp,
+  verifyCustomerEmailOtp,
   signOutCustomerUser,
   updateCustomerProfile,
   getCustomerOrderHistory,
@@ -48,14 +49,16 @@ export default function AccountPage({
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('orders'); // 'orders', 'tracking', 'security', 'profile'
 
-  // Phone OTP Auth state
-  const [phoneStep, setPhoneStep] = useState('phone'); // 'phone' | 'otp'
-  const [phoneNumber, setPhoneNumber] = useState('');
+  // Email OTP Auth state (passwordless)
+  const [authStep, setAuthStep] = useState('email'); // 'email' | 'otp'
+  const [authEmail, setAuthEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
-  const [phoneError, setPhoneError] = useState('');
-  const [phoneSuccess, setPhoneSuccess] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authSuccess, setAuthSuccess] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [isOtpVerifiedSuccess, setIsOtpVerifiedSuccess] = useState(false);
 
   // Profile edit state
   const [profileForm, setProfileForm] = useState({
@@ -253,64 +256,92 @@ export default function AccountPage({
     }
   };
 
-  // Send SMS OTP
-  const handleSendPhoneOtp = async (e) => {
+  // Send Email OTP
+  const handleSendEmailOtp = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
-    setPhoneError('');
-    setPhoneSuccess('');
-    if (!phoneNumber.trim()) {
-      setPhoneError('Bitte geben Sie Ihre Mobilfunknummer ein.');
+    setAuthError('');
+    setAuthSuccess('');
+    const cleanEmail = (authEmail || '').toLowerCase().trim();
+    if (!cleanEmail || !cleanEmail.includes('@') || cleanEmail.length < 5) {
+      setAuthError('Bitte geben Sie eine gültige E-Mail-Adresse ein.');
       return;
     }
+    // Immediately transition to OTP screen with smooth animation - zero wait on send!
+    setAuthStep('otp');
+    setAuthSuccess(`Bestätigungscode wird an ${cleanEmail} gesendet...`);
     setIsSubmitting(true);
     try {
-      const res = await sendCustomerPhoneOtp(phoneNumber.trim());
+      const res = await sendCustomerEmailOtp(cleanEmail);
       if (res.success) {
-        setPhoneStep('otp');
-        setPhoneSuccess(`SMS-Code an ${res.phone || phoneNumber} gesendet!`);
+        setAuthSuccess(`Bestätigungscode an ${res.email || cleanEmail} gesendet!`);
         setResendCooldown(30);
       } else {
-        setPhoneError(res.error || 'Fehler beim Senden des SMS-Codes.');
+        setAuthError(res.error || 'Fehler beim Senden des Bestätigungscodes.');
       }
     } catch (err) {
-      setPhoneError(err.message || 'Fehler beim Senden des SMS-Codes.');
+      setAuthError(err.message || 'Fehler beim Senden des Bestätigungscodes.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Verify SMS OTP
-  const handleVerifyPhoneOtp = async (e) => {
+  // Verify Email OTP
+  const handleVerifyEmailOtp = async (e, directCode) => {
     if (e && e.preventDefault) e.preventDefault();
-    setPhoneError('');
-    if (!otpCode.trim() || otpCode.trim().length < 6) {
-      setPhoneError('Bitte geben Sie den 6-stelligen SMS-Code ein.');
+    if (isVerifyingOtp || isOtpVerifiedSuccess) return;
+    setAuthError('');
+    const cleanToken = (directCode !== undefined ? directCode : otpCode || '').trim();
+    if (!cleanToken || cleanToken.length < 4) {
+      setAuthError('Bitte geben Sie den vollständigen Bestätigungscode aus der E-Mail ein.');
       return;
     }
-    setIsSubmitting(true);
+    const cleanEmail = (authEmail || '').toLowerCase().trim();
+    setIsVerifyingOtp(true);
+    const startTime = Date.now();
     try {
-      const res = await verifyCustomerPhoneOtp({
-        phone: phoneNumber.trim(),
-        token: otpCode.trim()
+      const res = await verifyCustomerEmailOtp({
+        email: cleanEmail,
+        token: cleanToken
       });
+
+      // Ensure realistic, smooth 2.2 - 2.5s loading
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 2300) {
+        await new Promise(r => setTimeout(r, 2300 - elapsed));
+      }
+
       if (res.success && res.user) {
+        setIsVerifyingOtp(false);
+        setIsOtpVerifiedSuccess(true);
+
+        // Display "OTP verifiziert ✓" for 1.2s before switching to orders
+        await new Promise(r => setTimeout(r, 1200));
+
         setUser(res.user);
         setActiveTab('orders');
-        loadOrderHistory(res.user.phone || res.user.email, res.user.phone);
+        loadOrderHistory(res.user.email, res.user.phone);
+        setAuthStep('email');
+        setOtpCode('');
+        setIsOtpVerifiedSuccess(false);
+        setAuthSuccess('');
       } else {
-        setPhoneError(res.error || 'Ungültiger oder abgelaufener SMS-Code.');
+        setIsVerifyingOtp(false);
+        setAuthError(res.error || 'Ungültiger oder abgelaufener Bestätigungscode.');
       }
     } catch (err) {
-      setPhoneError(err.message || 'Ungültiger oder abgelaufener SMS-Code.');
-    } finally {
-      setIsSubmitting(false);
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 2000) {
+        await new Promise(r => setTimeout(r, 2000 - elapsed));
+      }
+      setIsVerifyingOtp(false);
+      setAuthError(err.message || 'Ungültiger oder abgelaufener Bestätigungscode.');
     }
   };
 
-  // Resend SMS code
+  // Resend code
   const handleResendCode = async () => {
     if (resendCooldown > 0 || isSubmitting) return;
-    await handleSendPhoneOtp();
+    await handleSendEmailOtp();
   };
 
   // Logout handler
@@ -319,7 +350,7 @@ export default function AccountPage({
     setUser(null);
     setOrders([]);
     setActiveOrder(null);
-    setPhoneStep('phone');
+    setAuthStep('email');
     setOtpCode('');
   };
 
@@ -444,8 +475,8 @@ export default function AccountPage({
       setSettingsPasswordError('Keine E-Mail-Adresse gefunden.');
       return;
     }
-    if (!settingsOtp.trim() || settingsOtp.trim().length < 6) {
-      setSettingsPasswordError('Bitte geben Sie den 6-stelligen Bestätigungscode ein.');
+    if (!settingsOtp.trim() || settingsOtp.trim().length < 4) {
+      setSettingsPasswordError('Bitte geben Sie den Bestätigungscode ein.');
       return;
     }
     if (settingsNewPassword.length < 6) {
@@ -485,8 +516,8 @@ export default function AccountPage({
   const handleVerifyOtpAndChangePassword = async (e) => {
     e.preventDefault();
     setForgotError('');
-    if (!forgotOtp.trim() || forgotOtp.trim().length < 6) {
-      setForgotError('Bitte geben Sie den 6-stelligen Bestätigungscode ein.');
+    if (!forgotOtp.trim() || forgotOtp.trim().length < 4) {
+      setForgotError('Bitte geben Sie den Bestätigungscode ein.');
       return;
     }
     if (forgotNewPassword.length < 6) {
@@ -663,7 +694,7 @@ export default function AccountPage({
         {/* ================================================================ */}
         {!user ? (
           /* ================================================================ */
-          /* VIEW A: MOBILE PHONE OTP LOGIN & VERIFICATION (PASSWORDLESS)    */
+          /* VIEW A: EMAIL OTP LOGIN & VERIFICATION (PASSWORDLESS)           */
           /* ================================================================ */
           <div style={{
             maxWidth: '460px',
@@ -688,20 +719,20 @@ export default function AccountPage({
                 margin: '0 auto 14px',
                 boxShadow: '0 4px 14px rgba(225, 29, 72, 0.15)'
               }}>
-                <Phone size={30} />
+                <Mail size={30} />
               </div>
               <h2 style={{ margin: '0 0 8px', fontSize: '24px', fontWeight: '900', color: '#0f172a' }}>
-                Kunden-Login
+                Kunden-Login &amp; Registrierung
               </h2>
               <p style={{ margin: 0, fontSize: '13.5px', color: '#64748b', lineHeight: '1.5' }}>
-                {phoneStep === 'phone'
-                  ? 'Geben Sie Ihre Handynummer ein. Sie erhalten sofort einen sicheren Einmal-Code per SMS.'
-                  : `Geben Sie den 6-stelligen Code ein, den wir per SMS an ${phoneNumber} gesendet haben.`}
+                {authStep === 'email'
+                  ? 'Geben Sie Ihre E-Mail-Adresse ein. Sie erhalten sofort einen sicheren Bestätigungscode per E-Mail – kein Passwort nötig!'
+                  : `Geben Sie den Bestätigungscode ein, den wir per E-Mail an ${authEmail} gesendet haben.`}
               </p>
             </div>
 
             {/* Error Message */}
-            {phoneError && (
+            {authError && (
               <div style={{
                 background: '#fee2e2',
                 color: '#b91c1c',
@@ -716,12 +747,12 @@ export default function AccountPage({
                 gap: '8px'
               }}>
                 <AlertCircle size={17} style={{ flexShrink: 0 }} />
-                <span>{phoneError}</span>
+                <span>{authError}</span>
               </div>
             )}
 
             {/* Success Message */}
-            {phoneSuccess && (
+            {authSuccess && (
               <div style={{
                 background: '#dcfce7',
                 color: '#15803d',
@@ -736,176 +767,259 @@ export default function AccountPage({
                 gap: '8px'
               }}>
                 <CheckCircle2 size={17} style={{ flexShrink: 0 }} />
-                <span>{phoneSuccess}</span>
+                <span>{authSuccess}</span>
               </div>
             )}
 
-            {phoneStep === 'phone' ? (
-              /* STEP 1: PHONE NUMBER INPUT */
-              <form onSubmit={handleSendPhoneOtp}>
-                <div style={{ marginBottom: '18px' }}>
-                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '800', color: '#334155', marginBottom: '6px' }}>
-                    Mobilfunknummer *
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <Phone size={18} color="#94a3b8" style={{ position: 'absolute', left: '14px', top: '14px' }} />
-                    <input
-                      type="tel"
-                      required
-                      autoFocus
-                      placeholder="z.B. 0170 1234567 oder +49..."
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '13px 14px 13px 44px',
-                        borderRadius: '12px',
-                        border: '1.5px solid #cbd5e1',
-                        fontSize: '15px',
-                        fontWeight: '600',
-                        outline: 'none',
-                        background: '#f8fafc',
-                        boxSizing: 'border-box',
-                        letterSpacing: '0.3px',
-                        transition: 'border-color 0.2s'
-                      }}
-                      onFocus={(e) => e.target.style.borderColor = 'var(--red)'}
-                      onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
-                    />
+            {authStep === 'email' ? (
+              /* STEP 1: EMAIL ADDRESS INPUT */
+              <div key="account-page-email" className="auth-step-anim">
+                <form onSubmit={handleSendEmailOtp}>
+                  <div style={{ marginBottom: '18px' }}>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '800', color: '#334155', marginBottom: '6px' }}>
+                      E-Mail-Adresse *
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Mail size={18} color="#94a3b8" style={{ position: 'absolute', left: '14px', top: '14px' }} />
+                      <input
+                        type="email"
+                        required
+                        autoFocus
+                        placeholder="z.B. max.mueller@beispiel.de"
+                        value={authEmail}
+                        onChange={(e) => setAuthEmail(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '13px 14px 13px 44px',
+                          borderRadius: '12px',
+                          border: '1.5px solid #cbd5e1',
+                          fontSize: '15px',
+                          fontWeight: '600',
+                          outline: 'none',
+                          background: '#f8fafc',
+                          boxSizing: 'border-box',
+                          letterSpacing: '0.3px',
+                          transition: 'border-color 0.2s'
+                        }}
+                        onFocus={(e) => e.target.style.borderColor = 'var(--red)'}
+                        onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+                      />
+                    </div>
+                    <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '6px', display: 'block' }}>
+                      💡 Sie erhalten einen Bestätigungscode per E-Mail. Kein Passwort nötig!
+                    </span>
                   </div>
-                  <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '6px', display: 'block' }}>
-                    💡 Sie erhalten einen 6-stelligen SMS-Code. Kein Passwort nötig!
-                  </span>
-                </div>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  style={{
-                    width: '100%',
-                    background: 'var(--red)',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '12px',
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    style={{
+                      width: '100%',
+                      background: 'var(--red)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '12px',
+                      padding: '14px',
+                      fontSize: '15px',
+                      fontWeight: '800',
+                      cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 14px rgba(225, 29, 72, 0.35)',
+                      transition: 'opacity 0.2s'
+                    }}
+                  >
+                    <Mail size={17} />
+                    <span>{isSubmitting ? 'Code wird gesendet...' : 'Bestätigungscode anfordern'}</span>
+                  </button>
+
+                  <div style={{
+                    marginTop: '22px',
                     padding: '14px',
-                    fontSize: '15px',
-                    fontWeight: '800',
-                    cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    boxShadow: '0 4px 14px rgba(225, 29, 72, 0.35)',
-                    transition: 'opacity 0.2s'
-                  }}
-                >
-                  <Phone size={17} />
-                  <span>{isSubmitting ? 'SMS-Code wird gesendet...' : 'SMS-Code anfordern'}</span>
-                </button>
-
-                <div style={{
-                  marginTop: '22px',
-                  padding: '14px',
-                  background: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '12px',
-                  fontSize: '12px',
-                  color: '#64748b',
-                  lineHeight: '1.5'
-                }}>
-                  🔒 <strong>100% Sicher &amp; Passwortlos:</strong> Ihre Handynummer ist Ihr persönlicher Login. Frühere Bestellungen werden automatisch verknüpft.
-                </div>
-              </form>
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    color: '#64748b',
+                    lineHeight: '1.5'
+                  }}>
+                    🔒 <strong>100% Sicher &amp; Passwortlos:</strong> Ihre E-Mail-Adresse ist Ihr persönlicher Login. Frühere Bestellungen werden automatisch verknüpft.
+                  </div>
+                </form>
+              </div>
             ) : (
-              /* STEP 2: 6-DIGIT OTP VERIFICATION */
-              <form onSubmit={handleVerifyPhoneOtp}>
-                <div style={{ marginBottom: '18px' }}>
-                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '800', color: '#334155', marginBottom: '6px' }}>
-                    6-stelliger SMS-Code *
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <ShieldCheck size={20} color="#94a3b8" style={{ position: 'absolute', left: '14px', top: '15px' }} />
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={6}
-                      autoFocus
-                      required
-                      placeholder="••••••"
-                      value={otpCode}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, '').slice(0, 6);
-                        setOtpCode(val);
-                        if (val.length === 6) {
-                          setTimeout(() => {
-                            verifyCustomerPhoneOtp({
-                              phone: phoneNumber.trim(),
-                              token: val
-                            }).then(res => {
-                              if (res.success && res.user) {
-                                setUser(res.user);
-                                setActiveTab('orders');
-                                loadOrderHistory(res.user.phone || res.user.email, res.user.phone);
-                              } else {
-                                setPhoneError(res.error || 'Ungültiger SMS-Code.');
-                              }
-                            });
-                          }, 100);
-                        }
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '13px 14px 13px 44px',
-                        borderRadius: '12px',
-                        border: '2px solid var(--red)',
-                        fontSize: '20px',
-                        fontWeight: '900',
-                        letterSpacing: '8px',
-                        textAlign: 'center',
-                        outline: 'none',
-                        background: '#ffffff',
-                        boxSizing: 'border-box',
-                        fontFamily: 'monospace'
-                      }}
-                    />
+              /* STEP 2: OTP VERIFICATION */
+              <div key="account-page-otp" className="auth-step-anim">
+                <form onSubmit={handleVerifyEmailOtp}>
+                  {/* Header card with Italian flag ribbon */}
+                  <div style={{
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '16px',
+                    overflow: 'hidden',
+                    marginBottom: '18px',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
+                  }}>
+                    <div style={{
+                      height: '4px',
+                      background: 'linear-gradient(to right, #008c45 33.3%, #ffffff 33.3%, #ffffff 66.6%, #cd212a 66.6%)'
+                    }} />
+
+                    <div style={{ padding: '18px 16px 14px', textAlign: 'center' }}>
+                      <div style={{
+                        width: '52px',
+                        height: '52px',
+                        borderRadius: '50%',
+                        background: '#fff1f2',
+                        color: 'var(--red)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 10px',
+                        border: '2px solid #fecdd3',
+                        boxShadow: '0 4px 12px rgba(225, 29, 72, 0.15)'
+                      }}>
+                        <KeyRound size={26} />
+                      </div>
+                      <h3 style={{ margin: '0 0 6px', fontSize: '18px', fontWeight: '900', color: '#0f172a' }}>
+                        Bestätigungscode eingeben
+                      </h3>
+                      <p style={{ margin: '0 0 8px', fontSize: '12.5px', color: '#64748b', lineHeight: '1.45' }}>
+                        Wir haben einen Bestätigungscode gesendet an:
+                      </p>
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      padding: '4px 12px',
+                      borderRadius: '20px',
+                      fontSize: '13px',
+                      fontWeight: '800',
+                      color: '#0f172a'
+                    }}>
+                      <Mail size={14} color="var(--red)" />
+                      <span>{authEmail}</span>
+                    </div>
                   </div>
-                  <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '6px', display: 'block', textAlign: 'center' }}>
-                    SMS-Code aus Ihrer Nachrichten-App eingeben
+                </div>
+
+                {/* Verified Success State Badge */}
+                {isOtpVerifiedSuccess && (
+                  <div style={{
+                    background: '#ecfdf5',
+                    border: '2px solid #10b981',
+                    borderRadius: '12px',
+                    padding: '14px 16px',
+                    marginBottom: '16px',
+                    textAlign: 'center',
+                    boxShadow: '0 6px 20px rgba(16, 185, 129, 0.2)',
+                    animation: 'fadeIn 0.3s ease'
+                  }}>
+                    <div style={{ display: 'inline-flex', padding: '6px', background: '#d1fae5', borderRadius: '50%', color: '#059669', marginBottom: '6px' }}>
+                      <CheckCircle2 size={24} />
+                    </div>
+                    <div style={{ fontWeight: '900', color: '#065f46', fontSize: '15.5px' }}>
+                      OTP verifiziert! ✓
+                    </div>
+                    <div style={{ color: '#047857', fontSize: '12px', marginTop: '2px' }}>
+                      Anmeldung wird abgeschlossen...
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ marginBottom: '18px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '800', color: '#334155', marginBottom: '8px', textAlign: 'center', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                    Bestätigungscode aus der E-Mail
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={64}
+                    autoFocus
+                    required
+                    disabled={isVerifyingOtp || isOtpVerifiedSuccess}
+                    placeholder="Code aus der E-Mail einfügen"
+                    value={otpCode}
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      setOtpCode(val);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleVerifyEmailOtp(e);
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '14px',
+                      borderRadius: '12px',
+                      border: '2px solid var(--red)',
+                      fontSize: otpCode.length > 12 ? '15px' : otpCode.length > 8 ? '18px' : '24px',
+                      fontWeight: '800',
+                      letterSpacing: otpCode.length > 12 ? '2px' : otpCode.length > 8 ? '4px' : '8px',
+                      textAlign: 'center',
+                      outline: 'none',
+                      background: (isVerifyingOtp || isOtpVerifiedSuccess) ? '#f8fafc' : '#ffffff',
+                      boxSizing: 'border-box',
+                      fontFamily: "'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace",
+                      boxShadow: '0 4px 14px rgba(225, 29, 72, 0.08)'
+                    }}
+                  />
+                  <span style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', display: 'block', textAlign: 'center' }}>
+                    ⏱️ 10 Minuten gültig • Code aus der E-Mail hier einfügen
                   </span>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={isSubmitting || otpCode.length < 6}
+                  disabled={isVerifyingOtp || isOtpVerifiedSuccess || !otpCode.trim()}
                   style={{
                     width: '100%',
-                    background: 'var(--red)',
+                    background: isOtpVerifiedSuccess ? '#16a34a' : 'var(--red)',
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: '12px',
                     padding: '14px',
                     fontSize: '15px',
                     fontWeight: '800',
-                    cursor: (isSubmitting || otpCode.length < 6) ? 'not-allowed' : 'pointer',
+                    cursor: (isVerifyingOtp || isOtpVerifiedSuccess || otpCode.length < 6) ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '8px',
-                    boxShadow: '0 4px 14px rgba(225, 29, 72, 0.35)',
-                    opacity: (isSubmitting || otpCode.length < 6) ? 0.6 : 1,
+                    gap: '10px',
+                    boxShadow: isOtpVerifiedSuccess ? '0 4px 16px rgba(22, 163, 74, 0.35)' : '0 4px 14px rgba(225, 29, 72, 0.35)',
+                    opacity: (isVerifyingOtp || isOtpVerifiedSuccess || otpCode.length < 6) && !isVerifyingOtp && !isOtpVerifiedSuccess ? 0.6 : 1,
+                    transition: 'all 0.2s ease',
                     marginBottom: '14px'
                   }}
                 >
-                  <CheckCircle2 size={17} />
-                  <span>{isSubmitting ? 'Wird überprüft...' : 'Code bestätigen & anmelden'}</span>
+                  {isVerifyingOtp ? (
+                    <>
+                      <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                      <span>Code wird überprüft (2-3 Sek.)...</span>
+                    </>
+                  ) : isOtpVerifiedSuccess ? (
+                    <>
+                      <CheckCircle2 size={18} />
+                      <span>OTP verifiziert! ✓</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Code bestätigen &amp; anmelden</span>
+                      <ArrowRight size={16} />
+                    </>
+                  )}
                 </button>
 
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     type="button"
                     onClick={handleResendCode}
-                    disabled={resendCooldown > 0 || isSubmitting}
+                    disabled={resendCooldown > 0 || isVerifyingOtp || isOtpVerifiedSuccess}
                     style={{
                       flex: 1,
                       background: '#f8fafc',
@@ -915,18 +1029,19 @@ export default function AccountPage({
                       padding: '10px',
                       fontSize: '12px',
                       fontWeight: '700',
-                      cursor: resendCooldown > 0 ? 'not-allowed' : 'pointer'
+                      cursor: (resendCooldown > 0 || isVerifyingOtp || isOtpVerifiedSuccess) ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    {resendCooldown > 0 ? `Code erneut senden (${resendCooldown}s)` : 'SMS erneut senden'}
+                    {resendCooldown > 0 ? `Code erneut senden (${resendCooldown}s)` : 'Code erneut senden'}
                   </button>
                   <button
                     type="button"
+                    disabled={isVerifyingOtp || isOtpVerifiedSuccess}
                     onClick={() => {
-                      setPhoneStep('phone');
+                      setAuthStep('email');
                       setOtpCode('');
-                      setPhoneError('');
-                      setPhoneSuccess('');
+                      setAuthError('');
+                      setAuthSuccess('');
                     }}
                     style={{
                       flex: 1,
@@ -937,14 +1052,15 @@ export default function AccountPage({
                       padding: '10px',
                       fontSize: '12px',
                       fontWeight: '700',
-                      cursor: 'pointer'
+                      cursor: (isVerifyingOtp || isOtpVerifiedSuccess) ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    Nummer ändern
+                    E-Mail ändern
                   </button>
                 </div>
               </form>
-            )}
+            </div>
+          )}
           </div>
         ) : (
           /* ================================================================ */
@@ -1471,11 +1587,11 @@ export default function AccountPage({
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
                     <div>
                       <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        Verifizierte Rufnummer
+                        Verifizierte E-Mail-Adresse
                       </div>
                       <div style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span>📱</span>
-                        <span>{user?.phone || user?.user_metadata?.phone || 'Nicht hinterlegt'}</span>
+                        <span>✉️</span>
+                        <span>{user?.email || 'Nicht hinterlegt'}</span>
                       </div>
                     </div>
                     <span style={{
@@ -1490,12 +1606,12 @@ export default function AccountPage({
                       alignItems: 'center',
                       gap: '4px'
                     }}>
-                      ✓ Per SMS verifiziert
+                      ✓ Per E-Mail OTP verifiziert
                     </span>
                   </div>
 
                   <p style={{ fontSize: '12.5px', color: '#475569', margin: 0, lineHeight: '1.5' }}>
-                    Bestellungen und Status-Updates werden direkt mit dieser Mobilfunknummer verknüpft. Kein Passwort nötig — Ihr Telefon ist Ihr Schlüssel.
+                    Bestellungen, digitale Rechnungen und Status-Updates werden direkt mit dieser E-Mail verknüpft. Ihre Mobilfunknummer ({user?.phone || 'siehe Profil'}) dient ausschließlich dem Fahrer für die Zustellung.
                   </p>
                 </div>
 
@@ -1507,12 +1623,12 @@ export default function AccountPage({
                   marginBottom: '22px'
                 }}>
                   <h5 style={{ margin: '0 0 8px', fontSize: '13px', fontWeight: '800', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span>🔒</span> Warum kein Passwort?
+                    <span>🔒</span> Warum passwortlos per E-Mail OTP?
                   </h5>
                   <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12px', color: '#1e3a8a', lineHeight: '1.6' }}>
                     <li><strong>Kein vergessenes Passwort:</strong> Sie müssen sich nie wieder ein Passwort merken.</li>
-                    <li><strong>Maximaler Schutz:</strong> Jede Anmeldung erfordert einen echten, zeitlich begrenzten 6-stelligen SMS-Sicherheitscode.</li>
-                    <li><strong>Schnellere Bestellung:</strong> Bei zukünftigen Bestellungen einfach Handynummer eingeben und sofort loslegen.</li>
+                    <li><strong>Maximaler Schutz:</strong> Jede Anmeldung erfordert einen echten, zeitlich begrenzten E-Mail-Sicherheitscode.</li>
+                    <li><strong>Schnellere Bestellung:</strong> Bei zukünftigen Bestellungen einfach E-Mail eingeben und sofort verifizieren.</li>
                   </ul>
                 </div>
 

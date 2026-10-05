@@ -54,9 +54,9 @@ export async function createSumUpCheckout({ orderNumber, amount, customerEmail, 
       const text = await res.text();
       let data = {};
       try {
-        data = JSON.parse(text);
+        data = text ? JSON.parse(text) : {};
       } catch {
-        throw new Error('Ungültige Serverantwort beim Erstellen der Zahlung.');
+        throw new Error(`Ungültige Serverantwort (${res.status}): ${text.slice(0, 100) || 'Leere Antwort'}`);
       }
 
       if (!res.ok) {

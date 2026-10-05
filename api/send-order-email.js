@@ -67,7 +67,8 @@ export default async function handler(req, res) {
         </ul>
 
         <div style="background: #f8fafc; padding: 12px; border-radius: 8px; margin-top: 16px;">
-          ${Number(order.delivery_fee || 0) > 0 ? `<p style="margin: 4px 0;">Liefergebühr: ${Number(order.delivery_fee).toFixed(2).replace('.', ',')} €</p>` : ''}
+          ${order.delivery_type === 'delivery' ? (Number(order.delivery_fee || 0) > 0 ? `<p style="margin: 4px 0;">Liefergebühr: ${Number(order.delivery_fee).toFixed(2).replace('.', ',')} €</p>` : `<p style="margin: 4px 0; color: #16a34a;">Lieferung: Kostenlos (0,00 €)</p>`) : ''}
+          ${Number(order.low_cart_fee || 0) > 0 ? `<p style="margin: 4px 0; color: #1e40af;">Mindermengenzuschlag (Low Cart Fee): +${Number(order.low_cart_fee).toFixed(2).replace('.', ',')} €</p>` : ''}
           <p style="margin: 4px 0; font-size: 16px; font-weight: bold; color: #0f172a;">
             Gesamtbetrag: ${Number(order.total || 0).toFixed(2).replace('.', ',')} €
           </p>

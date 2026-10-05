@@ -43,11 +43,77 @@ import {
   specialOffersData,
   restaurantInfo
 } from '../data/menuData';
-import { useLiveMenu } from '../data/liveMenuState';
+import { useLiveMenu, formatMenuItemFromDb } from '../data/liveMenuState';
+import {
+  subscribeToStorageFolders,
+  loadStorageFolders,
+  applyCategoryStorageImages,
+  DEFAULT_STORAGE_FOLDERS
+} from '../lib/categoryStorageService';
 import CustomizeItemModal from './CustomizeItemModal';
+import { supabase, isSupabaseConfigured, getMenuItems, subscribeToMenuItems } from '../lib/supabaseClient.js';
 
 export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCategory = 'pizza' }) {
-  const { menuItems } = useLiveMenu();
+  const { menuItems: liveMenuItems } = useLiveMenu();
+  const [directMenuItems, setDirectMenuItems] = useState(null);
+
+  // Directly fetch fresh items from Supabase on mount and on admin save / realtime events
+  useEffect(() => {
+    let mounted = true;
+    const fetchDirect = async () => {
+      try {
+        const data = await getMenuItems();
+        if (data && data.length > 0 && mounted) {
+          const localMap = new Map((allMenuItems || []).filter(i => i && i.id).map((i) => [i.id, i]));
+          const formatted = data.map((item) => formatMenuItemFromDb(item, localMap));
+          setDirectMenuItems(formatted);
+        }
+      } catch (err) {
+        console.error('[MenuPage] Direct fetch error:', err);
+      }
+    };
+
+    fetchDirect();
+
+    const handleUpdate = () => fetchDirect();
+    window.addEventListener('venezia-menu-updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    const unsubRealtime = subscribeToMenuItems(() => {
+      fetchDirect();
+    });
+
+    return () => {
+      mounted = false;
+      window.removeEventListener('venezia-menu-updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+      if (unsubRealtime) unsubRealtime();
+    };
+  }, []);
+
+  const rawMenuItems = directMenuItems || liveMenuItems;
+  const menuItems = useMemo(() => {
+    try {
+      const overrides = JSON.parse(localStorage.getItem('venezia_admin_dishes_override') || '{}');
+      if (overrides && Object.keys(overrides).length > 0) {
+        return (rawMenuItems || []).map(item => overrides[item.id] ? { ...item, ...overrides[item.id], has_custom_image: true } : item);
+      }
+    } catch (e) {}
+    return rawMenuItems;
+  }, [rawMenuItems]);
+  const [storageFolders, setStorageFolders] = useState(() => ({ ...DEFAULT_STORAGE_FOLDERS }));
+
+  useEffect(() => {
+    const unsub = subscribeToStorageFolders((folders) => {
+      if (folders) setStorageFolders(folders);
+    });
+    loadStorageFolders().then((folders) => {
+      if (folders) setStorageFolders(folders);
+    });
+    return unsub;
+  }, []);
+
   const [activeCategory, setActiveCategory] = useState(
     selectedInitialCategory === 'all' || !selectedInitialCategory ? 'pizzen' : selectedInitialCategory
   );
@@ -173,7 +239,8 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
 
   // Filter items
   const filteredItems = useMemo(() => {
-    return menuItems.filter((item) => {
+    const matched = (menuItems || []).filter((item) => {
+      if (!item) return false;
       // Category match
       let matchesCategory = false;
       const cat = (item.category || '').toLowerCase();
@@ -182,7 +249,7 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
       if (activeCategory === 'pizzen') {
         matchesCategory = cat === 'pizzen' || cat === 'pizza' || cat === 'calzone';
       } else if (activeCategory === 'pasta') {
-        matchesCategory = cat === 'pasta' && !cat.includes('forno') && !name.includes('forno') && !name.includes('lasagne');
+        matchesCategory = cat === 'pasta';
       } else if (activeCategory === 'gnocchi') {
         matchesCategory = cat === 'gnocchi' || name.includes('gnocchi');
       } else if (activeCategory === 'reisgerichte') {
@@ -249,8 +316,17 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
       }
 
       return matchesCategory && matchesSearch && matchesDietary;
+    }).sort((a, b) => {
+      const numA = parseInt(a.number, 10);
+      const numB = parseInt(b.number, 10);
+      if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+        return numA - numB;
+      }
+      return String(a.number || '').localeCompare(String(b.number || ''), undefined, { numeric: true });
     });
-  }, [menuItems, activeCategory, searchQuery, dietaryFilter]);
+
+    return applyCategoryStorageImages(activeCategory, matched, storageFolders);
+  }, [menuItems, activeCategory, searchQuery, dietaryFilter, storageFolders]);
 
   // Dynamic Deals linked to live menu items
   const liveDeals = useMemo(() => {
@@ -263,14 +339,18 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
         ? live.price
         : (live.prices?.single || offer.price);
 
+      const safeImage = (live.image && !live.image.includes('offer_a'))
+        ? live.image
+        : offer.image;
+
       return {
         ...offer,
-        title: live.name || offer.title,
-        description: live.toppings || live.desc || offer.description,
-        details: live.desc || live.toppings || offer.details,
+        title: offer.title || live.name,
+        description: offer.description || (live.desc ? live.desc.replace(/\n\+?\s*/g, ' • ') : offer.description),
+        details: offer.details || live.desc || live.toppings,
         price: unitPrice,
         formattedPrice: `${unitPrice.toFixed(2).replace('.', ',')} €`,
-        image: live.image || offer.image,
+        image: safeImage,
         badge: live.badge || `Angebot ${offer.code}`,
         is_in_stock: live.is_in_stock !== false
       };
@@ -529,7 +609,12 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
               return (
                 <div key={offer.id} className="dish-card" style={{ opacity: inStock ? 1 : 0.65 }}>
                   <div className="dish-card-media">
-                    <img src={offer.image} alt={offer.title} loading="lazy" />
+                    <img 
+                      src={offer.image_url || offer.image || '/images/Offer1.png'} 
+                      alt={offer.title} 
+                      loading="lazy" 
+                      onError={(e) => { e.currentTarget.src = offer.image || '/images/Offer1.png'; }}
+                    />
                     <span className="dish-badge" style={{ background: 'var(--red)', fontWeight: '900' }}>
                       {offer.badge || `Angebot ${offer.code}`}
                     </span>
@@ -623,7 +708,16 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
                 <div key={item.id} className="dish-card" style={{ opacity: isInStock ? 1 : 0.65 }}>
                   {/* Image container */}
                   <div className="dish-card-media">
-                    <img src={item.image} alt={item.name} loading="lazy" />
+                    <img 
+                      src={item.image_url || item.image || ''} 
+                      alt={item.name} 
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        if (item.image && e.currentTarget.src !== item.image) {
+                          e.currentTarget.src = item.image;
+                        }
+                      }}
+                    />
 
                     {item.number && (
                       <span className="dish-badge" style={{ background: 'var(--red)', fontWeight: '900' }}>

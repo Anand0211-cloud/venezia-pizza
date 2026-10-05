@@ -1,25 +1,25 @@
-import { images } from '../assets/images';
+import { images } from '../assets/images.js';
 
 export const categoriesData = [
   { id: 'pizzen', name: 'Pizzen', image: images.categories.pizza, count: '45+ Sorten' },
-  { id: 'pasta', name: 'Pasta', image: images.categories.pasta, count: 'Klassiker' },
-  { id: 'gnocchi', name: 'Gnocchi', image: images.dishes.pastaSpecial, count: 'Spezialitäten' },
-  { id: 'pasta-al-forno', name: 'Pasta al Forno', image: images.dishes.pastaSpecial, count: 'Überbacken' },
+  { id: 'pasta', name: 'Pasta', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Home_Category/Pasta_Home_category.png', count: 'Klassiker' },
+  { id: 'gnocchi', name: 'Gnocchi', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Home_Category/Ganoochi_Home_category.png', count: 'Spezialitäten' },
+  { id: 'pasta-al-forno', name: 'Pasta al Forno', sub: 'Überbacken', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Home_Category/Pasta_Baked_Home_category.png', count: 'Aus dem Ofen' },
   { id: 'vegetarisch', name: 'Vegetarisch', sub: 'überbacken', image: images.categories.salad, count: 'Frisch & Heiß' },
   { id: 'auflaeufe', name: 'Aufläufe', image: images.dishes.pastaSpecial, count: 'Ofenfrisch' },
-  { id: 'reisgerichte', name: 'Reisgerichte', sub: 'im Ofen überbacken', image: images.categories.doner, count: 'Aus dem Ofen' },
+  { id: 'reisgerichte', name: 'Reisgerichte', sub: 'im Ofen überbacken', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Home_Category/Reisgerichte_Home_category.png', count: 'Aus dem Ofen' },
   { id: 'fleischgerichte', name: 'Fleischgerichte', image: images.dishes.schnitzel, count: 'Spezialitäten' },
   { id: 'gyros', name: 'Gyros', image: images.categories.doner, count: 'Gyros Spezial' },
   { id: 'salate', name: 'Salate', image: images.categories.salad, count: 'Frisch & Knackig' },
   { id: 'grill-menue', name: 'Grill Menü', image: images.dishes.schnitzel, count: 'Vom Rost' },
   { id: 'american-food', name: 'American Food', image: images.dishes.burgerCrispy, count: 'Burger & Co.' },
-  { id: 'indisch', name: 'Indische', sub: 'Hauptgerichte', image: images.dishes.pastaSpecial, count: 'Currys & Reis' },
-  { id: 'lamm', name: 'Lamm', sub: 'Spezialitäten', image: images.categories.doner, count: 'Zartes Fleisch' },
+  { id: 'indisch', name: 'Indische', sub: 'Hauptgerichte', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Home_Category/Indische_Home_category.png', count: 'Currys & Reis' },
+  { id: 'lamm', name: 'Lamb', sub: 'Spezialitäten', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Home_Category/lamb_Home_Category.png', count: 'Zartes Fleisch' },
   { id: 'steaks', name: 'Steaks', image: images.dishes.schnitzel, count: 'Rumpsteaks' },
-  { id: 'fischgerichte', name: 'Fischgerichte', image: images.categories.pizza, count: 'Lachs & Calamari' },
+  { id: 'fischgerichte', name: 'Fischgerichte', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Home_Category/Fischgerichte_Home_Category.png', count: 'Lachs & Calamari' },
   { id: 'mexikanisch', name: 'Mexikanische', sub: 'Gerichte', image: images.categories.salad, count: 'Tacos & Burritos' },
-  { id: 'chinesisch', name: 'Chinesische', sub: 'Gerichte', image: images.dishes.pastaSpecial, count: 'Wok-Gerichte' },
-  { id: 'beilagen', name: 'Extra Beilagen', image: images.categories.doner, count: 'Pommes & Dips' },
+  { id: 'chinesisch', name: 'Chinesische', sub: 'Gerichte', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/noodles/Artboard_1.png', count: 'Wok-Gerichte' },
+  { id: 'beilagen', name: 'Extra Beilagen', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Starters/Artboard_1.png', count: 'Pommes & Dips' },
   { id: 'toasts', name: 'Toasts', image: images.categories.pizza, count: 'Hawaii & mehr' },
   { id: 'omelette', name: 'Omelette', sub: 'mit Käse überbacken', image: images.categories.salad, count: 'Mit Käsekruste' },
   { id: 'getraenke', name: 'Getränke', image: images.cocktailDrink || images.offers.a1, count: 'Eiskalt' },
@@ -91,10 +91,11 @@ export const allMenuItems = [
     number: '1',
     category: 'pizza',
     name: 'Pizza Margherita',
-    toppings: 'Käse, Tomatensauce, Oregano',
-    desc: 'Klassische italienische Pizza mit feiner Tomatensauce und geschmolzenem Käse.',
+    toppings: 'Tomatensauce, Mozzarella',
+    desc: 'Klassische italienische Pizza mit feiner Tomatensauce und geschmolzenem Mozzarella.',
     prices: { small: 9.00, large: 10.80, family: 18.60, party: 22.70 },
-    image: images.pizzas.margherita,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/pizza-1_1791198696351.png',
+    image_url: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/pizza-1_1791198696351.png',
     badge: 'Klassiker',
     dietary: ['vegetarisch'],
     sizesAvailable: true,
@@ -922,11 +923,22 @@ export const allMenuItems = [
   },
 
   // ==========================================
-  // PASTA & AL FORNO
   // ==========================================
+  // PASTA SPEZIALITÄTEN (9 Gerichte - Artboard 1 bis 9)
   // ==========================================
-  // PASTA
-  // ==========================================
+  {
+    id: 'pasta-rigatoni-forno',
+    number: '50',
+    category: 'pasta',
+    name: 'Rigatoni al Forno (Überbacken)',
+    toppings: 'Rinderhackfleisch-Bolognese, Sahne, Gouda & Mozzarella überbacken',
+    desc: 'Röhrennudeln in reichhaltiger Rinderhackfleischsauce, mit einer goldgelben Käseschicht überbacken.',
+    prices: { single: 8.90 },
+    price: 8.90,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Pasta/Artboard_1.png',
+    badge: 'Bestseller',
+    dietary: []
+  },
   {
     id: 'pasta-bolognese',
     number: '51',
@@ -936,7 +948,7 @@ export const allMenuItems = [
     desc: 'Klassische Spaghetti mit traditioneller italienischer Rinderhackfleischsauce.',
     prices: { single: 8.00 },
     price: 8.00,
-    image: images.categories.pasta,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Pasta/Artboard_2.png',
     badge: 'Klassiker',
     dietary: []
   },
@@ -949,8 +961,34 @@ export const allMenuItems = [
     desc: 'Spaghetti in sämiger Sahnesauce mit angebratenem Schinken und Parmesan.',
     prices: { single: 8.50 },
     price: 8.50,
-    image: images.categories.pasta,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Pasta/Artboard_3.png',
     badge: '',
+    dietary: []
+  },
+  {
+    id: 'pasta-lasagne',
+    number: '53',
+    category: 'pasta',
+    name: 'Hausgemachte Lasagne Bolognese',
+    toppings: 'Nudelblätter, Rinderhackfleisch, Béchamelsauce, Käsekruste',
+    desc: 'Schicht für Schicht ein Genuss: Nudelblätter, Bologneseragout, Béchamelsauce und viel Käse.',
+    prices: { single: 9.20 },
+    price: 9.20,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Pasta/Artboard_4.png',
+    badge: 'Hausgemacht',
+    dietary: []
+  },
+  {
+    id: 'pasta-cannelloni-forno',
+    number: '53a',
+    category: 'pasta',
+    name: 'Cannelloni al Forno',
+    toppings: 'Gefüllte Nudelrollen mit Rinderhack, Tomatensauce, mit Gouda überbacken',
+    desc: 'Klassische italienische Cannelloni gefüllt mit saftigem Hackfleisch und gratiniertem Käse.',
+    prices: { single: 9.40 },
+    price: 9.40,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Pasta/Artboard_5.png',
+    badge: 'Traditionell',
     dietary: []
   },
   {
@@ -962,8 +1000,47 @@ export const allMenuItems = [
     desc: 'Bandnudeln mit saftigen Lachsstücken in einer feinen Weißwein-Dillsauce.',
     prices: { single: 10.50 },
     price: 10.50,
-    image: images.categories.pasta,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Pasta/Artboard_6.png',
     badge: 'Feinschmecker',
+    dietary: ['pescetarisch']
+  },
+  {
+    id: 'pasta-arrabbiata',
+    number: '54a',
+    category: 'pasta',
+    name: "Penne all'Arrabbiata (Scharf)",
+    toppings: 'Penne, pikante Chilisauce, Knoblauch, Tomaten, frische Kräuter',
+    desc: 'Röhrennudeln in feuriger Tomatensauce mit Chili, Knoblauch und frischer Petersilie.',
+    prices: { single: 8.20 },
+    price: 8.20,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Pasta/Artboard_7_p.png',
+    badge: 'Scharf 🔥',
+    dietary: ['vegetarisch']
+  },
+  {
+    id: 'pasta-tortellini-panna',
+    number: '54b',
+    category: 'pasta',
+    name: 'Tortellini alla Panna',
+    toppings: 'Fleischtortellini, Hinterschinken, Sahnesauce, Parmesan',
+    desc: 'Mit Fleisch gefüllte Teigtaschen in cremiger Schinken-Sahnesauce mit Parmesan.',
+    prices: { single: 8.90 },
+    price: 8.90,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Pasta/Artboard_8_p.png',
+    badge: '',
+    dietary: []
+  },
+  {
+    id: 'pasta-frutti-di-mare',
+    number: '54c',
+    category: 'pasta',
+    name: 'Spaghetti Frutti di Mare',
+    toppings: 'Spaghetti, gemischte Meeresfrüchte, Knoblauch, Tomatensugo, Weißwein',
+    desc: 'Feine Spaghetti mit Meeresfrüchten, Knoblauch und Kräutern in Weißweinsauce.',
+    prices: { single: 9.90 },
+    price: 9.90,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Pasta/Artboard_9_p.png',
+    badge: 'Meeresfrüchte',
     dietary: ['pescetarisch']
   },
 
@@ -1024,7 +1101,7 @@ export const allMenuItems = [
   },
 
   // ==========================================
-  // REISGERICHTE IM OFEN ÜBERBACKEN
+  // REISGERICHTE IM OFEN ÜBERBACKEN (7 Gerichte)
   // ==========================================
   {
     id: 'reis-venezia',
@@ -1035,7 +1112,7 @@ export const allMenuItems = [
     desc: 'Würziger Reis mit gebratenem Hähnchenbrustfilet und Gemüse, im Ofen heiß mit Käse überbacken.',
     prices: { single: 9.50 },
     price: 9.50,
-    image: images.categories.doner,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Reisgerichte/Artboard_1.png',
     badge: 'Spezialität',
     dietary: []
   },
@@ -1048,7 +1125,7 @@ export const allMenuItems = [
     desc: 'Mediterranes Reisgericht mit Meeresfrüchten, leichter Knoblauchnote und heißem Käse.',
     prices: { single: 10.20 },
     price: 10.20,
-    image: images.categories.doner,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Reisgerichte/Artboard_2.png',
     badge: 'Meeresfrüchte',
     dietary: ['pescetarisch']
   },
@@ -1061,53 +1138,64 @@ export const allMenuItems = [
     desc: 'Reisgericht mit buntem Marktgemüse und einer goldbraunen Käseschicht aus dem Ofen.',
     prices: { single: 8.80 },
     price: 8.80,
-    image: images.categories.doner,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Reisgerichte/Artboard_3.png',
     badge: 'Veggie',
     dietary: ['vegetarisch']
   },
+  {
+    id: 'asia-gebratener-reis-haehnchen',
+    number: '181',
+    category: 'reisgerichte',
+    name: 'Gebratener Eierreis mit Hähnchen',
+    toppings: 'Duftreis, gebratenes Ei, Hähnchenfilet, Erbsen, Karotten, Röstzwiebeln',
+    desc: 'Klassischer gebratener Reis im Wok zubereitet mit saftigem Hähnchen.',
+    prices: { single: 9.50 },
+    price: 9.50,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Reisgerichte/Artboard_4.png',
+    badge: 'Klassiker',
+    dietary: []
+  },
+  {
+    id: 'reis-pollo-curry',
+    number: '59c',
+    category: 'reisgerichte',
+    name: 'Reispfanne Pollo al Curry',
+    toppings: 'Hähnchenbrust, Reis, Erbsen, aromatische Currysauce, Käse überbacken',
+    desc: 'Zartes Hähnchenbrustfilet mit Reis in feiner Currysauce, im Ofen überbacken.',
+    prices: { single: 9.80 },
+    price: 9.80,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Reisgerichte/Artboard_5.png',
+    badge: 'Chef-Tipp',
+    dietary: []
+  },
+  {
+    id: 'reis-bombay',
+    number: '59d',
+    category: 'reisgerichte',
+    name: 'Reispfanne Bombay',
+    toppings: 'Reis, Hähnchenstreifen, bunte Paprika, Champignons, feine Currysauce, Käse',
+    desc: 'Aromatisch gewürzter Reis mit frischem Marktgemüse und Hähnchenstreifen.',
+    prices: { single: 9.50 },
+    price: 9.50,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Reisgerichte/Artboard_6.png',
+    badge: 'Würzig',
+    dietary: []
+  },
+  {
+    id: 'reis-gyros-spezial',
+    number: '59e',
+    category: 'reisgerichte',
+    name: 'Reispfanne Gyros Spezial',
+    toppings: 'Gyrosfleisch, Reis, Schafskäse, Zwiebeln, Tomaten-Sahnesauce, Gouda überbacken',
+    desc: 'Herzhaftes Gyrosfleisch auf Reis mit Schafskäse und Zwiebeln überbacken.',
+    prices: { single: 10.50 },
+    price: 10.50,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Reisgerichte/Artboard_7.png',
+    badge: 'Deftig',
+    dietary: []
+  },
 
   // ==========================================
-  // PASTA AL FORNO
-  // ==========================================
-  {
-    id: 'pasta-rigatoni-forno',
-    number: '50',
-    category: 'pasta-al-forno',
-    name: 'Rigatoni al Forno (Überbacken)',
-    toppings: 'Rinderhackfleisch-Bolognese, Sahne, Gouda & Mozzarella überbacken',
-    desc: 'Röhrennudeln in reichhaltiger Rinderhackfleischsauce, mit einer goldgelben Käseschicht überbacken.',
-    prices: { single: 8.90 },
-    price: 8.90,
-    image: images.dishes.pastaSpecial,
-    badge: 'Bestseller',
-    dietary: []
-  },
-  {
-    id: 'pasta-lasagne',
-    number: '53',
-    category: 'pasta-al-forno',
-    name: 'Hausgemachte Lasagne Bolognese',
-    toppings: 'Nudelblätter, Rinderhackfleisch, Béchamelsauce, Käsekruste',
-    desc: 'Schicht für Schicht ein Genuss: Nudelblätter, Bologneseragout, Béchamelsauce und viel Käse.',
-    prices: { single: 9.20 },
-    price: 9.20,
-    image: images.dishes.pastaSpecial,
-    badge: 'Hausgemacht',
-    dietary: []
-  },
-  {
-    id: 'pasta-cannelloni-forno',
-    number: '53a',
-    category: 'pasta-al-forno',
-    name: 'Cannelloni al Forno',
-    toppings: 'Gefüllte Nudelrollen mit Rinderhack, Tomatensauce, mit Gouda überbacken',
-    desc: 'Klassische italienische Cannelloni gefüllt mit saftigem Hackfleisch und gratiniertem Käse.',
-    prices: { single: 9.40 },
-    price: 9.40,
-    image: images.dishes.pastaSpecial,
-    badge: 'Traditionell',
-    dietary: []
-  },
 
   // ==========================================
   // VEGETARISCH ÜBERBACKEN
@@ -1401,9 +1489,61 @@ export const allMenuItems = [
     desc: 'Italienischer Vorspeisen-Klassiker mit saftigen Tomaten und echtem Mozzarella.',
     prices: { single: 7.50 },
     price: 7.50,
-    image: images.categories.salad,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Salate/Artboard_4.png',
     badge: 'Italienisch',
     dietary: ['vegetarisch']
+  },
+  {
+    id: 'salad-pollo',
+    number: '94',
+    category: 'salate',
+    name: 'Insalata Pollo (Hähnchen-Salat)',
+    toppings: 'Blattsalat, Hähnchenfilet, Tomaten, Gurken, Mais, Ei',
+    desc: 'Knackiger Salat mit zart gebratenen Hähnchenbruststreifen, Mais und Hausdressing.',
+    prices: { single: 8.90 },
+    price: 8.90,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Salate/Artboard_5.png',
+    badge: 'Empfehlung',
+    dietary: []
+  },
+  {
+    id: 'salad-greca',
+    number: '95',
+    category: 'salate',
+    name: 'Insalata Greca (Griechischer Bauernsalat)',
+    toppings: 'Schafskäse, Oliven, Peperoni, rote Zwiebeln, Tomaten, Gurken, Olivenöl',
+    desc: 'Griechischer Bauernsalat mit original Schafskäse, schwarzen Oliven und roten Zwiebeln.',
+    prices: { single: 8.50 },
+    price: 8.50,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Salate/Artboard_6.png',
+    badge: 'Klassiker',
+    dietary: ['vegetarisch']
+  },
+  {
+    id: 'salad-hawaii',
+    number: '96',
+    category: 'salate',
+    name: 'Insalata Hawaii',
+    toppings: 'Blattsalat, Hinterschinken, Ananas, Käse, Mais, Tomaten',
+    desc: 'Fruchtig-frischer Salat mit saftigem Hinterschinken, Ananas und Gouda.',
+    prices: { single: 8.00 },
+    price: 8.00,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Salate/Artboard_7.png',
+    badge: '',
+    dietary: []
+  },
+  {
+    id: 'salad-chef',
+    number: '97',
+    category: 'salate',
+    name: 'Insalata Chef Spezial',
+    toppings: 'Blattsalat, Schinken, Käse, Ei, Thunfisch, Gurken, Tomaten, Dressing nach Wahl',
+    desc: 'Reichhaltiger Salatteller mit Hinterschinken, Käse, gekochtem Ei und Thunfisch.',
+    prices: { single: 9.50 },
+    price: 9.50,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Salate/Artboard_8_sl.png',
+    badge: 'Chef-Tipp',
+    dietary: []
   },
 
   // ==========================================
@@ -1842,7 +1982,7 @@ export const allMenuItems = [
   },
 
   // ==========================================
-  // CHINESISCHE GERICHTE
+  // CHINESISCHE GERICHTE (7 Nudel-Spezialitäten)
   // ==========================================
   {
     id: 'asia-gebratene-nudeln-haehnchen',
@@ -1853,21 +1993,8 @@ export const allMenuItems = [
     desc: 'Traditionell im Wok geschwenkte Nudeln mit feinem Knackgemüse und Hähnchen.',
     prices: { single: 9.50 },
     price: 9.50,
-    image: images.dishes.pastaSpecial,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/noodles/Artboard_1.png',
     badge: 'Wok-Hit',
-    dietary: []
-  },
-  {
-    id: 'asia-gebratener-reis-haehnchen',
-    number: '181',
-    category: 'chinesisch',
-    name: 'Gebratener Eierreis mit Hähnchen',
-    toppings: 'Duftreis, gebratenes Ei, Hähnchenfilet, Erbsen, Karotten, Röstzwiebeln',
-    desc: 'Klassischer gebratener Reis im Wok zubereitet mit saftigem Hähnchen.',
-    prices: { single: 9.50 },
-    price: 9.50,
-    image: images.dishes.pastaSpecial,
-    badge: 'Klassiker',
     dietary: []
   },
   {
@@ -1879,7 +2006,7 @@ export const allMenuItems = [
     desc: 'Knackig frisches Pfannengemüse mit Hähnchen in aromatischer Sojasauce.',
     prices: { single: 10.50 },
     price: 10.50,
-    image: images.dishes.pastaSpecial,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/noodles/Artboard_2.png',
     badge: 'Aus dem Wok',
     dietary: []
   },
@@ -1888,13 +2015,65 @@ export const allMenuItems = [
     number: '183',
     category: 'chinesisch',
     name: 'Knusprige Ente Süß-Sauer',
-    toppings: 'Kross gebackene Ente, Ananas, Paprika, hausgemachte Süß-Sauer-Sauce, Basmatireis',
-    desc: 'Knusprig tranchierte Entenbrust serviert mit fruchtiger Süß-Sauer-Sauce und Reis.',
-    prices: { single: 13.50 },
-    price: 13.50,
-    image: images.dishes.schnitzel,
-    badge: 'Knusprig',
+    toppings: 'Knusprige Ente, Wok-Gemüse, Ananas, pikant-süße Sauce, Eierreis',
+    desc: 'Kross gebackene Ente auf feinem Wok-Gemüse mit fruchtiger Süß-Sauer-Sauce und Reis.',
+    prices: { single: 12.90 },
+    price: 12.90,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/noodles/Artboard_3.png',
+    badge: 'Kross',
     dietary: []
+  },
+  {
+    id: 'asia-bami-goreng',
+    number: '184',
+    category: 'chinesisch',
+    name: 'Bami Goreng Spezial (mit Krabben)',
+    toppings: 'Gebratene Nudeln, Krabben, Hähnchen, Wok-Gemüse, Ei, Curry',
+    desc: 'Indonesische gebratene Nudeln mit Hähnchen, Krabben, Gemüse und leichter Currynote.',
+    prices: { single: 10.90 },
+    price: 10.90,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/noodles/Artboard_4.png',
+    badge: 'Sehr beliebt',
+    dietary: []
+  },
+  {
+    id: 'asia-gebratene-nudeln-ente',
+    number: '185',
+    category: 'chinesisch',
+    name: 'Gebratene Nudeln mit knuspriger Ente',
+    toppings: 'Knusprige Ente, Eiernudeln, Wok-Gemüse, Ei, Sojasprossen',
+    desc: 'Knusprig gebackene Ente auf gebratenen Eiernudeln mit Sojasprossen und Gemüse.',
+    prices: { single: 12.50 },
+    price: 12.50,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/noodles/Artboard_5.png',
+    badge: 'Empfehlung',
+    dietary: []
+  },
+  {
+    id: 'asia-nudeln-rindfleisch',
+    number: '186',
+    category: 'chinesisch',
+    name: 'Gebratene Nudeln mit Rindfleisch',
+    toppings: 'Rindfleischstreifen, Nudeln, Wok-Gemüse, Bambus, Sojasauce',
+    desc: 'Zarte Rindfleischstreifen aus dem Wok mit Eiernudeln, Gemüse und feiner Sauce.',
+    prices: { single: 10.90 },
+    price: 10.90,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/noodles/Artboard_6.png',
+    badge: '',
+    dietary: []
+  },
+  {
+    id: 'asia-gebratene-nudeln-veg',
+    number: '187',
+    category: 'chinesisch',
+    name: 'Gebratene Nudeln Vegetarisch',
+    toppings: 'Eiernudeln, Wok-Gemüse, Sojasprossen, Ei, Frühlingszwiebeln',
+    desc: 'Gebratene Eiernudeln mit buntem Marktgemüse, Sojasprossen und Ei.',
+    prices: { single: 8.50 },
+    price: 8.50,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/noodles/Artboard_7.png',
+    badge: 'Veggie',
+    dietary: ['vegetarisch']
   },
 
   // ==========================================
@@ -1909,7 +2088,7 @@ export const allMenuItems = [
     desc: 'Extragroße Portion krosse Pommes Frites.',
     prices: { single: 3.50 },
     price: 3.50,
-    image: images.categories.doner,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Starters/Artboard_1.png',
     badge: 'Knusprig',
     dietary: ['vegetarisch']
   },
@@ -1922,7 +2101,7 @@ export const allMenuItems = [
     desc: 'Feine Kartoffelkroketten außen knusprig, innen cremig.',
     prices: { single: 3.50 },
     price: 3.50,
-    image: images.categories.doner,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Starters/Artboard_2.png',
     badge: '',
     dietary: ['vegetarisch']
   },
@@ -1935,7 +2114,7 @@ export const allMenuItems = [
     desc: 'Ofenfrisch geröstetes Brot mit aromatischer Kräuter-Knoblauchbutter.',
     prices: { single: 3.00 },
     price: 3.00,
-    image: images.categories.pizza,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Starters/Artboard_3.png',
     badge: 'Ofenfrisch',
     dietary: ['vegetarisch']
   },
@@ -1943,14 +2122,79 @@ export const allMenuItems = [
     id: 'beilage-zaziki',
     number: '193',
     category: 'beilagen',
-    name: 'Hausgemachter Zaziki',
-    toppings: 'Griechischer Joghurt, Gurken, feiner Knoblauch, Olivenöl',
-    desc: 'Cremiger, frischer Zaziki nach traditionellem Hausrezept.',
-    prices: { single: 3.50 },
-    price: 3.50,
-    image: images.categories.salad,
-    badge: 'Hausgemacht',
+    name: 'Hausgemachter Zaziki mit Brot',
+    toppings: 'Griechischer Joghurt, Gurken, Knoblauch, Olivenöl, Pizzabrot',
+    desc: 'Cremig gerührter Zaziki mit frischem Knoblauch, serviert mit warmem Pizzabrot.',
+    prices: { single: 4.50 },
+    price: 4.50,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Starters/Artboard_4.png',
+    badge: '',
     dietary: ['vegetarisch']
+  },
+  {
+    id: 'starter-mozzarella-sticks',
+    number: '194',
+    category: 'beilagen',
+    name: 'Mozzarella Sticks (6 Stück)',
+    toppings: '6x Mozzarella Sticks, Preiselbeer- oder Knoblauch-Dip',
+    desc: 'Goldgelb panierte Mozzarellasticks mit flüssigem Käsekern, inkl. Dip.',
+    prices: { single: 5.50 },
+    price: 5.50,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Starters/Artboard_6.png',
+    badge: 'Knusprig',
+    dietary: ['vegetarisch']
+  },
+  {
+    id: 'starter-chili-cheese',
+    number: '195',
+    category: 'beilagen',
+    name: 'Chili Cheese Nuggets (6 Stück)',
+    toppings: '6x Chili Cheese Nuggets, inkl. Dip nach Wahl',
+    desc: 'Pikante Schmelzkäsebällchen mit feurigen Jalapeños in krosser Panade.',
+    prices: { single: 5.50 },
+    price: 5.50,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Starters/Artboard_7.png',
+    badge: 'Scharf 🔥',
+    dietary: ['vegetarisch']
+  },
+  {
+    id: 'starter-onion-rings',
+    number: '196',
+    category: 'beilagen',
+    name: 'Onion Rings (8 Stück)',
+    toppings: '8x Zwiebelringe, BBQ-Sauce',
+    desc: 'Knusprige Zwiebelringe im Backteig frittiert, serviert mit Barbecuesauce.',
+    prices: { single: 4.90 },
+    price: 4.90,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Starters/Artboard_8_S.png',
+    badge: 'Snack-Hit',
+    dietary: ['vegetarisch']
+  },
+  {
+    id: 'starter-bruschetta',
+    number: '197',
+    category: 'beilagen',
+    name: 'Bruschetta Classica (4 Stück)',
+    toppings: '4x geröstetes Brot, Tomatenwürfel, Olivenöl, Knoblauch, frisches Basilikum',
+    desc: 'Geröstetes Weißbrot belegt mit marinierten Tomaten, Knoblauch und Basilikum.',
+    prices: { single: 5.90 },
+    price: 5.90,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Starters/Artboard_9_st.png',
+    badge: 'Italienisch',
+    dietary: ['vegetarisch']
+  },
+  {
+    id: 'starter-chicken-dippers',
+    number: '198',
+    category: 'beilagen',
+    name: 'Chicken Dippers & Dip (6 Stück)',
+    toppings: '6x Hähnchen-Dippers, Dip nach Wahl',
+    desc: 'Zarte Hähnchenbrust-Streifen in knuspriger Panade mit Sauce nach Wahl.',
+    prices: { single: 6.50 },
+    price: 6.50,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Starters/Artboard_10_st.png',
+    badge: 'Fingerfood',
+    dietary: []
   },
 
   // ==========================================
@@ -2078,10 +2322,11 @@ export const popularPizzasData = [
     id: 'pizza-1',
     number: '1',
     name: 'Pizza Margherita',
-    ingredients: 'Tomatensauce, Käse, Oregano',
+    ingredients: 'Tomatensauce, Mozzarella',
     price: 9.00,
     formattedPrice: 'ab 9,00 €',
-    image: images.pizzas.pizza1,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/pizza-1_1791198696351.png',
+    image_url: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/pizza-1_1791198696351.png',
     badge: 'Klassiker'
   },
   {
@@ -2137,7 +2382,7 @@ export const restaurantInfo = {
     weekend: '10:30 – 23:00 Uhr'
   },
   deliveryInfo: {
-    minOrder: '15,00 € (Lieferung)',
+    minOrder: '12,00 € (Lieferung)',
     deliveryTime: 'ca. 30–45 Min.'
   },
   since: '1999'

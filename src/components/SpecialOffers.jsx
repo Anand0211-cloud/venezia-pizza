@@ -16,13 +16,17 @@ export default function SpecialOffers({ onAddToCart, onShowAllOffers }) {
       ? live.price
       : (live.prices?.single || offer.price);
 
+    const safeImage = (live.image && !live.image.includes('offer_a'))
+      ? live.image
+      : offer.image;
+
     return {
       ...offer,
-      title: live.name || offer.title,
-      description: live.toppings || live.desc || offer.description,
+      title: offer.title || live.name,
+      description: offer.description || (live.desc ? live.desc.replace(/\n\+?\s*/g, ' • ') : offer.description),
       price: unitPrice,
       formattedPrice: `${unitPrice.toFixed(2).replace('.', ',')} €`,
-      image: live.image || offer.image,
+      image: safeImage,
       is_in_stock: live.is_in_stock !== false
     };
   });

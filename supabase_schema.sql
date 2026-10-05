@@ -119,53 +119,11 @@ CREATE TABLE store_settings (
   delivery_fee NUMERIC(6,2) DEFAULT 2.50
 );
 
--- 9b. SMTP Email Configuration Table (Private to backend & admin)
-CREATE TABLE IF NOT EXISTS smtp_settings (
-  id INT PRIMARY KEY DEFAULT 1,
-  host TEXT NOT NULL DEFAULT 'smtp.stackmail.com',
-  port INT NOT NULL DEFAULT 465,
-  secure BOOLEAN NOT NULL DEFAULT true,
-  sender_email TEXT NOT NULL DEFAULT 'info@veneziapizzas.de',
-  sender_name TEXT NOT NULL DEFAULT 'Venezia Pizza Service',
-  auth_user TEXT NOT NULL DEFAULT 'info@veneziapizzas.de',
-  auth_password TEXT NOT NULL DEFAULT '',
-  is_enabled BOOLEAN NOT NULL DEFAULT true,
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-
--- 9c. SumUp Payment Configuration & Transactions Table
-CREATE TABLE IF NOT EXISTS sumup_settings (
-  id INT PRIMARY KEY DEFAULT 1,
-  merchant_code TEXT NOT NULL DEFAULT 'MVV82Y2M',
-  pay_to_email TEXT NOT NULL DEFAULT '',
-  currency TEXT NOT NULL DEFAULT 'EUR',
-  is_enabled BOOLEAN NOT NULL DEFAULT true,
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS payment_transactions (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
-  order_number TEXT NOT NULL,
-  payment_gateway TEXT NOT NULL DEFAULT 'sumup', -- 'sumup', 'sumup_terminal', 'cash', 'paypal'
-  payment_type TEXT DEFAULT 'online_card', -- 'online_card', 'terminal_delivery', 'cash', 'paypal'
-  transaction_reference TEXT,
-  sumup_checkout_id TEXT,
-  amount NUMERIC(8,2) NOT NULL,
-  currency TEXT NOT NULL DEFAULT 'EUR',
-  status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'paid', 'failed', 'refunded'
-  raw_response JSONB DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-
 -- 10. Indexes for fast real-time queries
 CREATE INDEX idx_orders_status ON orders(status);
 CREATE INDEX idx_orders_created_at ON orders(created_at DESC);
 CREATE INDEX idx_menu_items_cat ON menu_items(category_id);
 CREATE INDEX idx_order_items_order_id ON order_items(order_id);
-CREATE INDEX IF NOT EXISTS idx_payment_transactions_order ON payment_transactions(order_id);
-CREATE INDEX IF NOT EXISTS idx_payment_transactions_checkout ON payment_transactions(sumup_checkout_id);
 
 -- 11. Row Level Security (RLS) Policies
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
@@ -201,71 +159,6 @@ CREATE POLICY "Admin manage settings" ON store_settings FOR ALL USING (true) WIT
 ALTER PUBLICATION supabase_realtime ADD TABLE orders;
 ALTER PUBLICATION supabase_realtime ADD TABLE menu_items;
 ALTER PUBLICATION supabase_realtime ADD TABLE drivers;
-ALTER PUBLICATION supabase_realtime ADD TABLE store_settings;
-
--- 13. Customer Account Email Verification RPC (Security Definer)
-CREATE OR REPLACE FUNCTION check_customer_email_exists(lookup_email text)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-  v_found boolean := false;
-  v_name text := '';
-  v_phone text := '';
-  v_street text := '';
-  v_zip_city text := '';
-BEGIN
-  -- 1. Check in auth.users
-  SELECT 
-    true,
-    COALESCE(raw_user_meta_data->>'full_name', ''),
-    COALESCE(raw_user_meta_data->>'phone', ''),
-    COALESCE(raw_user_meta_data->>'street', ''),
-    COALESCE(raw_user_meta_data->>'zip_city', '')
-  INTO v_found, v_name, v_phone, v_street, v_zip_city
-  FROM auth.users
-  WHERE lower(email) = lower(trim(lookup_email))
-  LIMIT 1;
-
-  IF v_found THEN
-    RETURN jsonb_build_object(
-      'exists', true,
-      'full_name', v_name,
-      'phone', v_phone,
-      'street', v_street,
-      'zip_city', v_zip_city
-    );
-  END IF;
-
-  -- 2. Check in orders table (note pattern [E-Mail: ...])
-  SELECT 
-    true,
-    COALESCE(customer_name, ''),
-    COALESCE(customer_phone, ''),
-    COALESCE(street, ''),
-    COALESCE(zip_city, '')
-  INTO v_found, v_name, v_phone, v_street, v_zip_city
-  FROM orders
-  WHERE note ILIKE '%' || lower(trim(lookup_email)) || '%'
-  ORDER BY created_at DESC
-  LIMIT 1;
-
-  IF v_found THEN
-    RETURN jsonb_build_object(
-      'exists', true,
-      'full_name', v_name,
-      'phone', v_phone,
-      'street', v_street,
-      'zip_city', v_zip_city
-    );
-  END IF;
-
-  RETURN jsonb_build_object('exists', false);
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION check_customer_email_exists(text) TO anon, authenticated;
 
 -- ======================================================================
 -- SEED DATA INSERTION
@@ -283,15 +176,28 @@ INSERT INTO drivers (name, phone, vehicle_type, is_active, current_status) VALUE
 ('Stefan Wagner', '+49 172 3456789', 'Auto', true, 'available');
 
 -- Categories
-INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('all', 'Alle Gerichte', 'All Dishes', '70+ Spezialitäten', 1) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
-INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('pizza', 'Pizzen (1–49a)', 'Pizzas (1–49a)', '45+ Sorten', 2) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
-INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('calzone', 'Calzone & Pizzabrot', 'Calzone & Pizza Bread', '5 Variationen', 3) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
-INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('pasta', 'Pasta & Al Forno', 'Pasta & Al Forno', '18 Gerichte', 4) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
-INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('doner', 'Döner & Fleisch', 'Döner & Meat Specialties', '12 Spezialitäten', 5) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
-INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('burger-snacks', 'Burger & Snacks', 'Burgers & Snacks', '14 Leckereien', 6) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
-INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('schnitzel', 'Schnitzel Spezial', 'Schnitzel Specials', '8 Variationen', 7) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
-INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('salad', 'Frische Salate', 'Fresh Salads', '10 Salate', 8) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
-INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('dessert-drinks', 'Desserts & Getränke', 'Desserts & Drinks', '12 Erfrischungen', 9) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('pizzen', 'Pizzen', 'Pizzen', '45+ Sorten', 1) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('pasta', 'Pasta & Al Forno', 'Pasta & Al Forno', 'Klassiker', 2) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('gnocchi', 'Gnocchi', 'Gnocchi', 'Spezialitäten', 3) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('pasta-al-forno', 'Pasta al Forno', 'Pasta al Forno', 'Überbacken', 4) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('vegetarisch', 'Vegetarisch', 'Vegetarisch', 'Frisch & Heiß', 5) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('auflaeufe', 'Aufläufe', 'Aufläufe', 'Ofenfrisch', 6) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('reisgerichte', 'Reisgerichte', 'Reisgerichte', 'Aus dem Ofen', 7) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('fleischgerichte', 'Fleischgerichte', 'Fleischgerichte', 'Spezialitäten', 8) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('gyros', 'Gyros', 'Gyros', 'Gyros Spezial', 9) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('salate', 'Salate', 'Salate', 'Frisch & Knackig', 10) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('grill-menue', 'Grill Menü', 'Grill Menü', 'Vom Rost', 11) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('american-food', 'American Food', 'American Food', 'Burger & Co.', 12) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('indisch', 'Indische', 'Indische', 'Currys & Reis', 13) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('lamm', 'Lamm', 'Lamm', 'Zartes Fleisch', 14) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('steaks', 'Steaks', 'Steaks', 'Rumpsteaks', 15) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('fischgerichte', 'Fischgerichte', 'Fischgerichte', 'Lachs & Calamari', 16) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('mexikanisch', 'Mexikanische', 'Mexikanische', 'Tacos & Burritos', 17) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('chinesisch', 'Chinesische', 'Chinesische', 'Wok-Gerichte', 18) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('beilagen', 'Extra Beilagen', 'Extra Beilagen', 'Pommes & Dips', 19) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('toasts', 'Toasts', 'Toasts', 'Hawaii & mehr', 20) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('omelette', 'Omelette', 'Omelette', 'Mit Käsekruste', 21) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
+INSERT INTO categories (id, name_de, name_en, count_badge, sort_order) VALUES ('getraenke', 'Getränke', 'Getränke', 'Eiskalt', 22) ON CONFLICT (id) DO UPDATE SET name_de = EXCLUDED.name_de, name_en = EXCLUDED.name_en;
 
 -- Extra Toppings
 INSERT INTO extra_toppings (id, name_de, name_en, price_small, price_large, price_family, price_party, is_in_stock) VALUES ('mozzarella', 'Extra Mozzarella / Käse', 'Extra Mozzarella / Cheese', 2.50, 3.00, 4.00, 5.00, true) ON CONFLICT (id) DO NOTHING;
@@ -313,7 +219,7 @@ INSERT INTO extra_toppings (id, name_de, name_en, price_small, price_large, pric
 INSERT INTO extra_toppings (id, name_de, name_en, price_small, price_large, price_family, price_party, is_in_stock) VALUES ('krabben', 'Krabben / Meeresfrüchte', 'Shrimp / Seafood', 2.50, 3.00, 4.00, 5.00, true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO extra_toppings (id, name_de, name_en, price_small, price_large, price_family, price_party, is_in_stock) VALUES ('thunfisch', 'Thunfisch', 'Tuna', 2.50, 3.00, 4.00, 5.00, true) ON CONFLICT (id) DO NOTHING;
 
--- Menu Items (74 dishes)
+-- Menu Items (136 dishes)
 INSERT INTO menu_items (
   id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
   dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
@@ -2085,37 +1991,6 @@ INSERT INTO menu_items (
   id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
   dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
 ) VALUES (
-  'pasta-rigatoni-forno',
-  '50',
-  'pasta',
-  'Rigatoni al Forno (Überbacken)',
-  'Rigatoni al Forno (Überbacken)',
-  'Röhrennudeln in reichhaltiger Rinderhackfleischsauce, mit einer goldgelben Käseschicht überbacken.',
-  'Röhrennudeln in reichhaltiger Rinderhackfleischsauce, mit einer goldgelben Käseschicht überbacken.',
-  'Rinderhackfleisch-Bolognese, Sahne, Gouda & Mozzarella überbacken',
-  'Rinderhackfleisch-Bolognese, Sahne, Gouda & Mozzarella überbacken',
-  'Bestseller',
-  '{}',
-  false,
-  false,
-  false,
-  '{"single":8.9}',
-  8.9,
-  true,
-  100,
-  20
-) ON CONFLICT (id) DO UPDATE SET
-  name_de = EXCLUDED.name_de,
-  category_id = EXCLUDED.category_id,
-  prices = EXCLUDED.prices,
-  price = EXCLUDED.price,
-  sizes_available = EXCLUDED.sizes_available,
-  calzone_sizes = EXCLUDED.calzone_sizes,
-  supports_american = EXCLUDED.supports_american;
-INSERT INTO menu_items (
-  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
-  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
-) VALUES (
   'pasta-bolognese',
   '51',
   'pasta',
@@ -2178,37 +2053,6 @@ INSERT INTO menu_items (
   id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
   dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
 ) VALUES (
-  'pasta-lasagne',
-  '53',
-  'pasta',
-  'Hausgemachte Lasagne Bolognese',
-  'Hausgemachte Lasagne Bolognese',
-  'Schicht für Schicht ein Genuss: Nudelblätter, Bologneseragout, Béchamelsauce und viel Käse.',
-  'Schicht für Schicht ein Genuss: Nudelblätter, Bologneseragout, Béchamelsauce und viel Käse.',
-  'Nudelblätter, Rinderhackfleisch, Béchamelsauce, Käsekruste',
-  'Nudelblätter, Rinderhackfleisch, Béchamelsauce, Käsekruste',
-  'Hausgemacht',
-  '{}',
-  false,
-  false,
-  false,
-  '{"single":9.2}',
-  9.2,
-  true,
-  100,
-  20
-) ON CONFLICT (id) DO UPDATE SET
-  name_de = EXCLUDED.name_de,
-  category_id = EXCLUDED.category_id,
-  prices = EXCLUDED.prices,
-  price = EXCLUDED.price,
-  sizes_available = EXCLUDED.sizes_available,
-  calzone_sizes = EXCLUDED.calzone_sizes,
-  supports_american = EXCLUDED.supports_american;
-INSERT INTO menu_items (
-  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
-  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
-) VALUES (
   'pasta-salmone',
   '54',
   'pasta',
@@ -2240,16 +2084,574 @@ INSERT INTO menu_items (
   id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
   dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
 ) VALUES (
-  'doner-teller',
-  '60',
-  'doner',
-  'Dönerteller Komplett mit Beilage',
-  'Dönerteller Komplett mit Beilage',
-  'Zartes Drehspießfleisch serviert mit Pommes oder Reis, frischem Salat und Saucen.',
-  'Zartes Drehspießfleisch serviert mit Pommes oder Reis, frischem Salat und Saucen.',
-  'Drehspießfleisch, Pommes/Reis, Salat, Knoblauch- & Kräutersauce',
-  'Drehspießfleisch, Pommes/Reis, Salat, Knoblauch- & Kräutersauce',
+  'gnocchi-napoli',
+  '55',
+  'gnocchi',
+  'Gnocchi Napoli',
+  'Gnocchi Napoli',
+  'Zarte italienische Kartoffelgnocchi in aromatischer Tomatensauce mit Kräutern.',
+  'Zarte italienische Kartoffelgnocchi in aromatischer Tomatensauce mit Kräutern.',
+  'Kartoffelklößchen, fruchtige Tomatensauce, frisches Basilikum',
+  'Kartoffelklößchen, fruchtige Tomatensauce, frisches Basilikum',
+  'Vegetarisch',
+  ARRAY['vegetarisch'],
+  false,
+  false,
+  false,
+  '{"single":8.2}',
+  8.2,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'gnocchi-bolognese',
+  '56',
+  'gnocchi',
+  'Gnocchi Bolognese',
+  'Gnocchi Bolognese',
+  'Gnocchi mit unserer herzhaften, langsam geschmorten Bolognese-Fleischsauce.',
+  'Gnocchi mit unserer herzhaften, langsam geschmorten Bolognese-Fleischsauce.',
+  'Kartoffelgnocchi, hausgemachte Rinderhackfleischsauce, Parmesan',
+  'Kartoffelgnocchi, hausgemachte Rinderhackfleischsauce, Parmesan',
+  'Beliebt',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":8.9}',
+  8.9,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'gnocchi-gorgonzola',
+  '57',
+  'gnocchi',
+  'Gnocchi Gorgonzola',
+  'Gnocchi Gorgonzola',
+  'Cremig und intensiv im Geschmack: Gnocchi in sämiger Gorgonzolasauce.',
+  'Cremig und intensiv im Geschmack: Gnocchi in sämiger Gorgonzolasauce.',
+  'Gnocchi, italienischer Gorgonzola-Käse, feine Sahnesauce',
+  'Gnocchi, italienischer Gorgonzola-Käse, feine Sahnesauce',
+  'Cremig',
+  ARRAY['vegetarisch'],
+  false,
+  false,
+  false,
+  '{"single":9.2}',
+  9.2,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'gnocchi-al-forno',
+  '58',
+  'gnocchi',
+  'Gnocchi al Forno (Überbacken)',
+  'Gnocchi al Forno (Überbacken)',
+  'Ofenfrisch gebacken mit Hinterschinken, feiner Tomaten-Sahnesauce und goldgelbem Gouda.',
+  'Ofenfrisch gebacken mit Hinterschinken, feiner Tomaten-Sahnesauce und goldgelbem Gouda.',
+  'Gnocchi, Schinken, Tomaten-Sahnesauce, mit Käse überbacken',
+  'Gnocchi, Schinken, Tomaten-Sahnesauce, mit Käse überbacken',
+  'Ofenfrisch',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":9.5}',
+  9.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'reis-venezia',
+  '59',
+  'reisgerichte',
+  'Reispfanne Venezia',
+  'Reispfanne Venezia',
+  'Würziger Reis mit gebratenem Hähnchenbrustfilet und Gemüse, im Ofen heiß mit Käse überbacken.',
+  'Würziger Reis mit gebratenem Hähnchenbrustfilet und Gemüse, im Ofen heiß mit Käse überbacken.',
+  'Hähnchenbruststreifen, frische Champignons, Erbsen, Sahnesauce, Käse',
+  'Hähnchenbruststreifen, frische Champignons, Erbsen, Sahnesauce, Käse',
+  'Spezialität',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":9.5}',
+  9.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'reis-frutti-di-mare',
+  '59a',
+  'reisgerichte',
+  'Risotto Frutti di Mare',
+  'Risotto Frutti di Mare',
+  'Mediterranes Reisgericht mit Meeresfrüchten, leichter Knoblauchnote und heißem Käse.',
+  'Mediterranes Reisgericht mit Meeresfrüchten, leichter Knoblauchnote und heißem Käse.',
+  'Meeresfrüchte, Knoblauch, feine Tomatensauce, mit Käse überbacken',
+  'Meeresfrüchte, Knoblauch, feine Tomatensauce, mit Käse überbacken',
+  'Meeresfrüchte',
+  ARRAY['pescetarisch'],
+  false,
+  false,
+  false,
+  '{"single":10.2}',
+  10.2,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'reis-vegetarisch',
+  '59b',
+  'reisgerichte',
+  'Reispfanne Vegetarisch überbacken',
+  'Reispfanne Vegetarisch überbacken',
+  'Reisgericht mit buntem Marktgemüse und einer goldbraunen Käseschicht aus dem Ofen.',
+  'Reisgericht mit buntem Marktgemüse und einer goldbraunen Käseschicht aus dem Ofen.',
+  'Reis, Brokkoli, Champignons, Paprika, Mais, feine Sauce, Gouda',
+  'Reis, Brokkoli, Champignons, Paprika, Mais, feine Sauce, Gouda',
+  'Veggie',
+  ARRAY['vegetarisch'],
+  false,
+  false,
+  false,
+  '{"single":8.8}',
+  8.8,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'pasta-rigatoni-forno',
+  '50',
+  'pasta-al-forno',
+  'Rigatoni al Forno (Überbacken)',
+  'Rigatoni al Forno (Überbacken)',
+  'Röhrennudeln in reichhaltiger Rinderhackfleischsauce, mit einer goldgelben Käseschicht überbacken.',
+  'Röhrennudeln in reichhaltiger Rinderhackfleischsauce, mit einer goldgelben Käseschicht überbacken.',
+  'Rinderhackfleisch-Bolognese, Sahne, Gouda & Mozzarella überbacken',
+  'Rinderhackfleisch-Bolognese, Sahne, Gouda & Mozzarella überbacken',
   'Bestseller',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":8.9}',
+  8.9,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'pasta-lasagne',
+  '53',
+  'pasta-al-forno',
+  'Hausgemachte Lasagne Bolognese',
+  'Hausgemachte Lasagne Bolognese',
+  'Schicht für Schicht ein Genuss: Nudelblätter, Bologneseragout, Béchamelsauce und viel Käse.',
+  'Schicht für Schicht ein Genuss: Nudelblätter, Bologneseragout, Béchamelsauce und viel Käse.',
+  'Nudelblätter, Rinderhackfleisch, Béchamelsauce, Käsekruste',
+  'Nudelblätter, Rinderhackfleisch, Béchamelsauce, Käsekruste',
+  'Hausgemacht',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":9.2}',
+  9.2,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'pasta-cannelloni-forno',
+  '53a',
+  'pasta-al-forno',
+  'Cannelloni al Forno',
+  'Cannelloni al Forno',
+  'Klassische italienische Cannelloni gefüllt mit saftigem Hackfleisch und gratiniertem Käse.',
+  'Klassische italienische Cannelloni gefüllt mit saftigem Hackfleisch und gratiniertem Käse.',
+  'Gefüllte Nudelrollen mit Rinderhack, Tomatensauce, mit Gouda überbacken',
+  'Gefüllte Nudelrollen mit Rinderhack, Tomatensauce, mit Gouda überbacken',
+  'Traditionell',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":9.4}',
+  9.4,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'veg-brokkoli-auflauf',
+  '65',
+  'vegetarisch',
+  'Brokkoli-Auflauf vegetarisch überbacken',
+  'Brokkoli-Auflauf vegetarisch überbacken',
+  'Zarter Brokkoli mit Kartoffelscheiben in feiner Sauce Hollandaise und knusprigem Käse.',
+  'Zarter Brokkoli mit Kartoffelscheiben in feiner Sauce Hollandaise und knusprigem Käse.',
+  'Brokkoliröschen, Kartoffeln, Sauce Hollandaise, mit Käse überbacken',
+  'Brokkoliröschen, Kartoffeln, Sauce Hollandaise, mit Käse überbacken',
+  'Veggie-Hit',
+  ARRAY['vegetarisch'],
+  false,
+  false,
+  false,
+  '{"single":8.9}',
+  8.9,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'veg-blumenkohl-topf',
+  '66',
+  'vegetarisch',
+  'Blumenkohl-Brokkoli-Topf überbacken',
+  'Blumenkohl-Brokkoli-Topf überbacken',
+  'Herrlich frisches Gemüse im Ofen goldgelb mit herzhaftem Käse gratiniert.',
+  'Herrlich frisches Gemüse im Ofen goldgelb mit herzhaftem Käse gratiniert.',
+  'Frischer Blumenkohl, Brokkoli, Kartoffeln, Sahnesauce, mit Gouda überbacken',
+  'Frischer Blumenkohl, Brokkoli, Kartoffeln, Sahnesauce, mit Gouda überbacken',
+  'Vegetarisch',
+  ARRAY['vegetarisch'],
+  false,
+  false,
+  false,
+  '{"single":8.9}',
+  8.9,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'veg-spinat-gratin',
+  '67',
+  'vegetarisch',
+  'Spinat-Kartoffel-Gratin überbacken',
+  'Spinat-Kartoffel-Gratin überbacken',
+  'Würziger Blattspinat und Kartoffeln mit zarter Knoblauchnote und Käsekruste.',
+  'Würziger Blattspinat und Kartoffeln mit zarter Knoblauchnote und Käsekruste.',
+  'Blattspinat, Kartoffelscheiben, Knoblauch, feine Sahnesauce, Käse',
+  'Blattspinat, Kartoffelscheiben, Knoblauch, feine Sahnesauce, Käse',
+  'Vegetarisch',
+  ARRAY['vegetarisch'],
+  false,
+  false,
+  false,
+  '{"single":8.8}',
+  8.8,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'auflauf-kartoffel-hack',
+  '75',
+  'auflaeufe',
+  'Kartoffel-Hackfleisch-Auflauf',
+  'Kartoffel-Hackfleisch-Auflauf',
+  'Herzhafter Ofenauflauf mit Kartoffeln und würzigem Hackfleisch unter einer Käsekruste.',
+  'Herzhafter Ofenauflauf mit Kartoffeln und würzigem Hackfleisch unter einer Käsekruste.',
+  'Kartoffelscheiben, Rinderhackfleisch, Zwiebeln, Sahnesauce, Gouda überbacken',
+  'Kartoffelscheiben, Rinderhackfleisch, Zwiebeln, Sahnesauce, Gouda überbacken',
+  'Deftig',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":9.5}',
+  9.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'auflauf-venezia-spezial',
+  '76',
+  'auflaeufe',
+  'Venezia Spezial-Auflauf',
+  'Venezia Spezial-Auflauf',
+  'Unser Haus-Auflauf mit zarter Hähnchenbrust, frischem Gemüse und reichlich Käse.',
+  'Unser Haus-Auflauf mit zarter Hähnchenbrust, frischem Gemüse und reichlich Käse.',
+  'Hähnchenbrust, Kartoffeln, Champignons, Brokkoli, Sahnesauce, Käse',
+  'Hähnchenbrust, Kartoffeln, Champignons, Brokkoli, Sahnesauce, Käse',
+  'Haus-Spezialität',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":9.9}',
+  9.9,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'auflauf-nudel-schinken',
+  '77',
+  'auflaeufe',
+  'Nudel-Schinken-Auflauf',
+  'Nudel-Schinken-Auflauf',
+  'Der klassische Nudelauflauf mit viel Schinken, Champignons und goldener Käseschicht.',
+  'Der klassische Nudelauflauf mit viel Schinken, Champignons und goldener Käseschicht.',
+  'Rigatoni, Formfleisch-Schinken, frische Champignons, Sahnesauce, Käse',
+  'Rigatoni, Formfleisch-Schinken, frische Champignons, Sahnesauce, Käse',
+  'Klassiker',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":9.2}',
+  9.2,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'gyros-teller',
+  '60',
+  'gyros',
+  'Gyrosteller Komplett mit Beilage',
+  'Gyrosteller Komplett mit Beilage',
+  'Traditionell gewürztes, zartes Gyrosfleisch serviert mit hausgemachtem Zaziki, knusprigen Pommes und frischem Salat.',
+  'Traditionell gewürztes, zartes Gyrosfleisch serviert mit hausgemachtem Zaziki, knusprigen Pommes und frischem Salat.',
+  'Fein gewürztes Gyrosfleisch, Zaziki, Zwiebeln, Pommes Frites, gemischter Salat',
+  'Fein gewürztes Gyrosfleisch, Zaziki, Zwiebeln, Pommes Frites, gemischter Salat',
+  'Bestseller',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":10.5}',
+  10.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'gyros-ueberbacken',
+  '61',
+  'gyros',
+  'Gyros überbacken in Metaxasauce',
+  'Gyros überbacken in Metaxasauce',
+  'Pfannengyros in cremiger Metaxasauce, im Ofen goldbraun mit Käse überbacken.',
+  'Pfannengyros in cremiger Metaxasauce, im Ofen goldbraun mit Käse überbacken.',
+  'Gyrosfleisch, pikante Metaxasauce, mit Käse überbacken, dazu Pommes',
+  'Gyrosfleisch, pikante Metaxasauce, mit Käse überbacken, dazu Pommes',
+  'Sehr beliebt',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":11.2}',
+  11.2,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'doner-teller',
+  '62',
+  'gyros',
+  'Dönerteller Komplett mit Beilage',
+  'Dönerteller Komplett mit Beilage',
+  'Zartes Drehspießfleisch serviert mit Pommes oder Reis, frischem Salat und Saucen.',
+  'Zartes Drehspießfleisch serviert mit Pommes oder Reis, frischem Salat und Saucen.',
+  'Drehspießfleisch, Pommes/Reis, Salat, Knoblauch- & Kräutersauce',
+  'Drehspießfleisch, Pommes/Reis, Salat, Knoblauch- & Kräutersauce',
+  'Klassiker',
   '{}',
   false,
   false,
@@ -2272,8 +2674,8 @@ INSERT INTO menu_items (
   dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
 ) VALUES (
   'doner-durum',
-  '61',
-  'doner',
+  '63',
+  'gyros',
   'Dürüm Döner (Wraprolle)',
   'Dürüm Döner (Wraprolle)',
   'Frisch gerolltes Fladenbrot gefüllt mit saftigem Dönerfleisch und Salat.',
@@ -2303,8 +2705,8 @@ INSERT INTO menu_items (
   dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
 ) VALUES (
   'doner-box',
-  '62',
-  'doner',
+  '64',
+  'gyros',
   'Dönerbox mit Pommes',
   'Dönerbox mit Pommes',
   'Handliche Box vollgepackt mit heißem Drehspießfleisch und Pommes Frites.',
@@ -2335,7 +2737,7 @@ INSERT INTO menu_items (
 ) VALUES (
   'burger-double',
   '70',
-  'burger-snacks',
+  'american-food',
   'Venezia Double Cheeseburger & Pommes',
   'Venezia Double Cheeseburger & Pommes',
   'Zwei 100% Rindfleisch-Patties, doppelter Cheddar, knuspriger Bacon und Pommes Frites.',
@@ -2366,7 +2768,7 @@ INSERT INTO menu_items (
 ) VALUES (
   'snack-pizzabrotchen',
   '71',
-  'burger-snacks',
+  'beilagen',
   '8 Stk. Gefüllte Pizzabrötchen',
   '8 Stk. Gefüllte Pizzabrötchen',
   'Ofenfrische Bällchen gefüllt mit Käse & Schinken/Salami inkl. Kräuterbutter.',
@@ -2397,7 +2799,7 @@ INSERT INTO menu_items (
 ) VALUES (
   'schnitzel-wiener',
   '80',
-  'schnitzel',
+  'fleischgerichte',
   'Schnitzel Wiener Art',
   'Schnitzel Wiener Art',
   'Zwei kross panierte Schweineschnitzel serviert mit Pommes und Salat.',
@@ -2428,7 +2830,7 @@ INSERT INTO menu_items (
 ) VALUES (
   'schnitzel-jaeger',
   '81',
-  'schnitzel',
+  'fleischgerichte',
   'Jägerschnitzel mit Champignon-Rahm',
   'Jägerschnitzel mit Champignon-Rahm',
   'Krosse Schnitzel übergossen mit cremiger Champignon-Rahmsauce und Pommes.',
@@ -2457,9 +2859,71 @@ INSERT INTO menu_items (
   id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
   dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
 ) VALUES (
+  'schnitzel-zigeuner',
+  '82',
+  'fleischgerichte',
+  'Zigeunerschnitzel (Pikant)',
+  'Zigeunerschnitzel (Pikant)',
+  'Kross paniertes Schnitzel in feurig-fruchtiger Zigeunersauce mit Pommes Frites.',
+  'Kross paniertes Schnitzel in feurig-fruchtiger Zigeunersauce mit Pommes Frites.',
+  'Schweineschnitzel, pikante Paprika-Zwiebel-Sauce, Pommes, Salat',
+  'Schweineschnitzel, pikante Paprika-Zwiebel-Sauce, Pommes, Salat',
+  'Pikant',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":10.5}',
+  10.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'fleisch-haehnchenbrust',
+  '83',
+  'fleischgerichte',
+  'Hähnchenbrustfilet vom Grill',
+  'Hähnchenbrustfilet vom Grill',
+  'Zart mariniertes Hähnchenbrustfilet auf den Punkt gegrillt mit Kräuterbutter.',
+  'Zart mariniertes Hähnchenbrustfilet auf den Punkt gegrillt mit Kräuterbutter.',
+  'Gegrillte Hähnchenbrust, Kräuterbutter, Pommes Frites, Salat',
+  'Gegrillte Hähnchenbrust, Kräuterbutter, Pommes Frites, Salat',
+  'Vom Grill',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":10.9}',
+  10.9,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
   'salad-venezia',
   '90',
-  'salad',
+  'salate',
   'Insalata Venezia (Großer Salatteller)',
   'Insalata Venezia (Großer Salatteller)',
   'Große Salatschüssel mit gebratenem Hähnchenfilet, Ei und Hausdressing.',
@@ -2490,7 +2954,7 @@ INSERT INTO menu_items (
 ) VALUES (
   'salad-tonno',
   '91',
-  'salad',
+  'salate',
   'Insalata Tonno',
   'Insalata Tonno',
   'Frischer Salatmix mit feinem Thunfisch, Zwiebelringen und Oliven.',
@@ -2504,6 +2968,68 @@ INSERT INTO menu_items (
   false,
   '{"single":8}',
   8,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'salad-mista',
+  '92',
+  'salate',
+  'Insalata Mista (Gemischter Salat)',
+  'Insalata Mista (Gemischter Salat)',
+  'Frischer bunter Marktsalat mit knackigem Gemüse und feinem Dressing.',
+  'Frischer bunter Marktsalat mit knackigem Gemüse und feinem Dressing.',
+  'Knackiger Blattsalat, Gurken, Tomaten, Paprika, Mais, Hausdressing',
+  'Knackiger Blattsalat, Gurken, Tomaten, Paprika, Mais, Hausdressing',
+  'Frisch',
+  ARRAY['vegetarisch'],
+  false,
+  false,
+  false,
+  '{"single":6.5}',
+  6.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'salad-caprese',
+  '93',
+  'salate',
+  'Insalata Caprese',
+  'Insalata Caprese',
+  'Italienischer Vorspeisen-Klassiker mit saftigen Tomaten und echtem Mozzarella.',
+  'Italienischer Vorspeisen-Klassiker mit saftigen Tomaten und echtem Mozzarella.',
+  'Frische Tomatenscheiben, Mozzarella, Basilikum, Olivenöl, Balsamico',
+  'Frische Tomatenscheiben, Mozzarella, Basilikum, Olivenöl, Balsamico',
+  'Italienisch',
+  ARRAY['vegetarisch'],
+  false,
+  false,
+  false,
+  '{"single":7.5}',
+  7.5,
   true,
   100,
   20
@@ -2552,7 +3078,7 @@ INSERT INTO menu_items (
 ) VALUES (
   'drink-cola-1l',
   '110',
-  'dessert-drinks',
+  'getraenke',
   'Coca-Cola (1,0 Liter Flasche)',
   'Coca-Cola (1,0 Liter Flasche)',
   'Eiskalte Coca-Cola Original Taste in der 1,0-Liter-Flasche.',
@@ -2583,7 +3109,7 @@ INSERT INTO menu_items (
 ) VALUES (
   'drink-fanta-1l',
   '111',
-  'dessert-drinks',
+  'getraenke',
   'Fanta Orange (1,0 Liter Flasche)',
   'Fanta Orange (1,0 Liter Flasche)',
   'Fruchtiger Orangengeschmack, spritzig und erfrischend.',
@@ -2597,6 +3123,1308 @@ INSERT INTO menu_items (
   false,
   '{"single":3}',
   3,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'drink-sprite-1l',
+  '112',
+  'getraenke',
+  'Sprite (1,0 Liter Flasche)',
+  'Sprite (1,0 Liter Flasche)',
+  'Spritzig-erfrischende Zitronenlimonade in der 1,0-Liter-Flasche.',
+  'Spritzig-erfrischende Zitronenlimonade in der 1,0-Liter-Flasche.',
+  'Zitronen-Limetten-Limonade inkl. Pfand',
+  'Zitronen-Limetten-Limonade inkl. Pfand',
+  'Kalt',
+  ARRAY['vegan'],
+  false,
+  false,
+  false,
+  '{"single":3}',
+  3,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'drink-mezzo-1l',
+  '113',
+  'getraenke',
+  'Mezzo Mix (1,0 Liter Flasche)',
+  'Mezzo Mix (1,0 Liter Flasche)',
+  'Der beliebte Mix aus Cola und fruchtigem Orangengeschmack.',
+  'Der beliebte Mix aus Cola und fruchtigem Orangengeschmack.',
+  'Cola küsst Orange inkl. Pfand',
+  'Cola küsst Orange inkl. Pfand',
+  'Kalt',
+  ARRAY['vegan'],
+  false,
+  false,
+  false,
+  '{"single":3}',
+  3,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'drink-wasser-07l',
+  '114',
+  'getraenke',
+  'Mineralwasser Spritzig (0,7 Liter)',
+  'Mineralwasser Spritzig (0,7 Liter)',
+  'Erfrischendes Mineralwasser mit prickelnder Kohlensäure.',
+  'Erfrischendes Mineralwasser mit prickelnder Kohlensäure.',
+  'Natürliches Mineralwasser mit Kohlensäure',
+  'Natürliches Mineralwasser mit Kohlensäure',
+  'Erfrischung',
+  ARRAY['vegan'],
+  false,
+  false,
+  false,
+  '{"single":2.5}',
+  2.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'drink-bier-05l',
+  '115',
+  'getraenke',
+  'Radeberger Pilsner (0,5 Liter Flasche)',
+  'Radeberger Pilsner (0,5 Liter Flasche)',
+  'Feinherbes sächsisches Spitzen-Pilsner eiskalt serviert.',
+  'Feinherbes sächsisches Spitzen-Pilsner eiskalt serviert.',
+  'Deutsches Pilsener Bier 4,8% Vol.',
+  'Deutsches Pilsener Bier 4,8% Vol.',
+  'Feinherb',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":2.8}',
+  2.8,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'grill-teller-venezia',
+  '120',
+  'grill-menue',
+  'Grillteller Venezia',
+  'Grillteller Venezia',
+  'Reichhaltiger Grillteller mit verschiedenen Fleischsorten frisch vom Rost, serviert mit Pommes und hausgemachtem Zaziki.',
+  'Reichhaltiger Grillteller mit verschiedenen Fleischsorten frisch vom Rost, serviert mit Pommes und hausgemachtem Zaziki.',
+  'Gyros, Hähnchenbrust, Cevapcici, Pommes Frites, Zaziki & gemischter Salat',
+  'Gyros, Hähnchenbrust, Cevapcici, Pommes Frites, Zaziki & gemischter Salat',
+  'Spezialität',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":14.5}',
+  14.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'grill-bifteki',
+  '121',
+  'grill-menue',
+  'Bifteki mit Schafskäse gefüllt',
+  'Bifteki mit Schafskäse gefüllt',
+  'Saftig gegrilltes Hacksteak gefüllt mit feinstem griechischem Schafskäse.',
+  'Saftig gegrilltes Hacksteak gefüllt mit feinstem griechischem Schafskäse.',
+  'Würzige Hacksteaks mit Feta gefüllt, Pommes Frites, Zaziki & Salat',
+  'Würzige Hacksteaks mit Feta gefüllt, Pommes Frites, Zaziki & Salat',
+  'Sehr beliebt',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":12.9}',
+  12.9,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'grill-souvlaki',
+  '122',
+  'grill-menue',
+  'Souvlaki Spieße (2 Stück)',
+  'Souvlaki Spieße (2 Stück)',
+  'Traditionell marinierte Fleischspieße zart über der Flamme gegrillt.',
+  'Traditionell marinierte Fleischspieße zart über der Flamme gegrillt.',
+  '2 gegrillte Schweinefleischspieße, Kräuterbutter, Pommes, Zaziki & Salat',
+  '2 gegrillte Schweinefleischspieße, Kräuterbutter, Pommes, Zaziki & Salat',
+  'Griechisch',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":12.5}',
+  12.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'burger-crispy-chicken',
+  '72',
+  'american-food',
+  'Crispy Chicken Burger & Pommes',
+  'Crispy Chicken Burger & Pommes',
+  'Goldbraun gebackenes Hähnchenbrustfilet im soften Brioche-Bun mit Pommes Frites.',
+  'Goldbraun gebackenes Hähnchenbrustfilet im soften Brioche-Bun mit Pommes Frites.',
+  'Krosses Hähnchenfilet, Mayo, Salat, Tomaten, Gurken & knusprige Pommes',
+  'Krosses Hähnchenfilet, Mayo, Salat, Tomaten, Gurken & knusprige Pommes',
+  'Knusprig',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":8.9}',
+  8.9,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'burger-bbq-bacon',
+  '73',
+  'american-food',
+  'BBQ Bacon Burger & Pommes',
+  'BBQ Bacon Burger & Pommes',
+  'Saftiges Rinderhack mit herzhaftem Räucherspeck und würziger Barbecue-Sauce.',
+  'Saftiges Rinderhack mit herzhaftem Räucherspeck und würziger Barbecue-Sauce.',
+  'Rindfleisch-Patty, knuspriger Bacon, rauchige BBQ-Sauce, Röstzwiebeln, Pommes',
+  'Rindfleisch-Patty, knuspriger Bacon, rauchige BBQ-Sauce, Röstzwiebeln, Pommes',
+  'Smoky BBQ',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":9.5}',
+  9.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'american-chicken-wings',
+  '74',
+  'american-food',
+  'Buffalo Chicken Wings (8 Stk.)',
+  'Buffalo Chicken Wings (8 Stk.)',
+  'Kross gewürzte Chicken Wings nach US-Art serviert mit Pommes Frites.',
+  'Kross gewürzte Chicken Wings nach US-Art serviert mit Pommes Frites.',
+  '8 marinierte Hähnchenflügel, Barbecuesauce oder Knoblauchsauce, Pommes',
+  '8 marinierte Hähnchenflügel, Barbecuesauce oder Knoblauchsauce, Pommes',
+  'Fingerfood',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":8.5}',
+  8.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'american-chicken-nuggets',
+  '75',
+  'american-food',
+  'Chicken Nuggets (8 Stk.) & Pommes',
+  'Chicken Nuggets (8 Stk.) & Pommes',
+  'Zartes Hähnchenfleisch in knuspriger Panade mit Pommes.',
+  'Zartes Hähnchenfleisch in knuspriger Panade mit Pommes.',
+  '8 goldbraune Hähnchen-Nuggets, Süß-Sauer Dip, Pommes Frites',
+  '8 goldbraune Hähnchen-Nuggets, Süß-Sauer Dip, Pommes Frites',
+  'Snack-Hit',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":7.5}',
+  7.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'indisch-chicken-curry',
+  '130',
+  'indisch',
+  'Chicken Curry',
+  'Chicken Curry',
+  'Klassisches indisches Hähnchencurry schonend zubereitet mit erlesenen orientalischen Gewürzen.',
+  'Klassisches indisches Hähnchencurry schonend zubereitet mit erlesenen orientalischen Gewürzen.',
+  'Zartes Hähnchenbrustfilet, aromatische Currysauce, Basmatireis',
+  'Zartes Hähnchenbrustfilet, aromatische Currysauce, Basmatireis',
+  'Indisch',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":11.9}',
+  11.9,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'indisch-chicken-korma',
+  '131',
+  'indisch',
+  'Chicken Korma',
+  'Chicken Korma',
+  'Mildes, cremiges Currygericht nach königlicher Mogul-Art mit feinen Nüssen und Rosinen.',
+  'Mildes, cremiges Currygericht nach königlicher Mogul-Art mit feinen Nüssen und Rosinen.',
+  'Hähnchenfilet, milde Cashew-Sahnesauce, Mandeln, Basmatireis',
+  'Hähnchenfilet, milde Cashew-Sahnesauce, Mandeln, Basmatireis',
+  'Cremig & Mild',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":12.5}',
+  12.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'indisch-chicken-tikka-masala',
+  '132',
+  'indisch',
+  'Chicken Tikka Masala',
+  'Chicken Tikka Masala',
+  'Zart marinierte Hähnchenstücke in pikanter Gewürz-Tomatensauce.',
+  'Zart marinierte Hähnchenstücke in pikanter Gewürz-Tomatensauce.',
+  'Gegrilltes Hähnchen, Tomaten-Zwiebel-Masala, Ingwer, frischer Koriander, Basmatireis',
+  'Gegrilltes Hähnchen, Tomaten-Zwiebel-Masala, Ingwer, frischer Koriander, Basmatireis',
+  'Sehr beliebt',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":12.5}',
+  12.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'indisch-palak-paneer',
+  '133',
+  'indisch',
+  'Palak Paneer',
+  'Palak Paneer',
+  'Traditionelles vegetarisches Gericht mit würzigem Rahmspinat und gebratenen Käsewürfeln.',
+  'Traditionelles vegetarisches Gericht mit würzigem Rahmspinat und gebratenen Käsewürfeln.',
+  'Hausgemachter indischer Frischkäse, cremiger Blattspinat, Gewürze, Basmatireis',
+  'Hausgemachter indischer Frischkäse, cremiger Blattspinat, Gewürze, Basmatireis',
+  'Vegetarisch',
+  ARRAY['vegetarisch'],
+  false,
+  false,
+  false,
+  '{"single":10.9}',
+  10.9,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'lamm-koteletts',
+  '140',
+  'lamm',
+  'Lammkoteletts vom Grill',
+  'Lammkoteletts vom Grill',
+  'Zarte Lammkoteletts auf den Punkt gegrillt mit Kräuterbutter und Beilagen.',
+  'Zarte Lammkoteletts auf den Punkt gegrillt mit Kräuterbutter und Beilagen.',
+  'Gegrillte Lammkoteletts, Kräuterbutter, Rosmarinkartoffeln, Salat',
+  'Gegrillte Lammkoteletts, Kräuterbutter, Rosmarinkartoffeln, Salat',
+  'Premium',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":16.5}',
+  16.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'lamm-curry',
+  '141',
+  'lamm',
+  'Lamm Curry',
+  'Lamm Curry',
+  'Saftiges Lammfleisch langsam geschmort in herzhafter Gewürz-Currysauce.',
+  'Saftiges Lammfleisch langsam geschmort in herzhafter Gewürz-Currysauce.',
+  'Zartes Lammfleisch, aromatische indische Currysauce, Basmatireis',
+  'Zartes Lammfleisch, aromatische indische Currysauce, Basmatireis',
+  'Würzig',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":13.9}',
+  13.9,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'lamm-korma',
+  '142',
+  'lamm',
+  'Lamm Korma',
+  'Lamm Korma',
+  'Mogul-Spezialität: Lammfleisch in delikater Kokos-Mandel-Sauce.',
+  'Mogul-Spezialität: Lammfleisch in delikater Kokos-Mandel-Sauce.',
+  'Zartes Lammfleisch, milde Mandel-Sahnesauce, Basmatireis',
+  'Zartes Lammfleisch, milde Mandel-Sahnesauce, Basmatireis',
+  'Mild & Fein',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":14.5}',
+  14.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'steak-kraeuterbutter',
+  '150',
+  'steaks',
+  'Rumpsteak mit Kräuterbutter',
+  'Rumpsteak mit Kräuterbutter',
+  'Auf den Punkt gegrilltes saftiges Rumpsteak serviert mit aromatischer Kräuterbutter.',
+  'Auf den Punkt gegrilltes saftiges Rumpsteak serviert mit aromatischer Kräuterbutter.',
+  '200g argentinisches Rumpsteak, hausgemachte Kräuterbutter, Pommes, Salat',
+  '200g argentinisches Rumpsteak, hausgemachte Kräuterbutter, Pommes, Salat',
+  'Vom Grill',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":17.5}',
+  17.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'steak-pfeffersauce',
+  '151',
+  'steaks',
+  'Pfeffer-Steak',
+  'Pfeffer-Steak',
+  'Saftiges Steak überzogen mit einer edlen Rahmsauce aus ganzen grünen Pfefferkörnern.',
+  'Saftiges Steak überzogen mit einer edlen Rahmsauce aus ganzen grünen Pfefferkörnern.',
+  '200g Rumpsteak, pikante grüne Pfeffersauce, Kroketten, Salat',
+  '200g Rumpsteak, pikante grüne Pfeffersauce, Kroketten, Salat',
+  'Pikant',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":18.5}',
+  18.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'steak-champignon',
+  '152',
+  'steaks',
+  'Champignon-Rumpsteak',
+  'Champignon-Rumpsteak',
+  'Klassisches Rindersteak mit frischen sautierten Waldpilzen in feiner Sahnesauce.',
+  'Klassisches Rindersteak mit frischen sautierten Waldpilzen in feiner Sahnesauce.',
+  '200g Rumpsteak, frische Champignons in Rahmsauce, Bratkartoffeln, Salat',
+  '200g Rumpsteak, frische Champignons in Rahmsauce, Bratkartoffeln, Salat',
+  'Klassiker',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":18.5}',
+  18.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'fisch-lachs',
+  '160',
+  'fischgerichte',
+  'Gegrilltes Lachsfilet',
+  'Gegrilltes Lachsfilet',
+  'Frisch gegrilltes Lachsfilet auf zarten Nudeln in feiner Zitronen-Dillsauce.',
+  'Frisch gegrilltes Lachsfilet auf zarten Nudeln in feiner Zitronen-Dillsauce.',
+  'Lachsfilet, feine Dillsauce, Bandnudeln, Salatbeilage',
+  'Lachsfilet, feine Dillsauce, Bandnudeln, Salatbeilage',
+  'Fisch-Hit',
+  ARRAY['pescetarisch'],
+  false,
+  false,
+  false,
+  '{"single":14.9}',
+  14.9,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'fisch-calamari',
+  '161',
+  'fischgerichte',
+  'Calamari Fritti',
+  'Calamari Fritti',
+  'Kross frittierte Calamariringe mit frischer Zitrone und Knoblauchdip.',
+  'Kross frittierte Calamariringe mit frischer Zitrone und Knoblauchdip.',
+  'Knusprig panierte Tintenfischringe, hausgemachte Knoblauchsauce, Pommes, Salat',
+  'Knusprig panierte Tintenfischringe, hausgemachte Knoblauchsauce, Pommes, Salat',
+  'Mediterran',
+  ARRAY['pescetarisch'],
+  false,
+  false,
+  false,
+  '{"single":11.5}',
+  11.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'fisch-zander',
+  '162',
+  'fischgerichte',
+  'Zanderfilet gebraten',
+  'Zanderfilet gebraten',
+  'Zartes Zanderfilet auf der Haut kross gebraten mit Kräuterkartoffeln.',
+  'Zartes Zanderfilet auf der Haut kross gebraten mit Kräuterkartoffeln.',
+  'Gebratenes Zanderfilet, Remouladensauce, Petersilienkartoffeln, Salat',
+  'Gebratenes Zanderfilet, Remouladensauce, Petersilienkartoffeln, Salat',
+  'Fein',
+  ARRAY['pescetarisch'],
+  false,
+  false,
+  false,
+  '{"single":13.9}',
+  13.9,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'mex-tacos',
+  '170',
+  'mexikanisch',
+  'Tacos con Carne (3 Stück)',
+  'Tacos con Carne (3 Stück)',
+  'Knusprige Maisschalen herzhaft gefüllt nach mexikanischem Originalrezept.',
+  'Knusprige Maisschalen herzhaft gefüllt nach mexikanischem Originalrezept.',
+  '3 Maistortillas, Rinderhackfleisch, Cheddarkäse, Jalapeños, Salsa & Sauerrahm',
+  '3 Maistortillas, Rinderhackfleisch, Cheddarkäse, Jalapeños, Salsa & Sauerrahm',
+  'Mexikanisch',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":9.9}',
+  9.9,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'mex-burrito-pollo',
+  '171',
+  'mexikanisch',
+  'Burrito Pollo',
+  'Burrito Pollo',
+  'Gerollte Tortilla reich gefüllt mit würzigem Fleisch und Bohnen, im Ofen goldbraun mit Käse überbacken.',
+  'Gerollte Tortilla reich gefüllt mit würzigem Fleisch und Bohnen, im Ofen goldbraun mit Käse überbacken.',
+  'Große Weizentortilla, mariniertes Hähnchen, Bohnen, Reis, mit Käse überbacken',
+  'Große Weizentortilla, mariniertes Hähnchen, Bohnen, Reis, mit Käse überbacken',
+  'Überbacken',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":10.5}',
+  10.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'mex-enchiladas',
+  '172',
+  'mexikanisch',
+  'Enchiladas Verduras',
+  'Enchiladas Verduras',
+  'Ofenüberbackene vegetarische Enchiladas in fruchtig-würziger Tomatensauce.',
+  'Ofenüberbackene vegetarische Enchiladas in fruchtig-würziger Tomatensauce.',
+  '2 gefüllte Tortillas, buntes mexikanisches Gemüse, Salsa, Käse überbacken',
+  '2 gefüllte Tortillas, buntes mexikanisches Gemüse, Salsa, Käse überbacken',
+  'Vegetarisch',
+  ARRAY['vegetarisch'],
+  false,
+  false,
+  false,
+  '{"single":9.5}',
+  9.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'mex-nachos',
+  '173',
+  'mexikanisch',
+  'Nachos Grande überbacken',
+  'Nachos Grande überbacken',
+  'Heiß servierte Tortilla-Chips mit reichlich geschmolzenem Käse und Dips.',
+  'Heiß servierte Tortilla-Chips mit reichlich geschmolzenem Käse und Dips.',
+  'Knusprige Tortilla-Chips, Gouda & Cheddar, Jalapeños, Guacamole & Salsa',
+  'Knusprige Tortilla-Chips, Gouda & Cheddar, Jalapeños, Guacamole & Salsa',
+  'Snack',
+  ARRAY['vegetarisch'],
+  false,
+  false,
+  false,
+  '{"single":6.9}',
+  6.9,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'asia-gebratene-nudeln-haehnchen',
+  '180',
+  'chinesisch',
+  'Gebratene Nudeln mit Hähnchen',
+  'Gebratene Nudeln mit Hähnchen',
+  'Traditionell im Wok geschwenkte Nudeln mit feinem Knackgemüse und Hähnchen.',
+  'Traditionell im Wok geschwenkte Nudeln mit feinem Knackgemüse und Hähnchen.',
+  'Eiernudeln, zarte Hähnchenbrust, Sojasprossen, Gemüse, Sojasauce',
+  'Eiernudeln, zarte Hähnchenbrust, Sojasprossen, Gemüse, Sojasauce',
+  'Wok-Hit',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":9.5}',
+  9.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'asia-gebratener-reis-haehnchen',
+  '181',
+  'chinesisch',
+  'Gebratener Eierreis mit Hähnchen',
+  'Gebratener Eierreis mit Hähnchen',
+  'Klassischer gebratener Reis im Wok zubereitet mit saftigem Hähnchen.',
+  'Klassischer gebratener Reis im Wok zubereitet mit saftigem Hähnchen.',
+  'Duftreis, gebratenes Ei, Hähnchenfilet, Erbsen, Karotten, Röstzwiebeln',
+  'Duftreis, gebratenes Ei, Hähnchenfilet, Erbsen, Karotten, Röstzwiebeln',
+  'Klassiker',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":9.5}',
+  9.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'asia-chop-suey',
+  '182',
+  'chinesisch',
+  'Hähnchen Chop Suey',
+  'Hähnchen Chop Suey',
+  'Knackig frisches Pfannengemüse mit Hähnchen in aromatischer Sojasauce.',
+  'Knackig frisches Pfannengemüse mit Hähnchen in aromatischer Sojasauce.',
+  'Hähnchenbrust, Bambus, Paprika, Morcheln, dunkle Woksauce, Basmatireis',
+  'Hähnchenbrust, Bambus, Paprika, Morcheln, dunkle Woksauce, Basmatireis',
+  'Aus dem Wok',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":10.5}',
+  10.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'asia-ente-suess-sauer',
+  '183',
+  'chinesisch',
+  'Knusprige Ente Süß-Sauer',
+  'Knusprige Ente Süß-Sauer',
+  'Knusprig tranchierte Entenbrust serviert mit fruchtiger Süß-Sauer-Sauce und Reis.',
+  'Knusprig tranchierte Entenbrust serviert mit fruchtiger Süß-Sauer-Sauce und Reis.',
+  'Kross gebackene Ente, Ananas, Paprika, hausgemachte Süß-Sauer-Sauce, Basmatireis',
+  'Kross gebackene Ente, Ananas, Paprika, hausgemachte Süß-Sauer-Sauce, Basmatireis',
+  'Knusprig',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":13.5}',
+  13.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'beilage-pommes',
+  '190',
+  'beilagen',
+  'Große Portion Pommes Frites',
+  'Große Portion Pommes Frites',
+  'Extragroße Portion krosse Pommes Frites.',
+  'Extragroße Portion krosse Pommes Frites.',
+  'Knusprig goldgelbe Pommes mit Ketchup oder Mayonnaise',
+  'Knusprig goldgelbe Pommes mit Ketchup oder Mayonnaise',
+  'Knusprig',
+  ARRAY['vegetarisch'],
+  false,
+  false,
+  false,
+  '{"single":3.5}',
+  3.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'beilage-kroketten',
+  '191',
+  'beilagen',
+  'Portion Kroketten (8 Stk.)',
+  'Portion Kroketten (8 Stk.)',
+  'Feine Kartoffelkroketten außen knusprig, innen cremig.',
+  'Feine Kartoffelkroketten außen knusprig, innen cremig.',
+  '8 goldbraun panierte Kartoffelkroketten',
+  '8 goldbraun panierte Kartoffelkroketten',
+  '',
+  ARRAY['vegetarisch'],
+  false,
+  false,
+  false,
+  '{"single":3.5}',
+  3.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'beilage-knoblauchbrot',
+  '192',
+  'beilagen',
+  'Knoblauchbrot (4 Scheiben)',
+  'Knoblauchbrot (4 Scheiben)',
+  'Ofenfrisch geröstetes Brot mit aromatischer Kräuter-Knoblauchbutter.',
+  'Ofenfrisch geröstetes Brot mit aromatischer Kräuter-Knoblauchbutter.',
+  'Geröstetes Baguette, frische Knoblauch-Kräuterbutter',
+  'Geröstetes Baguette, frische Knoblauch-Kräuterbutter',
+  'Ofenfrisch',
+  ARRAY['vegetarisch'],
+  false,
+  false,
+  false,
+  '{"single":3}',
+  3,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'beilage-zaziki',
+  '193',
+  'beilagen',
+  'Hausgemachter Zaziki',
+  'Hausgemachter Zaziki',
+  'Cremiger, frischer Zaziki nach traditionellem Hausrezept.',
+  'Cremiger, frischer Zaziki nach traditionellem Hausrezept.',
+  'Griechischer Joghurt, Gurken, feiner Knoblauch, Olivenöl',
+  'Griechischer Joghurt, Gurken, feiner Knoblauch, Olivenöl',
+  'Hausgemacht',
+  ARRAY['vegetarisch'],
+  false,
+  false,
+  false,
+  '{"single":3.5}',
+  3.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'toast-hawaii',
+  '200',
+  'toasts',
+  'Toast Hawaii',
+  'Toast Hawaii',
+  'Der legendäre Klassiker: Toast belegt mit Schinken und Ananas, saftig mit Käse überbacken.',
+  'Der legendäre Klassiker: Toast belegt mit Schinken und Ananas, saftig mit Käse überbacken.',
+  'Toastbrot, Formfleisch-Schinken, Ananas, mit feinem Gouda überbacken',
+  'Toastbrot, Formfleisch-Schinken, Ananas, mit feinem Gouda überbacken',
+  'Klassiker',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":6.5}',
+  6.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'toast-american',
+  '201',
+  'toasts',
+  'Toast American',
+  'Toast American',
+  'Herzhafter Ofentoast reich belegt mit Salami, Schinken und geschmolzenem Käse.',
+  'Herzhafter Ofentoast reich belegt mit Salami, Schinken und geschmolzenem Käse.',
+  'Toastbrot, Salami, Schinken, Zwiebeln, würziger Käse überbacken',
+  'Toastbrot, Salami, Schinken, Zwiebeln, würziger Käse überbacken',
+  'Herzhaft',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":6.9}',
+  6.9,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'toast-schnitzel',
+  '202',
+  'toasts',
+  'Schnitzel-Toast Spezial',
+  'Schnitzel-Toast Spezial',
+  'Deftiger Toast belegt mit einem zarten Schnitzel und goldener Sauce Hollandaise.',
+  'Deftiger Toast belegt mit einem zarten Schnitzel und goldener Sauce Hollandaise.',
+  'Toastbrot, kleines paniertes Schweineschnitzel, Sauce Hollandaise, Käse überbacken',
+  'Toastbrot, kleines paniertes Schweineschnitzel, Sauce Hollandaise, Käse überbacken',
+  'Empfehlung',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":7.5}',
+  7.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'omelette-natur',
+  '210',
+  'omelette',
+  'Omelette Natur mit Käse überbacken',
+  'Omelette Natur mit Käse überbacken',
+  'Fluffiges Pfannenomelette aus frischen Eiern, im Ofen mit goldbraunem Käse überbacken.',
+  'Fluffiges Pfannenomelette aus frischen Eiern, im Ofen mit goldbraunem Käse überbacken.',
+  '3 frische Eier, Kräuter, mit feinem Gouda überbacken, dazu Pommes & Salat',
+  '3 frische Eier, Kräuter, mit feinem Gouda überbacken, dazu Pommes & Salat',
+  'Vegetarisch',
+  ARRAY['vegetarisch'],
+  false,
+  false,
+  false,
+  '{"single":7.5}',
+  7.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'omelette-schinken-pilze',
+  '211',
+  'omelette',
+  'Omelette Schinken & Champignons überbacken',
+  'Omelette Schinken & Champignons überbacken',
+  'Herzhaftes Omelette mit saftigem Schinken und Waldpilzen unter einer Käsekruste.',
+  'Herzhaftes Omelette mit saftigem Schinken und Waldpilzen unter einer Käsekruste.',
+  '3 Eier, Formfleisch-Schinken, frische Champignons, mit Käse überbacken, Pommes',
+  '3 Eier, Formfleisch-Schinken, frische Champignons, mit Käse überbacken, Pommes',
+  'Sehr beliebt',
+  '{}',
+  false,
+  false,
+  false,
+  '{"single":8.5}',
+  8.5,
+  true,
+  100,
+  20
+) ON CONFLICT (id) DO UPDATE SET
+  name_de = EXCLUDED.name_de,
+  category_id = EXCLUDED.category_id,
+  prices = EXCLUDED.prices,
+  price = EXCLUDED.price,
+  sizes_available = EXCLUDED.sizes_available,
+  calzone_sizes = EXCLUDED.calzone_sizes,
+  supports_american = EXCLUDED.supports_american;
+INSERT INTO menu_items (
+  id, number, category_id, name_de, name_en, desc_de, desc_en, toppings_de, toppings_en, badge,
+  dietary, sizes_available, calzone_sizes, supports_american, prices, price, is_in_stock, stock_quantity, preparation_time_minutes
+) VALUES (
+  'omelette-krabben',
+  '212',
+  'omelette',
+  'Omelette Krabben überbacken',
+  'Omelette Krabben überbacken',
+  'Mediterranes Eier-Omelette gefüllt mit zarten Meereskrabben und Käse überbacken.',
+  'Mediterranes Eier-Omelette gefüllt mit zarten Meereskrabben und Käse überbacken.',
+  '3 Eier, feine Krabben, Knoblauch, Zwiebeln, mit Käse überbacken, Pommes',
+  '3 Eier, feine Krabben, Knoblauch, Zwiebeln, mit Käse überbacken, Pommes',
+  'Spezialität',
+  ARRAY['pescetarisch'],
+  false,
+  false,
+  false,
+  '{"single":9.5}',
+  9.5,
   true,
   100,
   20

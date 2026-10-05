@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { getMenuItems, subscribeToMenuItems } from '../lib/supabaseClient';
-import { allMenuItems as localMenuItems, specialOffersData } from './menuData';
-import { images } from '../assets/images';
+import { getMenuItems, subscribeToMenuItems } from '../lib/supabaseClient.js';
+import { allMenuItems as localMenuItems, specialOffersData } from './menuData.js';
+import { images } from '../assets/images.js';
 
 export function getFallbackImage(cat, name = '', toppings = '') {
   const n = `${name} ${toppings}`.toLowerCase();
@@ -38,6 +38,14 @@ export function getItemCanonicalCategory(item) {
   const name = String(item.name_de || item.name || '').toLowerCase();
   const id = String(item.id || '').toLowerCase();
 
+  // Direct category matching if explicitly set on item
+  if (cat === 'pasta') return 'pasta';
+  if (cat === 'reisgerichte') return 'reisgerichte';
+  if (cat === 'salate' || cat === 'salad') return 'salate';
+  if (cat === 'beilagen') return 'beilagen';
+  if (cat === 'chinesisch') return 'chinesisch';
+  if (cat === 'indisch') return 'indisch';
+
   // 1. Pizzas & Calzones (only pizza/calzone)
   if (
     cat === 'pizzen' ||
@@ -53,7 +61,21 @@ export function getItemCanonicalCategory(item) {
     return 'pizzen';
   }
 
-  // 2. Pasta al Forno (Überbackene Nudelgerichte)
+  // 2. Pasta (Includes all 9 pasta dishes)
+  if (
+    cat === 'pasta' ||
+    (id.startsWith('pasta-') && cat !== 'pasta-al-forno') ||
+    name.startsWith('spaghetti') ||
+    name.startsWith('rigatoni') ||
+    name.startsWith('tortellini') ||
+    name.startsWith('tagliatelle') ||
+    name.startsWith('penne') ||
+    name.startsWith('maccheroni')
+  ) {
+    return 'pasta';
+  }
+
+  // 3. Pasta al Forno (Überbackene Nudelgerichte)
   if (
     cat === 'pasta-al-forno' ||
     cat === 'al-forno' ||
@@ -65,23 +87,9 @@ export function getItemCanonicalCategory(item) {
     return 'pasta-al-forno';
   }
 
-  // 3. Gnocchi
+  // 4. Gnocchi
   if (cat === 'gnocchi' || name.includes('gnocchi')) {
     return 'gnocchi';
-  }
-
-  // 4. Classic Pasta
-  if (
-    cat === 'pasta' ||
-    id.startsWith('pasta-') ||
-    name.startsWith('spaghetti') ||
-    name.startsWith('rigatoni') ||
-    name.startsWith('tortellini') ||
-    name.startsWith('tagliatelle') ||
-    name.startsWith('penne') ||
-    name.startsWith('maccheroni')
-  ) {
-    return 'pasta';
   }
 
   // 5. Reisgerichte
@@ -262,7 +270,15 @@ export function formatMenuItemFromDb(dbItem, localMap) {
   const isDeal = dbItem.id?.startsWith('A') || dbItem.id?.startsWith('offer-') || dbItem.category_id === 'deals' || local?.category === 'deals';
   const category = isDeal ? 'deals' : getItemCanonicalCategory({ ...local, ...dbItem });
 
-  const image = dbItem.image_url || local?.image || getFallbackImage(category === 'pizzen' ? 'pizza' : category, dbItem.name_de || dbItem.name, dbItem.toppings_de);
+  const hasCustomImage = !!(dbItem.image_url && typeof dbItem.image_url === 'string' && dbItem.image_url.trim() !== '');
+
+  let rawImage = dbItem.image_url || local?.image;
+  if (!dbItem.image_url && (isDeal || dbItem.id === 'A1' || dbItem.id === 'A2' || dbItem.id === 'A3')) {
+    if (dbItem.id === 'A1' || dbItem.number === 'A1') rawImage = images.offers.a1;
+    else if (dbItem.id === 'A2' || dbItem.number === 'A2') rawImage = images.offers.a2;
+    else if (dbItem.id === 'A3' || dbItem.number === 'A3') rawImage = images.offers.a3;
+  }
+  const image = hasCustomImage ? dbItem.image_url : (rawImage || (local?.image || getFallbackImage(category === 'pizzen' ? 'pizza' : category, dbItem.name_de || dbItem.name, dbItem.toppings_de)));
 
   // Use prices object from DB if it exists, otherwise fallback to local
   let prices = dbItem.prices || local?.prices || null;
@@ -309,6 +325,8 @@ export function formatMenuItemFromDb(dbItem, localMap) {
     prices,
     price: unitPrice,
     image,
+    image_url: dbItem.image_url || image,
+    has_custom_image: !!(dbItem.image_url && !dbItem.image_url.includes('Artboard_')),
     badge: (dbItem.badge !== undefined && dbItem.badge !== null) ? dbItem.badge : (local?.badge ?? ''),
     dietary: dbItem.dietary || local?.dietary || [],
     sizesAvailable,
@@ -323,14 +341,45 @@ export function formatMenuItemFromDb(dbItem, localMap) {
   };
 }
 
-// Global notification trigger for instant cross-component updates
-export function notifyMenuUpdated() {
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('venezia-menu-updated'));
+// Global BroadcastChannel for instant cross-tab updates without needing page refresh
+let menuBroadcastChannel = null;
+if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+  try {
+    menuBroadcastChannel = new BroadcastChannel('venezia-menu-sync');
+  } catch (err) {
+    // fallback to storage events
   }
 }
 
-// Initial combined fallback list
+// Global notification trigger for instant cross-component & cross-tab updates
+export function notifyMenuUpdated() {
+  if (typeof window !== 'undefined') {
+    // 1. Current window custom event
+    window.dispatchEvent(new CustomEvent('venezia-menu-updated'));
+
+    // 2. BroadcastChannel to all open browser tabs/windows
+    if (menuBroadcastChannel) {
+      try {
+        menuBroadcastChannel.postMessage({ type: 'menu-updated', timestamp: Date.now() });
+      } catch (err) {}
+    }
+
+    // 3. LocalStorage storage event as reliable cross-tab fallback
+    try {
+      localStorage.setItem('venezia_menu_sync_trigger', Date.now().toString());
+    } catch (err) {}
+  }
+}
+
+// Clear stale caches immediately
+if (typeof window !== 'undefined') {
+  try {
+    localStorage.removeItem('venezia_live_menu_cache');
+    localStorage.removeItem('venezia_live_menu_cache_v2');
+  } catch (e) {}
+}
+
+// Initial combined fallback list from static files (used only until Supabase responds)
 function getInitialLocalMenu() {
   const dealsFormatted = specialOffersData.map(d => ({
     id: d.id,
@@ -362,29 +411,81 @@ let activeFetchPromise = null;
 const subscribers = new Set();
 
 function notifySubscribers() {
-  subscribers.forEach(cb => cb({ menuItems: globalMenuItems, loading: globalLoading }));
+  const snapshot = { menuItems: [...globalMenuItems], loading: globalLoading };
+  subscribers.forEach(cb => {
+    try { cb(snapshot); } catch (err) {
+      console.error('[LiveMenu] Error in subscriber callback:', err);
+    }
+  });
 }
 
-async function fetchLiveMenuGlobal() {
-  if (activeFetchPromise) return activeFetchPromise;
-  activeFetchPromise = (async () => {
+export async function fetchLiveMenuGlobal(force = false) {
+  if (activeFetchPromise && !force) return activeFetchPromise;
+
+  const currentPromise = (async () => {
     try {
+      globalLoading = true;
+      console.log('[LiveMenu] Fetching menu from Supabase...');
       const data = await getMenuItems();
+      console.log('[LiveMenu] Supabase returned', data ? data.length : 0, 'items');
+
       if (data && data.length > 0) {
-        const fullLocalList = getInitialLocalMenu();
-        const localMap = new Map(fullLocalList.map(i => [i.id, i]));
-        const formatted = data.map(item => formatMenuItemFromDb(item, localMap));
-        globalMenuItems = formatted;
+        const dbPizza1 = data.find(i => i.id === 'pizza-1');
+        if (dbPizza1) {
+          console.log('[LiveMenu] DB pizza-1 image_url:', dbPizza1.image_url);
+        }
+
+        const localMap = new Map((localMenuItems || []).filter(i => i && i.id).map(i => [i.id, i]));
+        const formatted = [];
+        const errors = [];
+
+        for (const item of data) {
+          try {
+            formatted.push(formatMenuItemFromDb(item, localMap));
+          } catch (itemErr) {
+            console.error('[LiveMenu] Error formatting item', item.id, ':', itemErr);
+            errors.push({ id: item.id, error: itemErr.message });
+          }
+        }
+
+        if (errors.length > 0 && typeof window !== 'undefined') {
+          window.__liveMenuErrors = errors;
+        }
+
+        const fmtPizza1 = formatted.find(i => i.id === 'pizza-1');
+        if (fmtPizza1) {
+          console.log('[LiveMenu] Formatted pizza-1 image_url:', fmtPizza1.image_url);
+        }
+
+        if (formatted.length > 0) {
+          globalMenuItems = formatted;
+          console.log('[LiveMenu] globalMenuItems updated with', formatted.length, 'items');
+          notifySubscribers();
+          return formatted;
+        }
+      } else {
+        console.warn('[LiveMenu] Supabase returned empty/null data');
+        if (typeof window !== 'undefined') {
+          window.__liveMenuErrors = [{ id: 'FETCH', error: 'getMenuItems returned ' + (data === null ? 'null' : 'empty array') }];
+        }
       }
     } catch (err) {
-      console.warn('Could not fetch live menu from Supabase, using local fallback:', err);
+      console.error('[LiveMenu] FATAL: Could not fetch live menu from Supabase:', err);
+      if (typeof window !== 'undefined') {
+        window.__liveMenuErrors = [{ id: 'FATAL', error: err.message }];
+      }
     } finally {
       globalLoading = false;
-      activeFetchPromise = null;
+      if (activeFetchPromise === currentPromise) {
+        activeFetchPromise = null;
+      }
       notifySubscribers();
     }
+    return globalMenuItems;
   })();
-  return activeFetchPromise;
+
+  activeFetchPromise = currentPromise;
+  return currentPromise;
 }
 
 function initGlobalMenuListener() {
@@ -393,33 +494,71 @@ function initGlobalMenuListener() {
 
   fetchLiveMenuGlobal();
 
-  // Listen to in-window updates (e.g. from AdminPanel save)
+  // 1. Listen to in-window updates (e.g. from AdminPanel save)
   window.addEventListener('venezia-menu-updated', () => {
-    fetchLiveMenuGlobal();
+    fetchLiveMenuGlobal(true);
   });
 
-  // Subscribe once to menu_items table
+  // 2. Listen to cross-tab updates via BroadcastChannel
+  if (menuBroadcastChannel) {
+    menuBroadcastChannel.onmessage = (event) => {
+      if (event?.data?.type === 'menu-updated') {
+        fetchLiveMenuGlobal(true);
+      }
+    };
+  }
+
+  // 3. Listen to cross-tab updates via localStorage storage event
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'venezia_menu_sync_trigger') {
+      fetchLiveMenuGlobal(true);
+    }
+  });
+
+  // 4. Subscribe once to menu_items table
   subscribeToMenuItems(() => {
-    fetchLiveMenuGlobal();
+    fetchLiveMenuGlobal(true);
   });
 }
 
 export function useLiveMenu() {
   const [state, setState] = useState(() => {
     initGlobalMenuListener();
-    return { menuItems: globalMenuItems, loading: globalLoading };
+    return { menuItems: [...globalMenuItems], loading: globalLoading };
   });
 
   useEffect(() => {
     initGlobalMenuListener();
-    const handler = (newState) => setState(newState);
+
+    // If globalMenuItems already has fresh items, sync state immediately
+    if (globalMenuItems && globalMenuItems.length > 0) {
+      setState({ menuItems: [...globalMenuItems], loading: globalLoading });
+    }
+
+    const handler = (newState) => {
+      console.log('[LiveMenu] Subscriber notified, updating component state with', newState.menuItems.length, 'items');
+      setState({ menuItems: [...newState.menuItems], loading: newState.loading });
+    };
     subscribers.add(handler);
+
+    // Direct fetch guarantee: always fetch fresh from DB and update this hook's state directly
+    fetchLiveMenuGlobal(true).then((items) => {
+      if (items && items.length > 0) {
+        console.log('[LiveMenu] Direct fetch resolved in hook, updating state with', items.length, 'items');
+        setState({ menuItems: [...items], loading: false });
+      }
+    });
+
     return () => {
       subscribers.delete(handler);
     };
   }, []);
 
-  return { menuItems: state.menuItems, loading: state.loading, refreshMenu: fetchLiveMenuGlobal };
+  return {
+    menuItems: state.menuItems,
+    loading: state.loading,
+    refreshMenu: () => fetchLiveMenuGlobal(true)
+  };
 }
 
 

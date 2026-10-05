@@ -59,7 +59,7 @@ export default function CartDrawer({ isOpen, onClose, cartItems, onUpdateQty, on
           <div className="cart-items-list">
             {cartItems.map((item) => (
               <div className="cart-item" key={item.id}>
-                <img src={item.image} alt={item.name} className="cart-item-img" />
+                <img src={item.image_url || item.image} alt={item.name} className="cart-item-img" onError={(e) => { e.currentTarget.src = '/images/pizza1.png'; }} />
                 <div className="cart-item-info">
                   <div className="cart-item-title">{item.name}</div>
                   {item.desc && <div className="cart-item-desc">{item.desc}</div>}
@@ -117,7 +117,7 @@ export default function CartDrawer({ isOpen, onClose, cartItems, onUpdateQty, on
               }}>
                 <AlertCircle size={15} color="#d97706" style={{ flexShrink: 0 }} />
                 <span>
-                  Mindestbestellwert für Lieferung: <strong>15,00 €</strong> (noch {(MIN_ORDER_DELIVERY - subtotal).toFixed(2).replace('.', ',')} € • Abholung ohne Mindestwert möglich)
+                  Mindestbestellwert für Lieferung: <strong>12,00 €</strong> (noch {(MIN_ORDER_DELIVERY - subtotal).toFixed(2).replace('.', ',')} € • Abholung ohne Mindestwert möglich)
                 </span>
               </div>
             )}
@@ -128,7 +128,7 @@ export default function CartDrawer({ isOpen, onClose, cartItems, onUpdateQty, on
             </div>
 
             <div style={{ fontSize: '11px', color: '#64748b', margin: '4px 0 10px 0' }}>
-              * Genaue Liefergebühr wird an der Kasse nach Ihrer Postleitzahl berechnet.
+              * Kostenlose Lieferung! Mindestbestellwert nach PLZ (ab 12,00 €). Bei geringerem Warenwert gleicht ein Mindermengenzuschlag auf den Mindestwert aus.
             </div>
 
             <div className="cart-total-row">

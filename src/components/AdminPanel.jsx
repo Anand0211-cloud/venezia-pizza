@@ -71,7 +71,8 @@ import {
   signOutAdminUser,
   getStoreSettings,
   updateStoreStatus,
-  subscribeToStoreSettings
+  subscribeToStoreSettings,
+  uploadDishImage
 } from '../lib/supabaseClient';
 import AdminLogin from './AdminLogin';
 import {
@@ -163,9 +164,9 @@ const PRESET_IMAGES = [
   { label: 'Wiener Schnitzel', category: 'schnitzel', url: '/images/cat_schnitzel.jpg' },
   { label: 'Frischer Gartensalat', category: 'salad', url: '/images/cat_salad.jpg' },
   { label: 'Hausgemachtes Tiramisu', category: 'dessert-drinks', url: '/images/tiramisu_dessert.jpg' },
-  { label: 'Spar-Menü A1', category: 'deals', url: '/images/offer_a1.jpg' },
-  { label: 'Spar-Menü A2', category: 'deals', url: '/images/offer_a2.jpg' },
-  { label: 'Spar-Menü A3', category: 'deals', url: '/images/offer_a3.jpg' }
+  { label: 'Spar-Menü A1', category: 'deals', url: '/images/Offer1.png' },
+  { label: 'Spar-Menü A2', category: 'deals', url: '/images/Offer2.png' },
+  { label: 'Spar-Menü A3', category: 'deals', url: '/images/offer3.png' }
 ];
 
 // Bilingual Size Names
@@ -1236,7 +1237,7 @@ export default function AdminPanel({ onBackToStore }) {
     name: '',
     desc: '',
     toppings: '',
-    image_url: '/images/pizza1.png',
+    image_url: '',
     price: 9.00,
     has_sizes: true,
     sizes_config: { ...DEFAULT_SIZES_CONFIG },
@@ -1250,6 +1251,7 @@ export default function AdminPanel({ onBackToStore }) {
     is_in_stock: true
   });
 
+  const [isUploadingDishImage, setIsUploadingDishImage] = useState(false);
   const [previewSizeKey, setPreviewSizeKey] = useState('small');
   const [presetFilterCategory, setPresetFilterCategory] = useState('all');
   const [toppingsFilterQuery, setToppingsFilterQuery] = useState('');
@@ -1362,7 +1364,7 @@ export default function AdminPanel({ onBackToStore }) {
       street: order.street || '',
       zip_city: order.zip_city || '',
       note: order.note || '',
-      delivery_fee: order.delivery_fee !== undefined ? order.delivery_fee : (getDeliveryZone(order.zip_city)?.fee || 15.00),
+      delivery_fee: order.delivery_fee !== undefined ? order.delivery_fee : (getDeliveryZone(order.zip_city)?.fee || 0.00),
       order_items: items
     });
     setAddDishToOrderSelect('');
@@ -1480,7 +1482,7 @@ export default function AdminPanel({ onBackToStore }) {
     }, 0);
 
     const deliveryFee = editOrderForm.delivery_type === 'delivery'
-      ? (Number(editOrderForm.delivery_fee) !== undefined && !isNaN(Number(editOrderForm.delivery_fee)) ? Number(editOrderForm.delivery_fee) : 15.00)
+      ? (Number(editOrderForm.delivery_fee) !== undefined && !isNaN(Number(editOrderForm.delivery_fee)) ? Number(editOrderForm.delivery_fee) : 0.00)
       : 0;
 
     const total = Number((subtotal + deliveryFee).toFixed(2));
@@ -1661,9 +1663,9 @@ export default function AdminPanel({ onBackToStore }) {
     if (item.image_url) return item.image_url;
     if (item.image) return item.image;
     if (item.category_id === 'deals' || item.category === 'deals' || item.id?.startsWith('A')) {
-      if (item.id === 'A1') return '/images/offer_a1.jpg';
-      if (item.id === 'A2') return '/images/offer_a2.jpg';
-      return '/images/offer_a3.jpg';
+      if (item.id === 'A1') return '/images/Offer1.png';
+      if (item.id === 'A2') return '/images/Offer2.png';
+      return '/images/offer3.png';
     }
     if (item.category_id === 'pasta') return '/images/pasta_special.jpg';
     if (item.category_id === 'calzone') return '/images/cat_calzone.jpg';
@@ -2034,22 +2036,113 @@ export default function AdminPanel({ onBackToStore }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Handle Image File Upload (convert to base64 Data URL)
-  const handleImageFileUpload = (e) => {
+  // Handle Image File Upload (Uploads directly to Supabase backend database & syncs live)
+  const handleImageFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setDishForm(prev => ({ ...prev, image_url: event.target.result }));
-      showToast(lang === 'de' ? 'Bild erfolgreich geladen!' : 'Image loaded successfully!');
-    };
-    reader.readAsDataURL(file);
+
+    setIsUploadingDishImage(true);
+    showToast(lang === 'de' ? 'Bild wird in Supabase hochgeladen...' : 'Uploading image to Supabase...', 'info');
+
+    try {
+      // 1. Determine accurate dish ID even if editingItem is null or user entered by number/name
+      let dishIdentifier = editingItem?.id || dishForm.id;
+      if (!dishIdentifier || dishIdentifier === 'dish' || dishIdentifier.startsWith('new-')) {
+        const num = String(dishForm.number || '').trim();
+        const cat = String(dishForm.category_id || '').toLowerCase();
+        if (num) {
+          const match = menuItems.find(m => String(m.number).trim() === num && (cat ? String(m.category_id || m.category).toLowerCase().includes(cat) : true));
+          if (match) {
+            dishIdentifier = match.id;
+          } else if (num === '1') {
+            dishIdentifier = 'pizza-1';
+          } else if (cat.includes('pizza') || cat === 'pizzen') {
+            dishIdentifier = `pizza-${num}`;
+          } else if (cat === 'deals') {
+            dishIdentifier = num.startsWith('A') ? num : `A${num}`;
+          }
+        }
+        if (!dishIdentifier && dishForm.name) {
+          const nameMatch = menuItems.find(m => (m.name_de || m.name || '').toLowerCase() === dishForm.name.toLowerCase());
+          if (nameMatch) dishIdentifier = nameMatch.id;
+        }
+      }
+
+      const res = await uploadDishImage(file, dishIdentifier || 'dish');
+
+      if (res && res.success && res.url) {
+        setDishForm(prev => ({ ...prev, image_url: res.url, id: dishIdentifier || prev.id }));
+
+        // Directly persist to Supabase if we have a concrete dish ID
+        if (isConnected && dishIdentifier && dishIdentifier !== 'dish' && !dishIdentifier.startsWith('new-')) {
+          try {
+            await supabase
+              .from('menu_items')
+              .update({
+                image_url: res.url,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', dishIdentifier);
+            console.log(`[AdminPanel] Explicitly saved image for ${dishIdentifier} to Supabase!`);
+          } catch (upErr) {
+            console.warn('[AdminPanel] Immediate save error:', upErr);
+          }
+        }
+
+        // Immediately reflect in AdminPanel menuItems list
+        if (dishIdentifier && dishIdentifier !== 'dish') {
+          setMenuItems(prev => prev.map(item => (item.id === dishIdentifier ? { ...item, image_url: res.url, image: res.url, has_custom_image: true } : item)));
+          if (editingItem) {
+            setEditingItem(prev => ({ ...prev, image_url: res.url, image: res.url, has_custom_image: true }));
+          }
+        }
+
+        // Trigger instant global sync across customer frontend
+        notifyMenuUpdated();
+
+        showToast(
+          lang === 'de'
+            ? 'Bild erfolgreich im Supabase-Backend gespeichert!'
+            : 'Image successfully saved to Supabase Backend!',
+          'success'
+        );
+      } else {
+        showToast(res?.error || 'Fehler beim Hochladen', 'error');
+      }
+    } catch (err) {
+      console.error('Image upload failed:', err);
+      showToast('Upload-Fehler: ' + (err?.message || 'Unbekannt'), 'error');
+    } finally {
+      setIsUploadingDishImage(false);
+      try {
+        e.target.value = '';
+      } catch (err) {}
+    }
   };
 
   // Save Dish (Add or Edit)
   const handleSaveDish = async (e) => {
     e.preventDefault();
-    const id = editingItem ? editingItem.id : (dishForm.id || `dish-${Date.now()}`);
+    // Resolve dish ID robustly so existing dishes (like Nr. 1 Margherita) are always updated
+    let id = editingItem ? editingItem.id : dishForm.id;
+    if (!id || id === 'dish' || id.startsWith('new-')) {
+      const num = String(dishForm.number || '').trim();
+      const cat = String(dishForm.category_id || '').toLowerCase();
+      if (num) {
+        const match = menuItems.find(m => String(m.number).trim() === num && (cat ? String(m.category_id || m.category).toLowerCase().includes(cat) : true));
+        if (match) id = match.id;
+        else if (num === '1') id = 'pizza-1';
+        else if (cat.includes('pizza') || cat === 'pizzen') id = `pizza-${num}`;
+        else if (cat === 'deals') id = num.startsWith('A') ? num : `A${num}`;
+      }
+      if (!id && dishForm.name) {
+        const nameMatch = menuItems.find(m => (m.name_de || m.name || '').toLowerCase() === dishForm.name.toLowerCase());
+        if (nameMatch) id = nameMatch.id;
+      }
+    }
+    if (!id) {
+      id = `dish-${Date.now()}`;
+    }
     const numPrice = parseFloat(dishForm.price) || 9.00;
 
     let prices = {};
@@ -2153,6 +2246,9 @@ export default function AdminPanel({ onBackToStore }) {
     const displayCategory = dishForm.category_id;
     const formattedItem = {
       ...payload,
+      image: dishForm.image_url,
+      image_url: dishForm.image_url,
+      has_custom_image: true,
       category: displayCategory,
       category_id: displayCategory,
       frontend_category: displayCategory,
@@ -2168,6 +2264,24 @@ export default function AdminPanel({ onBackToStore }) {
       }
       return [formattedItem, ...prev];
     });
+
+    try {
+      const savedOverrides = JSON.parse(localStorage.getItem('venezia_admin_dishes_override') || '{}');
+      savedOverrides[id] = {
+        image: dishForm.image_url,
+        image_url: dishForm.image_url,
+        name: dishForm.name,
+        name_de: dishForm.name,
+        toppings: dishForm.toppings,
+        toppings_de: dishForm.toppings,
+        desc: dishForm.desc,
+        desc_de: dishForm.desc,
+        price: finalBasePrice,
+        prices: prices,
+        badge: dishForm.badge
+      };
+      localStorage.setItem('venezia_admin_dishes_override', JSON.stringify(savedOverrides));
+    } catch (e) {}
 
     notifyMenuUpdated();
     // Stay on edit screen - do NOT redirect to menu
@@ -5210,7 +5324,7 @@ export default function AdminPanel({ onBackToStore }) {
                           {/* Financial Totals Live Recalculation */}
                           {(() => {
                             const subtotal = (editOrderForm.order_items || []).reduce((sum, it) => sum + ((Number(it.unit_price) || 0) * (Number(it.quantity) || 1)), 0);
-                            const deliveryFee = editOrderForm.delivery_type === 'delivery' ? (Number(editOrderForm.delivery_fee) || 15.00) : 0;
+                            const deliveryFee = editOrderForm.delivery_type === 'delivery' ? (Number(editOrderForm.delivery_fee) || 0.00) : 0;
                             const total = subtotal + deliveryFee;
                             return (
                               <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px dashed #334155', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
@@ -7141,13 +7255,24 @@ export default function AdminPanel({ onBackToStore }) {
                         background: isLight ? '#ffffff' : '#131b2e',
                         border: '2px solid #e11d48',
                         position: 'relative',
-                        flexShrink: 0
+                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
                       }}>
-                        <img
-                          src={dishForm.image_url || '/images/pizza1.png'}
-                          alt="Current"
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
+                        {isUploadingDishImage ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                            <RefreshCw size={24} color="#e11d48" style={{ animation: 'spin 1s linear infinite' }} />
+                            <span style={{ fontSize: '9px', fontWeight: '800', color: isLight ? '#64748b' : '#94a3b8' }}>Upload...</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={dishForm.image_url || '/images/pizza1.png'}
+                            alt="Current"
+                            onError={(e) => { e.target.src = '/images/pizza1.png'; }}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        )}
                         <span style={{ position: 'absolute', bottom: '3px', right: '3px', background: 'rgba(0,0,0,0.7)', color: '#ffffff', fontSize: '9px', fontWeight: '800', padding: '1px 5px', borderRadius: '4px' }}>
                           LIVE
                         </span>
@@ -7158,46 +7283,103 @@ export default function AdminPanel({ onBackToStore }) {
                           <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: isLight ? '#475569' : '#94a3b8', marginBottom: '4px' }}>
                             {t.form.enterImageUrl}
                           </label>
-                          <input
-                            type="text"
-                            placeholder="/images/pizza1.png oder https://..."
-                            value={dishForm.image_url}
-                            onChange={(e) => setDishForm({ ...dishForm, image_url: e.target.value })}
-                            style={{
-                              width: '100%',
-                              background: isLight ? '#ffffff' : '#131b2e',
-                              border: isLight ? '1px solid #cbd5e1' : '1px solid #334155',
+                          {dishForm.image_url?.startsWith('data:image') ? (
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              background: isLight ? '#f0fdf4' : 'rgba(16, 185, 129, 0.12)',
+                              border: '1.5px solid #10b981',
                               borderRadius: '8px',
-                              padding: '9px 12px',
-                              color: isLight ? '#0f172a' : '#ffffff',
-                              fontSize: '13px'
-                            }}
-                          />
+                              padding: '8px 12px',
+                              fontSize: '12.5px',
+                              color: isLight ? '#166534' : '#6ee7b7'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                                <CheckCircle2 size={16} color="#10b981" style={{ flexShrink: 0 }} />
+                                <span style={{ fontWeight: '700' }}>
+                                  {lang === 'de' ? 'Supabase Cloud-Bild gespeichert' : 'Supabase Cloud Image Saved'}
+                                </span>
+                                <span style={{ fontSize: '11px', opacity: 0.8, whiteSpace: 'nowrap' }}>
+                                  ({Math.max(1, Math.round((dishForm.image_url.length * 3 / 4) / 1024))} KB)
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setDishForm({ ...dishForm, image_url: '' })}
+                                style={{
+                                  background: isLight ? '#fee2e2' : 'rgba(239, 68, 68, 0.2)',
+                                  border: '1px solid #ef4444',
+                                  borderRadius: '6px',
+                                  color: '#ef4444',
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  cursor: 'pointer',
+                                  padding: '3px 8px'
+                                }}
+                              >
+                                {lang === 'de' ? 'Entfernen' : 'Remove'}
+                              </button>
+                            </div>
+                          ) : (
+                            <input
+                              type="text"
+                              placeholder="/images/pizza1.png oder https://..."
+                              value={dishForm.image_url || ''}
+                              onChange={(e) => setDishForm({ ...dishForm, image_url: e.target.value })}
+                              style={{
+                                width: '100%',
+                                background: isLight ? '#ffffff' : '#131b2e',
+                                border: isLight ? '1px solid #cbd5e1' : '1px solid #334155',
+                                borderRadius: '8px',
+                                padding: '9px 12px',
+                                color: isLight ? '#0f172a' : '#ffffff',
+                                fontSize: '13px'
+                              }}
+                            />
+                          )}
                         </div>
 
-                        <label style={{
-                          background: isLight ? '#ffffff' : '#1e293b',
-                          color: isLight ? '#0f172a' : '#f8fafc',
-                          border: isLight ? '1px dashed #cbd5e1' : '1px dashed #475569',
-                          borderRadius: '8px',
-                          padding: '8px 14px',
-                          fontSize: '12px',
-                          fontWeight: '700',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          width: 'fit-content'
-                        }}>
-                          <Upload size={14} />
-                          <span>{t.form.uploadFromComputer}</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            style={{ display: 'none' }}
-                            onChange={handleImageFileUpload}
-                          />
-                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          <label style={{
+                            background: isUploadingDishImage ? (isLight ? '#f1f5f9' : '#1e293b') : (isLight ? '#ffffff' : '#1e293b'),
+                            color: isUploadingDishImage ? '#94a3b8' : (isLight ? '#0f172a' : '#f8fafc'),
+                            border: isLight ? '1px dashed #cbd5e1' : '1px dashed #475569',
+                            borderRadius: '8px',
+                            padding: '8px 14px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: isUploadingDishImage ? 'not-allowed' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            width: 'fit-content',
+                            opacity: isUploadingDishImage ? 0.75 : 1
+                          }}>
+                            {isUploadingDishImage ? (
+                              <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                            ) : (
+                              <Upload size={14} />
+                            )}
+                            <span>
+                              {isUploadingDishImage
+                                ? (lang === 'de' ? 'Wird in Supabase hochgeladen...' : 'Uploading to Supabase...')
+                                : t.form.uploadFromComputer}
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              disabled={isUploadingDishImage}
+                              style={{ display: 'none' }}
+                              onChange={handleImageFileUpload}
+                            />
+                          </label>
+
+                          <span style={{ fontSize: '11px', color: isLight ? '#64748b' : '#94a3b8', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
+                            {lang === 'de' ? 'Automatisch mit Supabase Backend synchronisiert' : 'Auto-synced with Supabase Backend'}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
