@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
       host: true,
       allowedHosts: 'all',
       watch: {
-        ignored: ['**/printer/**', '**/scratch/**', '**/*.exe']
+        ignored: ['**/printer/**', '**/scratch/**', '**/*.exe', '**/sunmi-pos/**', '**/*.apk', '**/public/sunmi/**', '**/*.zip']
       }
     },
   };
