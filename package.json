@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "print-agent": "node printer/print_agent.js",
+    "print-test": "node printer/print_agent.js --test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.1",
