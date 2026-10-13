@@ -1,12 +1,53 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { categoriesData } from '../data/menuData';
+import { getStoredCategories, fetchCategoriesFromSupabase, subscribeToCategories } from '../lib/categoryManager';
+import { images } from '../assets/images';
 
 export default function Categories({ selectedCategory, onSelectCategory }) {
   const scrollRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
+
+  const [categories, setCategories] = useState(() => {
+    const stored = getStoredCategories();
+    return stored.map((c) => {
+      const match = categoriesData.find((cd) => cd.id === c.id);
+      return {
+        id: c.id,
+        name: c.name || c.name_de,
+        sub: c.sub || match?.sub || '',
+        count: c.count || c.count_badge || match?.count || 'Spezialitäten',
+        image: c.image || match?.image || images.heroPizza
+      };
+    });
+  });
+
+  useEffect(() => {
+    let mounted = true;
+    const update = (freshList) => {
+      if (!mounted || !Array.isArray(freshList)) return;
+      const mapped = freshList.map((c) => {
+        const match = categoriesData.find((cd) => cd.id === c.id);
+        return {
+          id: c.id,
+          name: c.name || c.name_de,
+          sub: c.sub || match?.sub || '',
+          count: c.count || c.count_badge || match?.count || 'Spezialitäten',
+          image: c.image || match?.image || images.heroPizza
+        };
+      });
+      setCategories(mapped);
+    };
+
+    fetchCategoriesFromSupabase().then(update);
+    const unsub = subscribeToCategories(update);
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
 
   const checkScrollability = () => {
     if (scrollRef.current) {
@@ -58,7 +99,7 @@ export default function Categories({ selectedCategory, onSelectCategory }) {
           {/* Slider Controls & Page Dots */}
           <div className="slider-nav-arrows">
             <div className="slider-dots">
-              {Array.from({ length: Math.max(1, Math.ceil(categoriesData.length / 5)) }).map((_, idx) => (
+              {Array.from({ length: Math.max(1, Math.ceil(categories.length / 5)) }).map((_, idx) => (
                 <button
                   key={idx}
                   className={`slider-dot ${currentPage === idx ? 'active' : ''}`}
@@ -95,7 +136,7 @@ export default function Categories({ selectedCategory, onSelectCategory }) {
           ref={scrollRef}
           onScroll={checkScrollability}
         >
-          {categoriesData.map((cat) => {
+          {categories.map((cat) => {
             const isActive = selectedCategory === cat.id;
             return (
               <button

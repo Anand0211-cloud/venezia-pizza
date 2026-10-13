@@ -53,6 +53,7 @@ import {
 } from '../lib/categoryStorageService';
 import CustomizeItemModal from './CustomizeItemModal';
 import { supabase, isSupabaseConfigured, getMenuItems, subscribeToMenuItems } from '../lib/supabaseClient.js';
+import { getStoredCategories, fetchCategoriesFromSupabase, subscribeToCategories } from '../lib/categoryManager.js';
 
 function DishCardMedia({ item, isInStock = true, cleanBadge = '', onOpenModal = null }) {
   const images = (Array.isArray(item.images) && item.images.length > 0)
@@ -381,31 +382,26 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
     }
   }, [selectedInitialCategory]);
 
-  // Updated menu categories (matched 100% with Admin Panel)
-  const cleanCategories = [
-    { id: 'pizzen', name: 'Pizzen', title: 'Original Steinofen-Pizzen (1–49a)' },
-    { id: 'deals', name: 'Spar-Menüs & Deals', title: 'Spar-Menüs & Spezial-Angebote' },
-    { id: 'pasta', name: 'Pasta', title: 'Klassische Pasta Spezialitäten' },
-    { id: 'gnocchi', name: 'Gnocchi', title: 'Gnocchi Spezialitäten' },
-    { id: 'pasta-al-forno', name: 'Pasta al Forno', title: 'Pasta al Forno (Überbackene Nudelgerichte)' },
-    { id: 'vegetarisch', name: 'Vegetarisch', sub: 'überbacken', title: 'Vegetarisch überbackene Spezialitäten' },
-    { id: 'auflaeufe', name: 'Aufläufe', title: 'Feine Aufläufe aus dem Ofen' },
-    { id: 'reisgerichte', name: 'Reisgerichte', sub: 'im Ofen überbacken', title: 'Reisgerichte im Ofen überbacken' },
-    { id: 'fleischgerichte', name: 'Fleischgerichte', title: 'Herzhafte Fleischgerichte & Schnitzel' },
-    { id: 'gyros', name: 'Gyros', title: 'Gyros & Döner Spezialitäten' },
-    { id: 'salate', name: 'Salate', title: 'Frische knackige Salate' },
-    { id: 'grill-menue', name: 'Grill Menü', title: 'Köstliche Grill-Menüs vom Rost' },
-    { id: 'american-food', name: 'American Food', title: 'American Food & Burger Spezialitäten' },
-    { id: 'indisch', name: 'Indische', sub: 'Hauptgerichte', title: 'Indische Hauptgerichte & Currys' },
-    { id: 'lamm', name: 'Lamm', sub: 'Spezialitäten', title: 'Zarte Lamm Spezialitäten' },
-    { id: 'steaks', name: 'Steaks', title: 'Saftige Steaks vom Grill' },
-    { id: 'mexikanisch', name: 'Mexikanische', sub: 'Gerichte', title: 'Mexikanische Spezialitäten' },
-    { id: 'chinesisch', name: 'Chinesische', sub: 'Gerichte', title: 'Chinesische Spezialitäten aus dem Wok' },
-    { id: 'beilagen', name: 'Extra Beilagen', title: 'Extra Beilagen & Saucen' },
-    { id: 'toasts', name: 'Toasts', title: 'Knusprige Toast Spezialitäten' },
-    { id: 'omelette', name: 'Omelette', sub: 'mit Käse überbacken', title: 'Omelette mit Käse überbacken' },
-    { id: 'getraenke', name: 'Getränke', title: 'Erfrischende Getränke' }
-  ];
+  // Dynamic menu categories (synced 100% with Admin Panel & Supabase)
+  const [cleanCategories, setCleanCategories] = useState(getStoredCategories);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchCategoriesFromSupabase().then((cats) => {
+      if (mounted && Array.isArray(cats) && cats.length > 0) {
+        setCleanCategories(cats);
+      }
+    });
+    const unsub = subscribeToCategories((cats) => {
+      if (mounted && Array.isArray(cats) && cats.length > 0) {
+        setCleanCategories(cats);
+      }
+    });
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
 
   // Filter items strictly matching backend / admin categorization (no accidental cross-category duplicates)
   const filteredItems = useMemo(() => {

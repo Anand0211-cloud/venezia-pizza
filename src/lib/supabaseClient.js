@@ -32,6 +32,7 @@ export async function getMenuItems() {
   const { data, error } = await supabase
     .from('menu_items')
     .select('*')
+    .neq('id', '__system_categories__')
     .order('category_id', { ascending: true })
     .order('number', { ascending: true });
   if (error) {

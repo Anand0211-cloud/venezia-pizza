@@ -49,8 +49,16 @@ import {
   LogOut,
   Mail,
   Star,
-  Camera
+  Camera,
+  FolderPlus
 } from 'lucide-react';
+import {
+  getStoredCategories,
+  fetchCategoriesFromSupabase,
+  addCustomCategory,
+  deleteCategory,
+  subscribeToCategories
+} from '../lib/categoryManager';
 import {
   isSupabaseConfigured,
   getOrders,
@@ -1236,6 +1244,48 @@ export default function AdminPanel({ onBackToStore }) {
     party: { enabled: true, price: '22.50', name: 'Party', dim: '40 × 60 cm' }
   };
 
+  // Dynamic categories state synced with Supabase & categoryManager
+  const [categoriesList, setCategoriesList] = useState(getStoredCategories);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatSub, setNewCatSub] = useState('');
+  const [newCatTitle, setNewCatTitle] = useState('');
+  const [newCatIcon, setNewCatIcon] = useState('🍽️');
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchCategoriesFromSupabase().then((cats) => {
+      if (mounted && Array.isArray(cats) && cats.length > 0) {
+        setCategoriesList(cats);
+      }
+    });
+    const unsub = subscribeToCategories((cats) => {
+      if (mounted && Array.isArray(cats) && cats.length > 0) {
+        setCategoriesList(cats);
+      }
+    });
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
+
+  const activeFrontendCategories = React.useMemo(() => {
+    return [
+      { id: 'all', name_de: 'Alle Gerichte', name_en: 'All Dishes', icon: '📋' },
+      ...categoriesList.map(c => ({
+        id: c.id,
+        name_de: c.name_de || c.name,
+        name_en: c.name_en || c.name_de || c.name,
+        icon: c.icon || CATEGORY_EMOJIS[c.id] || '🍽️',
+        sub: c.sub || '',
+        title: c.title || `${c.name_de || c.name} Spezialitäten`,
+        is_custom: !!c.is_custom
+      }))
+    ];
+  }, [categoriesList]);
+
   // Form states for Add / Edit dish
   const [editingItem, setEditingItem] = useState(null);
   const [dishForm, setDishForm] = useState({
@@ -2390,6 +2440,62 @@ export default function AdminPanel({ onBackToStore }) {
     }
     notifyMenuUpdated();
     showToast(lang === 'de' ? 'Gericht gelöscht' : 'Dish deleted', 'error');
+  };
+
+  // Add / Create Category
+  const handleCreateCategory = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!newCatName.trim()) {
+      showToast(lang === 'de' ? 'Bitte geben Sie einen Kategorienamen ein' : 'Please enter a category name', 'error');
+      return;
+    }
+    setIsSavingCategory(true);
+    try {
+      const created = await addCustomCategory({
+        name: newCatName.trim(),
+        sub: newCatSub.trim(),
+        title: newCatTitle.trim() || `${newCatName.trim()} Spezialitäten`,
+        icon: newCatIcon || '🍽️'
+      });
+      const fresh = await fetchCategoriesFromSupabase();
+      setCategoriesList(fresh);
+      setNewCatName('');
+      setNewCatSub('');
+      setNewCatTitle('');
+      setNewCatIcon('🍽️');
+      showToast(lang === 'de' ? `Kategorie „${created.name}“ erfolgreich erstellt!` : `Category "${created.name}" created successfully!`, 'success');
+    } catch (err) {
+      console.error('Error creating category:', err);
+      showToast(lang === 'de' ? 'Fehler beim Erstellen der Kategorie' : 'Error creating category', 'error');
+    } finally {
+      setIsSavingCategory(false);
+    }
+  };
+
+  // Delete Category
+  const handleDeleteCategory = async (catId) => {
+    const catObj = categoriesList.find(c => c.id === catId);
+    const catName = catObj ? (catObj.name_de || catObj.name) : catId;
+    const dishCount = getCatCount(catId);
+
+    const confirmMsg = lang === 'de'
+      ? `Möchten Sie die Kategorie „${catName}“ wirklich löschen? (${dishCount} Gerichte zugeordnet)`
+      : `Are you sure you want to delete category "${catName}"? (${dishCount} dishes assigned)`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      await deleteCategory(catId);
+      const fresh = await fetchCategoriesFromSupabase();
+      setCategoriesList(fresh);
+      if (selectedCategoryTab === catId) {
+        setSelectedCategoryTab('all');
+      }
+      showToast(lang === 'de' ? `Kategorie „${catName}“ gelöscht!` : `Category "${catName}" deleted!`, 'error');
+    } catch (err) {
+      console.error('Error deleting category:', err);
+      showToast(lang === 'de' ? 'Fehler beim Löschen' : 'Delete failed', 'error');
+    }
   };
 
   // Add Driver
@@ -5898,29 +6004,53 @@ export default function AdminPanel({ onBackToStore }) {
                 <p style={{ fontSize: '13px', color: isLight ? '#475569' : '#94a3b8', margin: '4px 0 0' }}>{t.menu.subtitle}</p>
               </div>
 
-              <button
-                onClick={() => {
-                  resetDishForm();
-                  setActiveTab('addItem');
-                }}
-                style={{
-                  background: '#e11d48',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '10px 18px',
-                  fontWeight: '700',
-                  fontSize: '13.5px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(225, 29, 72, 0.4)'
-                }}
-              >
-                <Plus size={16} />
-                {t.menu.addNewItem}
-              </button>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsCategoryModalOpen(true)}
+                  style={{
+                    background: isLight ? '#f1f5f9' : '#1e293b',
+                    color: isLight ? '#0f172a' : '#f8fafc',
+                    border: isLight ? '1px solid #cbd5e1' : '1px solid #334155',
+                    borderRadius: '8px',
+                    padding: '10px 16px',
+                    fontWeight: '700',
+                    fontSize: '13.5px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <FolderPlus size={16} color="#e11d48" />
+                  {lang === 'de' ? 'Kategorien verwalten / neu' : 'Manage / Add Categories'}
+                </button>
+
+                <button
+                  onClick={() => {
+                    resetDishForm();
+                    setActiveTab('addItem');
+                  }}
+                  style={{
+                    background: '#e11d48',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '10px 18px',
+                    fontWeight: '700',
+                    fontSize: '13.5px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(225, 29, 72, 0.4)'
+                  }}
+                >
+                  <Plus size={16} />
+                  {t.menu.addNewItem}
+                </button>
+              </div>
             </div>
 
             {/* Category Navigation Bar (Horizontal Scroll with Arrow Nav & Clean Badges) */}
@@ -5998,10 +6128,10 @@ export default function AdminPanel({ onBackToStore }) {
                   WebkitOverflowScrolling: 'touch'
                 }}
               >
-                {FRONTEND_CATEGORIES.map(cat => {
+                {activeFrontendCategories.map(cat => {
                   const isSelected = selectedCategoryTab === cat.id;
                   const count = getCatCount(cat.id);
-                  const emoji = CATEGORY_EMOJIS[cat.id] || '🍽️';
+                  const emoji = cat.icon || CATEGORY_EMOJIS[cat.id] || '🍽️';
                   return (
                     <button
                       key={cat.id}
@@ -6053,6 +6183,29 @@ export default function AdminPanel({ onBackToStore }) {
                       >
                         {count}
                       </span>
+                      {isSelected && cat.id !== 'all' && (
+                        <span
+                          role="button"
+                          title={`${cat.name_de || cat.name} löschen`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCategory(cat.id);
+                          }}
+                          style={{
+                            marginLeft: '2px',
+                            padding: '3px 5px',
+                            borderRadius: '6px',
+                            background: 'rgba(255, 255, 255, 0.28)',
+                            color: '#ffffff',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Trash2 size={12} />
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -6096,7 +6249,7 @@ export default function AdminPanel({ onBackToStore }) {
                 const inStock = item.is_in_stock !== false;
                 const imgSrc = getDishImage(item);
                 const itemCatId = getItemCanonicalCategory(item);
-                const itemCatObj = FRONTEND_CATEGORIES.find(c => c.id === itemCatId);
+                const itemCatObj = activeFrontendCategories.find(c => c.id === itemCatId);
                 const itemCatName = itemCatObj ? (lang === 'de' ? itemCatObj.name_de : (itemCatObj.name_en || itemCatObj.name_de)) : itemCatId;
 
                 return (
@@ -6354,7 +6507,7 @@ export default function AdminPanel({ onBackToStore }) {
           const isCalzone = dishForm.category_id === 'calzone';
           const isDeal = dishForm.category_id === 'deals' || dishForm.id?.startsWith('A') || dishForm.id?.startsWith('offer-');
 
-          const currentCatObj = FRONTEND_CATEGORIES.find(c => c.id === dishForm.category_id) || { name_de: 'Pizzen', name_en: 'Pizzas' };
+          const currentCatObj = activeFrontendCategories.find(c => c.id === dishForm.category_id) || { name_de: 'Pizzen', name_en: 'Pizzas' };
           const categoryTitle = lang === 'de' ? currentCatObj.name_de : (currentCatObj.name_en || currentCatObj.name_de);
 
           const sizeDefinitions = isCalzone ? calzoneSizes : standardPizzaSizes;
@@ -6759,9 +6912,9 @@ export default function AdminPanel({ onBackToStore }) {
                               cursor: 'pointer'
                             }}
                           >
-                            {FRONTEND_CATEGORIES.filter(c => c.id !== 'all').map(c => (
+                            {activeFrontendCategories.filter(c => c.id !== 'all').map(c => (
                               <option key={c.id} value={c.id}>
-                                {CATEGORY_EMOJIS[c.id] || '🍽️'} {lang === 'de' ? c.name_de : (c.name_en || c.name_de)}
+                                {c.icon || CATEGORY_EMOJIS[c.id] || '🍽️'} {lang === 'de' ? c.name_de : (c.name_en || c.name_de)}
                               </option>
                             ))}
                           </select>
@@ -8525,6 +8678,266 @@ export default function AdminPanel({ onBackToStore }) {
           );
         })()}
       </main>
+
+      {/* Category Management Modal (Add & Delete Any Category) */}
+      {isCategoryModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(5px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+          onClick={() => setIsCategoryModalOpen(false)}
+        >
+          <div
+            style={{
+              background: isLight ? '#ffffff' : '#0f172a',
+              color: isLight ? '#0f172a' : '#f8fafc',
+              borderRadius: '16px',
+              maxWidth: '750px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
+              padding: '24px'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b', paddingBottom: '16px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(225, 29, 72, 0.1)', color: '#e11d48', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FolderPlus size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800' }}>
+                    {lang === 'de' ? 'Kategorien verwalten & neu anlegen' : 'Manage & Create Categories'}
+                  </h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12.5px', color: isLight ? '#64748b' : '#94a3b8' }}>
+                    {lang === 'de' ? 'Neue Speisekarten-Kategorien hinzufügen oder bestehende löschen' : 'Add new menu categories or delete existing ones'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(false)}
+                style={{ background: 'transparent', border: 'none', color: isLight ? '#64748b' : '#94a3b8', cursor: 'pointer', padding: '6px', borderRadius: '8px' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Form: Neue Kategorie erstellen */}
+            <form onSubmit={handleCreateCategory} style={{ background: isLight ? '#f8fafc' : '#1e293b', padding: '18px', borderRadius: '12px', border: isLight ? '1px solid #e2e8f0' : '1px solid #334155', marginBottom: '24px' }}>
+              <h4 style={{ margin: '0 0 12px', fontSize: '14.5px', fontWeight: '700', color: isLight ? '#0f172a' : '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Plus size={16} color="#e11d48" />
+                {lang === 'de' ? 'Neue Kategorie anlegen' : 'Create New Category'}
+              </h4>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '4px', color: isLight ? '#475569' : '#cbd5e1' }}>
+                    {lang === 'de' ? 'Kategoriename *' : 'Category Name *'}
+                  </label>
+                  <input
+                    type="text"
+                    value={newCatName}
+                    onChange={(e) => setNewCatName(e.target.value)}
+                    placeholder="z.B. Burger & Fingerfood"
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: isLight ? '1px solid #cbd5e1' : '1px solid #475569',
+                      background: isLight ? '#ffffff' : '#0f172a',
+                      color: isLight ? '#0f172a' : '#ffffff',
+                      fontSize: '13px',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '4px', color: isLight ? '#475569' : '#cbd5e1' }}>
+                    {lang === 'de' ? 'Untertitel (optional)' : 'Subtitle (optional)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={newCatSub}
+                    onChange={(e) => setNewCatSub(e.target.value)}
+                    placeholder="z.B. Frisch & Knusprig"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: isLight ? '1px solid #cbd5e1' : '1px solid #475569',
+                      background: isLight ? '#ffffff' : '#0f172a',
+                      color: isLight ? '#0f172a' : '#ffffff',
+                      fontSize: '13px',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '4px', color: isLight ? '#475569' : '#cbd5e1' }}>
+                    {lang === 'de' ? 'Titel auf Speisekarte (optional)' : 'Title on Menu (optional)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={newCatTitle}
+                    onChange={(e) => setNewCatTitle(e.target.value)}
+                    placeholder="z.B. Herzhafte Burger Spezialitäten"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: isLight ? '1px solid #cbd5e1' : '1px solid #475569',
+                      background: isLight ? '#ffffff' : '#0f172a',
+                      color: isLight ? '#0f172a' : '#ffffff',
+                      fontSize: '13px',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Emoji Selector */}
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isLight ? '#475569' : '#cbd5e1' }}>
+                  {lang === 'de' ? 'Symbol / Emoji wählen' : 'Choose Symbol / Emoji'}
+                </label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                  {['🍕', '🍔', '🍝', '🥩', '🥗', '🌮', '🍣', '🍛', '🍗', '🥪', '🍟', '🍹', '🍰', '🥙', '🥔', '🍲', '🍳', '🥤', '🏷️', '🍽️'].map((em) => (
+                    <button
+                      key={em}
+                      type="button"
+                      onClick={() => setNewCatIcon(em)}
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        fontSize: '18px',
+                        borderRadius: '8px',
+                        border: newCatIcon === em ? '2px solid #e11d48' : (isLight ? '1px solid #cbd5e1' : '1px solid #475569'),
+                        background: newCatIcon === em ? 'rgba(225, 29, 72, 0.15)' : (isLight ? '#ffffff' : '#0f172a'),
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.12s ease'
+                      }}
+                    >
+                      {em}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSavingCategory}
+                style={{
+                  background: '#e11d48',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '10px 20px',
+                  fontWeight: '700',
+                  fontSize: '13.5px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: isSavingCategory ? 'not-allowed' : 'pointer',
+                  opacity: isSavingCategory ? 0.7 : 1,
+                  boxShadow: '0 4px 14px rgba(225, 29, 72, 0.35)'
+                }}
+              >
+                <Plus size={16} />
+                {isSavingCategory ? (lang === 'de' ? 'Wird gespeichert...' : 'Saving...') : (lang === 'de' ? 'Kategorie erstellen' : 'Create Category')}
+              </button>
+            </form>
+
+            {/* List: Bestehende Kategorien */}
+            <div>
+              <h4 style={{ margin: '0 0 12px', fontSize: '14.5px', fontWeight: '700', color: isLight ? '#0f172a' : '#ffffff' }}>
+                {lang === 'de' ? `Bestehende Kategorien (${categoriesList.length})` : `Existing Categories (${categoriesList.length})`}
+              </h4>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px', maxHeight: '350px', overflowY: 'auto', paddingRight: '4px' }}>
+                {categoriesList.map((cat) => {
+                  const count = getCatCount(cat.id);
+                  const emoji = cat.icon || CATEGORY_EMOJIS[cat.id] || '🍽️';
+                  return (
+                    <div
+                      key={cat.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        background: isLight ? '#ffffff' : '#1e293b',
+                        border: isLight ? '1px solid #e2e8f0' : '1px solid #334155',
+                        boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.04)' : 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                        <span style={{ fontSize: '20px', lineHeight: 1 }}>{emoji}</span>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '13.5px', fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {cat.name_de || cat.name}
+                          </div>
+                          <div style={{ fontSize: '11px', color: isLight ? '#64748b' : '#94a3b8' }}>
+                            {count} {count === 1 ? 'Gericht' : 'Gerichte'} {cat.is_custom && '• Eigene Kategorie'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCategory(cat.id)}
+                        title={`${cat.name_de || cat.name} löschen`}
+                        style={{
+                          background: 'rgba(239, 68, 68, 0.1)',
+                          color: '#ef4444',
+                          border: '1px solid rgba(239, 68, 68, 0.25)',
+                          borderRadius: '8px',
+                          width: '32px',
+                          height: '32px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#ef4444';
+                          e.currentTarget.style.color = '#ffffff';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                          e.currentTarget.style.color = '#ef4444';
+                        }}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Toast Notification */}
       {toast && (
