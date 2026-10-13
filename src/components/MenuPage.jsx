@@ -33,7 +33,8 @@ import {
   ChevronLeft,
   Utensils,
   Clock,
-  Bike
+  Bike,
+  Camera
 } from 'lucide-react';
 import {
   categoriesData,
@@ -43,7 +44,7 @@ import {
   specialOffersData,
   restaurantInfo
 } from '../data/menuData';
-import { useLiveMenu, formatMenuItemFromDb } from '../data/liveMenuState';
+import { useLiveMenu, formatMenuItemFromDb, getItemCanonicalCategory } from '../data/liveMenuState';
 import {
   subscribeToStorageFolders,
   loadStorageFolders,
@@ -52,6 +53,184 @@ import {
 } from '../lib/categoryStorageService';
 import CustomizeItemModal from './CustomizeItemModal';
 import { supabase, isSupabaseConfigured, getMenuItems, subscribeToMenuItems } from '../lib/supabaseClient.js';
+
+function DishCardMedia({ item, isInStock = true, cleanBadge = '', onOpenModal = null }) {
+  const images = (Array.isArray(item.images) && item.images.length > 0)
+    ? item.images
+    : [item.image_url || item.image || ''];
+  const [currentIdx, setCurrentIdx] = useState(0);
+
+  const prevImage = (e) => {
+    e.stopPropagation();
+    setCurrentIdx((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+  };
+
+  const nextImage = (e) => {
+    e.stopPropagation();
+    setCurrentIdx((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+  };
+
+  return (
+    <div
+      className="dish-card-media"
+      onClick={onOpenModal || undefined}
+      style={{ position: 'relative', cursor: onOpenModal ? 'pointer' : 'default', overflow: 'hidden' }}
+    >
+      <img
+        src={images[currentIdx] || images[0] || ''}
+        alt={item.name}
+        onError={(e) => {
+          e.currentTarget.onerror = null;
+          if (item.image && e.currentTarget.src !== item.image) {
+            e.currentTarget.src = item.image;
+          }
+        }}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'all 0.25s ease' }}
+      />
+
+      {/* Multiple images controls */}
+      {images.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={prevImage}
+            aria-label="Vorheriges Bild"
+            title="Vorheriges Foto"
+            style={{
+              position: 'absolute',
+              left: '6px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              background: 'rgba(15, 23, 42, 0.78)',
+              color: '#ffffff',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 4,
+              boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+              backdropFilter: 'blur(3px)'
+            }}
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={nextImage}
+            aria-label="Nächstes Bild"
+            title="Nächstes Foto"
+            style={{
+              position: 'absolute',
+              right: '6px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              background: 'rgba(15, 23, 42, 0.78)',
+              color: '#ffffff',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 4,
+              boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+              backdropFilter: 'blur(3px)'
+            }}
+          >
+            <ChevronRight size={16} />
+          </button>
+
+          {/* Dots Indicator */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '8px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              gap: '4px',
+              zIndex: 4,
+              background: 'rgba(15, 23, 42, 0.65)',
+              padding: '3px 8px',
+              borderRadius: '12px',
+              backdropFilter: 'blur(3px)'
+            }}
+          >
+            {images.map((_, i) => (
+              <span
+                key={i}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentIdx(i);
+                }}
+                style={{
+                  width: i === currentIdx ? '12px' : '5px',
+                  height: '5px',
+                  borderRadius: '3px',
+                  background: i === currentIdx ? '#ffffff' : 'rgba(255, 255, 255, 0.45)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Multi-Photo Counter Badge */}
+          <span
+            style={{
+              position: 'absolute',
+              top: '8px',
+              right: '8px',
+              background: 'rgba(15, 23, 42, 0.78)',
+              color: '#ffffff',
+              fontSize: '10px',
+              fontWeight: '800',
+              padding: '2px 7px',
+              borderRadius: '6px',
+              zIndex: 4,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              backdropFilter: 'blur(3px)'
+            }}
+          >
+            <Camera size={11} /> {currentIdx + 1}/{images.length}
+          </span>
+        </>
+      )}
+
+      {item.number && (
+        <span className="dish-badge" style={{ background: 'var(--red)', fontWeight: '900', zIndex: 3 }}>
+          Nr. {item.number}
+        </span>
+      )}
+
+      {!isInStock && (
+        <span className="dish-badge" style={{ background: '#334155', color: '#ffffff', fontWeight: '800', right: '10px', left: 'auto', zIndex: 3 }}>
+          Ausverkauft
+        </span>
+      )}
+
+      {cleanBadge && isInStock && (
+        <span className={`dish-badge ${item.badge?.includes('Scharf') ? 'spicy' : ''}`} style={{ left: item.number ? '70px' : '10px', zIndex: 3 }}>
+          {cleanBadge}
+        </span>
+      )}
+
+      {item.dietary?.includes('vegetarisch') && (
+        <span className="diet-pill veg" title="Vegetarisch" style={{ zIndex: 3 }}>
+          Vegetarisch
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCategory = 'pizza' }) {
   const { menuItems: liveMenuItems } = useLiveMenu();
@@ -93,34 +272,7 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
   }, []);
 
   const rawMenuItems = directMenuItems || liveMenuItems;
-  const menuItems = useMemo(() => {
-    try {
-      const overrides = JSON.parse(localStorage.getItem('venezia_admin_dishes_override') || '{}');
-      if (overrides && Object.keys(overrides).length > 0) {
-        return (rawMenuItems || []).map(item => {
-          const override = overrides[item.id];
-          if (!override) return item;
-
-          const hasDbCustomImage = !!(item.image_url && typeof item.image_url === 'string' && (item.image_url.startsWith('http') || item.image_url.startsWith('/images/dishes/')));
-          const overrideImage = override.image_url || override.image;
-          const hasOverrideCustomImage = !!(overrideImage && typeof overrideImage === 'string' && (overrideImage.startsWith('http') || overrideImage.startsWith('/images/dishes/')));
-
-          const finalImage = hasDbCustomImage 
-            ? item.image_url 
-            : (hasOverrideCustomImage ? overrideImage : (item.image_url || item.image || overrideImage));
-
-          return { 
-            ...item, 
-            ...override, 
-            image_url: finalImage,
-            image: finalImage,
-            has_custom_image: hasDbCustomImage || hasOverrideCustomImage || !!override.has_custom_image 
-          };
-        });
-      }
-    } catch (e) {}
-    return rawMenuItems;
-  }, [rawMenuItems]);
+  const menuItems = rawMenuItems || [];
   const [storageFolders, setStorageFolders] = useState(() => ({ ...DEFAULT_STORAGE_FOLDERS }));
 
   useEffect(() => {
@@ -222,7 +374,6 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
       // Map legacy category IDs if needed
       const idMap = {
         pizza: 'pizzen',
-        schnitzel: 'fleischgerichte',
         doner: 'gyros',
         salad: 'salate'
       };
@@ -230,9 +381,10 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
     }
   }, [selectedInitialCategory]);
 
-  // Updated 22 menu categories
+  // Updated menu categories (matched 100% with Admin Panel)
   const cleanCategories = [
     { id: 'pizzen', name: 'Pizzen', title: 'Original Steinofen-Pizzen (1–49a)' },
+    { id: 'deals', name: 'Spar-Menüs & Deals', title: 'Spar-Menüs & Spezial-Angebote' },
     { id: 'pasta', name: 'Pasta', title: 'Klassische Pasta Spezialitäten' },
     { id: 'gnocchi', name: 'Gnocchi', title: 'Gnocchi Spezialitäten' },
     { id: 'pasta-al-forno', name: 'Pasta al Forno', title: 'Pasta al Forno (Überbackene Nudelgerichte)' },
@@ -247,72 +399,27 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
     { id: 'indisch', name: 'Indische', sub: 'Hauptgerichte', title: 'Indische Hauptgerichte & Currys' },
     { id: 'lamm', name: 'Lamm', sub: 'Spezialitäten', title: 'Zarte Lamm Spezialitäten' },
     { id: 'steaks', name: 'Steaks', title: 'Saftige Steaks vom Grill' },
-    { id: 'fischgerichte', name: 'Fischgerichte', title: 'Köstliche Fischgerichte & Meeresfrüchte' },
     { id: 'mexikanisch', name: 'Mexikanische', sub: 'Gerichte', title: 'Mexikanische Spezialitäten' },
     { id: 'chinesisch', name: 'Chinesische', sub: 'Gerichte', title: 'Chinesische Spezialitäten aus dem Wok' },
     { id: 'beilagen', name: 'Extra Beilagen', title: 'Extra Beilagen & Saucen' },
     { id: 'toasts', name: 'Toasts', title: 'Knusprige Toast Spezialitäten' },
     { id: 'omelette', name: 'Omelette', sub: 'mit Käse überbacken', title: 'Omelette mit Käse überbacken' },
-    { id: 'getraenke', name: 'Getränke', title: 'Erfrischende Getränke' },
+    { id: 'getraenke', name: 'Getränke', title: 'Erfrischende Getränke' }
   ];
 
-  // Filter items
+  // Filter items strictly matching backend / admin categorization (no accidental cross-category duplicates)
   const filteredItems = useMemo(() => {
     const matched = (menuItems || []).filter((item) => {
       if (!item) return false;
-      // Category match
+      // Category match - 100% parity with Admin Panel categories
+      const itemCat = getItemCanonicalCategory(item);
       let matchesCategory = false;
-      const cat = (item.category || '').toLowerCase();
-      const name = (item.name || '').toLowerCase();
-
-      if (activeCategory === 'pizzen') {
-        matchesCategory = cat === 'pizzen' || cat === 'pizza' || cat === 'calzone';
-      } else if (activeCategory === 'pasta') {
-        matchesCategory = cat === 'pasta';
-      } else if (activeCategory === 'gnocchi') {
-        matchesCategory = cat === 'gnocchi' || name.includes('gnocchi');
-      } else if (activeCategory === 'reisgerichte') {
-        matchesCategory = cat === 'reisgerichte' || cat === 'reis' || name.includes('reis') || name.includes('risotto');
-      } else if (activeCategory === 'pasta-al-forno') {
-        matchesCategory = cat === 'pasta-al-forno' || cat === 'al-forno' || name.includes('al forno') || name.includes('lasagne') || name.includes('cannelloni');
-      } else if (activeCategory === 'vegetarisch') {
-        matchesCategory = cat === 'vegetarisch' || cat === 'vegetarisch-ueberbacken';
-      } else if (activeCategory === 'auflaeufe') {
-        matchesCategory = cat === 'auflaeufe' || cat === 'auflauf' || name.includes('auflauf') || name.includes('gratin');
-      } else if (activeCategory === 'fleischgerichte') {
-        matchesCategory = cat === 'fleischgerichte' || cat === 'schnitzel' || cat === 'fleisch';
-      } else if (activeCategory === 'gyros') {
-        matchesCategory = cat === 'gyros' || cat === 'doner' || name.includes('gyros') || name.includes('döner');
-      } else if (activeCategory === 'salate') {
-        matchesCategory = cat === 'salate' || cat === 'salad';
-      } else if (activeCategory === 'grill-menue') {
-        matchesCategory = cat === 'grill-menue' || cat === 'grill' || name.includes('grill');
-      } else if (activeCategory === 'american-food') {
-        matchesCategory = cat === 'american-food' || cat === 'burger-snacks' || cat === 'burger' || name.includes('burger') || name.includes('wings') || name.includes('nuggets');
-      } else if (activeCategory === 'indisch') {
-        matchesCategory = cat === 'indisch' || cat === 'indian' || name.includes('curry') || name.includes('tikka') || name.includes('korma') || name.includes('paneer');
-      } else if (activeCategory === 'lamm') {
-        matchesCategory = cat === 'lamm' || cat === 'lamb' || name.includes('lamm');
-      } else if (activeCategory === 'steaks') {
-        matchesCategory = cat === 'steaks' || cat === 'steak' || name.includes('steak');
-      } else if (activeCategory === 'fischgerichte') {
-        matchesCategory = cat === 'fischgerichte' || cat === 'fisch' || name.includes('lachs') || name.includes('calamari') || name.includes('zander');
-      } else if (activeCategory === 'mexikanisch') {
-        matchesCategory = cat === 'mexikanisch' || cat === 'mexican' || name.includes('tacos') || name.includes('burrito') || name.includes('enchilada') || name.includes('nachos');
-      } else if (activeCategory === 'chinesisch') {
-        matchesCategory = cat === 'chinesisch' || cat === 'chinese' || cat === 'asia' || name.includes('chop suey') || name.includes('gebratene nudeln') || name.includes('gebratener reis') || name.includes('süß-sauer');
-      } else if (activeCategory === 'beilagen') {
-        matchesCategory = cat === 'beilagen' || cat === 'extra-beilagen' || name.includes('pommes') || name.includes('kroketten') || name.includes('knoblauchbrot') || name.includes('zaziki') || name.includes('pizzabrötchen');
-      } else if (activeCategory === 'toasts') {
-        matchesCategory = cat === 'toasts' || cat === 'toast' || name.includes('toast');
-      } else if (activeCategory === 'omelette') {
-        matchesCategory = cat === 'omelette' || name.includes('omelett');
-      } else if (activeCategory === 'getraenke') {
-        matchesCategory = cat === 'getraenke' || cat === 'drinks' || cat === 'dessert-drinks';
-      } else if (activeCategory === 'all') {
+      if (activeCategory === 'all') {
         matchesCategory = true;
+      } else if (activeCategory === 'pizzen') {
+        matchesCategory = itemCat === 'pizzen' || itemCat === 'pizza' || itemCat === 'calzone';
       } else {
-        matchesCategory = cat === activeCategory;
+        matchesCategory = itemCat === activeCategory;
       }
 
       // Search match
@@ -347,8 +454,39 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
     return applyCategoryStorageImages(activeCategory, matched, storageFolders);
   }, [menuItems, activeCategory, searchQuery, dietaryFilter, storageFolders]);
 
-  // Dynamic Deals linked to live menu items
+  // Dynamic Deals strictly synced from Supabase database menu items
   const liveDeals = useMemo(() => {
+    const dbDeals = (menuItems || []).filter(item => getItemCanonicalCategory(item) === 'deals');
+    if (dbDeals.length > 0) {
+      return dbDeals.map((item) => {
+        const code = item.number || item.id;
+        const unitPrice = typeof item.price === 'number'
+          ? item.price
+          : (item.prices?.single || 25.0);
+
+        const imagesList = Array.isArray(item.images) && item.images.length > 0
+          ? item.images
+          : [item.image_url || item.image || '/images/Offer1.png'];
+
+        return {
+          id: item.id,
+          code,
+          title: item.name,
+          name: item.name,
+          description: item.desc || item.toppings || '',
+          details: item.toppings || item.desc || '',
+          price: unitPrice,
+          formattedPrice: `${unitPrice.toFixed(2).replace('.', ',')} €`,
+          image: imagesList[0],
+          image_url: imagesList[0],
+          images: imagesList,
+          badge: item.badge || `Angebot ${code}`,
+          is_in_stock: item.is_in_stock !== false
+        };
+      });
+    }
+
+    // Fallback only if no deals returned from DB
     return specialOffersData.map((offer) => {
       const live = menuItems.find(
         (m) => m.id === offer.id || (m.number && m.number.toUpperCase() === offer.code.toUpperCase())
@@ -358,9 +496,9 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
         ? live.price
         : (live.prices?.single || offer.price);
 
-      const safeImage = (live.image && !live.image.includes('offer_a'))
-        ? live.image
-        : offer.image;
+      const imagesList = Array.isArray(live.images) && live.images.length > 0
+        ? live.images
+        : [live.image_url || live.image || offer.image];
 
       return {
         ...offer,
@@ -369,7 +507,9 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
         details: offer.details || live.desc || live.toppings,
         price: unitPrice,
         formattedPrice: `${unitPrice.toFixed(2).replace('.', ',')} €`,
-        image: safeImage,
+        image: imagesList[0],
+        image_url: imagesList[0],
+        images: imagesList,
         badge: live.badge || `Angebot ${offer.code}`,
         is_in_stock: live.is_in_stock !== false
       };
@@ -627,22 +767,7 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
               const inStock = offer.is_in_stock !== false;
               return (
                 <div key={offer.id} className="dish-card" style={{ opacity: inStock ? 1 : 0.65 }}>
-                  <div className="dish-card-media">
-                    <img 
-                      src={offer.image_url || offer.image || '/images/Offer1.png'} 
-                      alt={offer.title} 
-                      loading="lazy" 
-                      onError={(e) => { e.currentTarget.src = offer.image || '/images/Offer1.png'; }}
-                    />
-                    <span className="dish-badge" style={{ background: 'var(--red)', fontWeight: '900' }}>
-                      {offer.badge || `Angebot ${offer.code}`}
-                    </span>
-                    {!inStock && (
-                      <span className="dish-badge" style={{ background: '#334155', color: '#ffffff', right: '10px', left: 'auto' }}>
-                        Ausverkauft
-                      </span>
-                    )}
-                  </div>
+                  <DishCardMedia item={offer} isInStock={inStock} cleanBadge={offer.badge || `Angebot ${offer.code}`} />
                   <div className="dish-card-body">
                     <div className="dish-title-row">
                       <h3 className="dish-name">{offer.title}</h3>
@@ -651,10 +776,11 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
                     <p className="dish-desc" style={{ whiteSpace: 'pre-line' }}>
                       {offer.details || offer.description}
                     </p>
-                    <div className="dish-card-footer" style={{ marginTop: 'auto', paddingTop: '12px' }}>
+                    <div className="dish-card-actions">
                       {inStock ? (
                         <button
-                          className="add-to-cart-btn"
+                          type="button"
+                          className="add-cart-btn"
                           title="Hinzufügen"
                           onClick={() => onAddToCart({
                             id: offer.id,
@@ -725,43 +851,13 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
 
               return (
                 <div key={item.id} className="dish-card" style={{ opacity: isInStock ? 1 : 0.65 }}>
-                  {/* Image container */}
-                  <div className="dish-card-media">
-                    <img 
-                      src={item.image_url || item.image || ''} 
-                      alt={item.name} 
-                      onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        if (item.image && e.currentTarget.src !== item.image) {
-                          e.currentTarget.src = item.image;
-                        }
-                      }}
-                    />
-
-                    {item.number && (
-                      <span className="dish-badge" style={{ background: 'var(--red)', fontWeight: '900' }}>
-                        Nr. {item.number}
-                      </span>
-                    )}
-
-                    {!isInStock && (
-                      <span className="dish-badge" style={{ background: '#334155', color: '#ffffff', fontWeight: '800', right: '10px', left: 'auto' }}>
-                        Ausverkauft
-                      </span>
-                    )}
-
-                    {cleanBadge && isInStock && (
-                      <span className={`dish-badge ${item.badge?.includes('Scharf') ? 'spicy' : ''}`} style={{ left: item.number ? '70px' : '10px' }}>
-                        {cleanBadge}
-                      </span>
-                    )}
-
-                    {item.dietary?.includes('vegetarisch') && (
-                      <span className="diet-pill veg" title="Vegetarisch">
-                        Vegetarisch
-                      </span>
-                    )}
-                  </div>
+                  {/* Image container with multi-image navigation support */}
+                  <DishCardMedia
+                    item={item}
+                    isInStock={isInStock}
+                    cleanBadge={cleanBadge}
+                    onOpenModal={() => setCustomizingItem(item)}
+                  />
 
                   {/* Body Content */}
                   <div className="dish-card-body">

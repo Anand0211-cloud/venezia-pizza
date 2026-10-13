@@ -2,13 +2,14 @@ import { images } from '../assets/images.js';
 
 export const categoriesData = [
   { id: 'pizzen', name: 'Pizzen', image: images.categories.pizza, count: '45+ Sorten' },
+  { id: 'deals', name: 'Spar-Menüs', sub: '& Deals', image: images.offers.a1, count: 'Sparen' },
   { id: 'pasta', name: 'Pasta', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Home_Category/Pasta_Home_category.png', count: 'Klassiker' },
   { id: 'gnocchi', name: 'Gnocchi', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Home_Category/Ganoochi_Home_category.png', count: 'Spezialitäten' },
   { id: 'pasta-al-forno', name: 'Pasta al Forno', sub: 'Überbacken', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Home_Category/Pasta_Baked_Home_category.png', count: 'Aus dem Ofen' },
   { id: 'vegetarisch', name: 'Vegetarisch', sub: 'überbacken', image: images.categories.salad, count: 'Frisch & Heiß' },
   { id: 'auflaeufe', name: 'Aufläufe', image: images.dishes.pastaSpecial, count: 'Ofenfrisch' },
   { id: 'reisgerichte', name: 'Reisgerichte', sub: 'im Ofen überbacken', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Home_Category/Reisgerichte_Home_category.png', count: 'Aus dem Ofen' },
-  { id: 'fleischgerichte', name: 'Fleischgerichte', image: images.dishes.schnitzel, count: 'Spezialitäten' },
+  { id: 'fleischgerichte', name: 'Fleischgerichte', sub: '& Schnitzel', image: images.dishes.schnitzel, count: '15 Gerichte' },
   { id: 'gyros', name: 'Gyros', image: images.categories.doner, count: 'Gyros Spezial' },
   { id: 'salate', name: 'Salate', image: images.categories.salad, count: 'Frisch & Knackig' },
   { id: 'grill-menue', name: 'Grill Menü', image: images.dishes.schnitzel, count: 'Vom Rost' },
@@ -16,7 +17,6 @@ export const categoriesData = [
   { id: 'indisch', name: 'Indische', sub: 'Hauptgerichte', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Home_Category/Indische_Home_category.png', count: 'Currys & Reis' },
   { id: 'lamm', name: 'Lamb', sub: 'Spezialitäten', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Home_Category/lamb_Home_Category.png', count: 'Zartes Fleisch' },
   { id: 'steaks', name: 'Steaks', image: images.dishes.schnitzel, count: 'Rumpsteaks' },
-  { id: 'fischgerichte', name: 'Fischgerichte', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Home_Category/Fischgerichte_Home_Category.png', count: 'Lachs & Calamari' },
   { id: 'mexikanisch', name: 'Mexikanische', sub: 'Gerichte', image: images.categories.salad, count: 'Tacos & Burritos' },
   { id: 'chinesisch', name: 'Chinesische', sub: 'Gerichte', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/noodles/Artboard_1.png', count: 'Wok-Gerichte' },
   { id: 'beilagen', name: 'Extra Beilagen', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Starters/Artboard_1.png', count: 'Pommes & Dips' },
@@ -1101,97 +1101,48 @@ export const allMenuItems = [
   },
 
   // ==========================================
-  // REISGERICHTE IM OFEN ÜBERBACKEN (7 Gerichte)
+  // REISGERICHTE IM OFEN ÜBERBACKEN (3 Gerichte - 100% synchron mit Backend Admin)
   // ==========================================
   {
-    id: 'reis-venezia',
-    number: '59',
+    id: 'reis-pollo-curry',
+    number: '93',
     category: 'reisgerichte',
-    name: 'Reispfanne Venezia',
-    toppings: 'Hähnchenbruststreifen, frische Champignons, Erbsen, Sahnesauce, Käse',
-    desc: 'Würziger Reis mit gebratenem Hähnchenbrustfilet und Gemüse, im Ofen heiß mit Käse überbacken.',
-    prices: { single: 9.50 },
-    price: 9.50,
+    name: 'Reis al Forno',
+    name_de: 'Reis al Forno',
+    toppings: 'mit Fleischsauce und mit Käse überbacken',
+    desc: 'Würziger Reis aus dem Ofen, herzhaft mit Fleischsauce zubereitet und mit goldbraunem Käse überbacken.',
+    prices: { single: 13.00 },
+    price: 13.00,
     image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Reisgerichte/Artboard_1.png',
-    badge: 'Spezialität',
+    badge: 'Klassiker',
     dietary: []
   },
   {
-    id: 'reis-frutti-di-mare',
-    number: '59a',
+    id: 'reis-bombay',
+    number: '94',
     category: 'reisgerichte',
-    name: 'Risotto Frutti di Mare',
-    toppings: 'Meeresfrüchte, Knoblauch, feine Tomatensauce, mit Käse überbacken',
-    desc: 'Mediterranes Reisgericht mit Meeresfrüchten, leichter Knoblauchnote und heißem Käse.',
-    prices: { single: 10.20 },
-    price: 10.20,
+    name: 'Risotto Pescatore',
+    name_de: 'Risotto Pescatore',
+    toppings: 'mit Meeresfrüchten, Knoblauch und Tomatensauce',
+    desc: 'Mediterranes Risotto mit feinen Meeresfrüchten, Knoblauch und pikanter Tomatensauce aus dem Ofen.',
+    prices: { single: 13.00 },
+    price: 13.00,
     image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Reisgerichte/Artboard_2.png',
     badge: 'Meeresfrüchte',
     dietary: ['pescetarisch']
   },
   {
-    id: 'reis-vegetarisch',
-    number: '59b',
-    category: 'reisgerichte',
-    name: 'Reispfanne Vegetarisch überbacken',
-    toppings: 'Reis, Brokkoli, Champignons, Paprika, Mais, feine Sauce, Gouda',
-    desc: 'Reisgericht mit buntem Marktgemüse und einer goldbraunen Käseschicht aus dem Ofen.',
-    prices: { single: 8.80 },
-    price: 8.80,
-    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Reisgerichte/Artboard_3.png',
-    badge: 'Veggie',
-    dietary: ['vegetarisch']
-  },
-  {
-    id: 'asia-gebratener-reis-haehnchen',
-    number: '181',
-    category: 'reisgerichte',
-    name: 'Gebratener Eierreis mit Hähnchen',
-    toppings: 'Duftreis, gebratenes Ei, Hähnchenfilet, Erbsen, Karotten, Röstzwiebeln',
-    desc: 'Klassischer gebratener Reis im Wok zubereitet mit saftigem Hähnchen.',
-    prices: { single: 9.50 },
-    price: 9.50,
-    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Reisgerichte/Artboard_4.png',
-    badge: 'Klassiker',
-    dietary: []
-  },
-  {
-    id: 'reis-pollo-curry',
-    number: '59c',
-    category: 'reisgerichte',
-    name: 'Reispfanne Pollo al Curry',
-    toppings: 'Hähnchenbrust, Reis, Erbsen, aromatische Currysauce, Käse überbacken',
-    desc: 'Zartes Hähnchenbrustfilet mit Reis in feiner Currysauce, im Ofen überbacken.',
-    prices: { single: 9.80 },
-    price: 9.80,
-    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Reisgerichte/Artboard_5.png',
-    badge: 'Chef-Tipp',
-    dietary: []
-  },
-  {
-    id: 'reis-bombay',
-    number: '59d',
-    category: 'reisgerichte',
-    name: 'Reispfanne Bombay',
-    toppings: 'Reis, Hähnchenstreifen, bunte Paprika, Champignons, feine Currysauce, Käse',
-    desc: 'Aromatisch gewürzter Reis mit frischem Marktgemüse und Hähnchenstreifen.',
-    prices: { single: 9.50 },
-    price: 9.50,
-    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Reisgerichte/Artboard_6.png',
-    badge: 'Würzig',
-    dietary: []
-  },
-  {
     id: 'reis-gyros-spezial',
-    number: '59e',
+    number: '95',
     category: 'reisgerichte',
-    name: 'Reispfanne Gyros Spezial',
-    toppings: 'Gyrosfleisch, Reis, Schafskäse, Zwiebeln, Tomaten-Sahnesauce, Gouda überbacken',
-    desc: 'Herzhaftes Gyrosfleisch auf Reis mit Schafskäse und Zwiebeln überbacken.',
-    prices: { single: 10.50 },
-    price: 10.50,
-    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Reisgerichte/Artboard_7.png',
-    badge: 'Deftig',
+    name: 'Risotto Milanese Reis',
+    name_de: 'Risotto Milanese Reis',
+    toppings: 'mit Krabben und Champignons in Tomatensauce',
+    desc: 'Feines Risotto Milanese mit saftigen Krabben, frischen Champignons und pikanter Tomatensauce aus dem Ofen.',
+    prices: { single: 13.00 },
+    price: 13.00,
+    image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Reisgerichte/Artboard_3.png',
+    badge: 'Spezialität',
     dietary: []
   },
 
@@ -1382,61 +1333,6 @@ export const allMenuItems = [
     dietary: []
   },
 
-  // ==========================================
-  // FLEISCHGERICHTE
-  // ==========================================
-  {
-    id: 'schnitzel-wiener',
-    number: '80',
-    category: 'fleischgerichte',
-    name: 'Schnitzel Wiener Art',
-    toppings: 'Paniertes Schweineschnitzel, Zitronenspalte, Pommes, Salat',
-    desc: 'Zwei kross panierte Schweineschnitzel serviert mit Pommes und Salat.',
-    prices: { single: 9.50 },
-    price: 9.50,
-    image: images.dishes.schnitzel,
-    badge: 'Klassiker',
-    dietary: []
-  },
-  {
-    id: 'schnitzel-jaeger',
-    number: '81',
-    category: 'fleischgerichte',
-    name: 'Jägerschnitzel mit Champignon-Rahm',
-    toppings: 'Schweineschnitzel, Waldpilz-Rahmsauce, Pommes, Salat',
-    desc: 'Krosse Schnitzel übergossen mit cremiger Champignon-Rahmsauce und Pommes.',
-    prices: { single: 10.50 },
-    price: 10.50,
-    image: images.dishes.schnitzel,
-    badge: 'Sehr beliebt',
-    dietary: []
-  },
-  {
-    id: 'schnitzel-zigeuner',
-    number: '82',
-    category: 'fleischgerichte',
-    name: 'Zigeunerschnitzel (Pikant)',
-    toppings: 'Schweineschnitzel, pikante Paprika-Zwiebel-Sauce, Pommes, Salat',
-    desc: 'Kross paniertes Schnitzel in feurig-fruchtiger Zigeunersauce mit Pommes Frites.',
-    prices: { single: 10.50 },
-    price: 10.50,
-    image: images.dishes.schnitzel,
-    badge: 'Pikant',
-    dietary: []
-  },
-  {
-    id: 'fleisch-haehnchenbrust',
-    number: '83',
-    category: 'fleischgerichte',
-    name: 'Hähnchenbrustfilet vom Grill',
-    toppings: 'Gegrillte Hähnchenbrust, Kräuterbutter, Pommes Frites, Salat',
-    desc: 'Zart mariniertes Hähnchenbrustfilet auf den Punkt gegrillt mit Kräuterbutter.',
-    prices: { single: 10.90 },
-    price: 10.90,
-    image: images.dishes.schnitzel,
-    badge: 'Vom Grill',
-    dietary: []
-  },
 
   // ==========================================
   // SALATE
@@ -1883,46 +1779,43 @@ export const allMenuItems = [
   },
 
   // ==========================================
-  // FISCHGERICHTE
+  // FLEISCHGERICHTE
   // ==========================================
   {
     id: 'fisch-lachs',
-    number: '160',
-    category: 'fischgerichte',
-    name: 'Gegrilltes Lachsfilet',
-    toppings: 'Lachsfilet, feine Dillsauce, Bandnudeln, Salatbeilage',
-    desc: 'Frisch gegrilltes Lachsfilet auf zarten Nudeln in feiner Zitronen-Dillsauce.',
-    prices: { single: 14.90 },
-    price: 14.90,
-    image: images.categories.pizza,
-    badge: 'Fisch-Hit',
-    dietary: ['pescetarisch']
+    number: '111',
+    category: 'fleischgerichte',
+    name: 'Schnitzel Spezial',
+    toppings: 'mit Champignons, Schinken, Bolognesesauce und Käse überbacken',
+    desc: 'Zartes Schnitzel mit feinen Champignons, Schinken und würziger Bolognesesauce überbacken.',
+    prices: { single: 12.00 },
+    price: 12.00,
+    image: images.dishes.schnitzel,
+    badge: 'Chef-Tipp'
   },
   {
     id: 'fisch-calamari',
-    number: '161',
-    category: 'fischgerichte',
-    name: 'Calamari Fritti',
-    toppings: 'Knusprig panierte Tintenfischringe, hausgemachte Knoblauchsauce, Pommes, Salat',
-    desc: 'Kross frittierte Calamariringe mit frischer Zitrone und Knoblauchdip.',
+    number: '113',
+    category: 'fleischgerichte',
+    name: 'Jägerschnitzel',
+    toppings: 'mit Jägersauce',
+    desc: 'Klassisches Jägerschnitzel mit herzhafter Waldpilzsauce und Pommes.',
     prices: { single: 11.50 },
     price: 11.50,
-    image: images.categories.pizza,
-    badge: 'Mediterran',
-    dietary: ['pescetarisch']
+    image: images.dishes.schnitzel,
+    badge: 'Mediterran'
   },
   {
     id: 'fisch-zander',
-    number: '162',
-    category: 'fischgerichte',
-    name: 'Zanderfilet gebraten',
-    toppings: 'Gebratenes Zanderfilet, Remouladensauce, Petersilienkartoffeln, Salat',
-    desc: 'Zartes Zanderfilet auf der Haut kross gebraten mit Kräuterkartoffeln.',
-    prices: { single: 13.90 },
-    price: 13.90,
-    image: images.categories.pizza,
-    badge: 'Fein',
-    dietary: ['pescetarisch']
+    number: '112',
+    category: 'fleischgerichte',
+    name: 'Schnitzel Bolognese',
+    toppings: 'mit Schinken, Bolognesesauce und Käse überbacken',
+    desc: 'Zartes Schnitzel mit saftigem Schinken, aromatischer Fleischsauce und Käse überbacken.',
+    prices: { single: 12.00 },
+    price: 12.00,
+    image: images.dishes.schnitzel,
+    badge: 'Fein'
   },
 
   // ==========================================
@@ -2376,7 +2269,7 @@ export const restaurantInfo = {
     { type: 'mobile', label: 'Mobil', number: '0160 1177240', call: 'tel:01601177240' }
   ],
   address: 'Martin-Luther-Straße 68, 08525 Plauen',
-  email: 'info@venezia-pizza-plauen.de',
+  email: 'info@veneziapizzas.de',
   hours: {
     weekdays: '10:30 – 14:30 Uhr & 16:30 – 23:00 Uhr',
     weekend: '10:30 – 23:00 Uhr'
@@ -2384,6 +2277,10 @@ export const restaurantInfo = {
   deliveryInfo: {
     minOrder: '12,00 € (Lieferung)',
     deliveryTime: 'ca. 30–45 Min.'
+  },
+  social: {
+    facebook: 'https://www.facebook.com/profile.php?id=100059933894217&mibextid=wwXIfr&rdid=IcSnReX9PW6bdAqq&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2F19TDhNZ6CN%2F%3Fmibextid%3DwwXIfr',
+    instagram: 'https://instagram.com'
   },
   since: '1999'
 };

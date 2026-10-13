@@ -2,12 +2,12 @@ import { createClient } from '@supabase/supabase-js';
 import { sendOrderConfirmationEmail, sendOrderDeliveredEmail } from './emailService.js';
 
 const supabaseUrl =
-  (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_SUPABASE_URL || import.meta.env?.SUPABASE_URL)) ||
-  (typeof process !== 'undefined' && (process.env?.VITE_SUPABASE_URL || process.env?.SUPABASE_URL)) ||
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
+  (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) ||
   '';
 const supabaseAnonKey =
-  (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_SUPABASE_ANON_KEY || import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env?.SUPABASE_ANON_KEY || import.meta.env?.SUPABASE_KEY)) ||
-  (typeof process !== 'undefined' && (process.env?.VITE_SUPABASE_ANON_KEY || process.env?.VITE_SUPABASE_PUBLISHABLE_KEY || process.env?.SUPABASE_ANON_KEY || process.env?.SUPABASE_KEY)) ||
+  (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_SUPABASE_ANON_KEY || import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY)) ||
+  (typeof process !== 'undefined' && (process.env?.VITE_SUPABASE_ANON_KEY || process.env?.VITE_SUPABASE_PUBLISHABLE_KEY)) ||
   '';
 
 export const isSupabaseConfigured = () => {
@@ -104,7 +104,7 @@ export async function upsertMenuItem(item) {
     }
   }
 
-  // Ensure custom sizes and toppings are preserved in prices JSONB
+  // Ensure custom sizes, custom toppings, and multiple images are preserved in prices JSONB
   const pricesObj = (typeof dbPayload.prices === 'object' && dbPayload.prices !== null)
     ? { ...dbPayload.prices }
     : {};
@@ -115,6 +115,16 @@ export async function upsertMenuItem(item) {
   if (item.custom_toppings && Array.isArray(item.custom_toppings) && !pricesObj.custom_toppings) {
     pricesObj.custom_toppings = item.custom_toppings;
   }
+
+  // Support multiple images synced to Supabase inside prices.images
+  if (Array.isArray(item.images)) {
+    const cleanImages = item.images.filter(img => typeof img === 'string' && img.trim() !== '');
+    pricesObj.images = cleanImages;
+    if (cleanImages.length > 0 && (!dbPayload.image_url || dbPayload.image_url.trim() === '')) {
+      dbPayload.image_url = cleanImages[0];
+    }
+  }
+
   dbPayload.prices = pricesObj;
   dbPayload.updated_at = new Date().toISOString();
 
@@ -2500,5 +2510,43 @@ export async function uploadDishImage(file, dishId = 'dish') {
     return { success: false, error: err.message };
   }
 }
+
+/**
+ * Upload multiple images for a dish directly to Supabase Storage bucket 'menu-dishes'
+ * @param {File[]} files
+ * @param {string} dishId
+ * @param {function} onProgress (optional callback for progress updates)
+ * @returns {Promise<{success: boolean, urls: string[], errors: string[]}>}
+ */
+export async function uploadMultipleDishImages(files, dishId = 'dish', onProgress = null) {
+  if (!files || files.length === 0) {
+    return { success: false, urls: [], errors: ['Keine Dateien ausgewählt'] };
+  }
+
+  const urls = [];
+  const errors = [];
+  const fileArray = Array.from(files);
+
+  for (let i = 0; i < fileArray.length; i++) {
+    const file = fileArray[i];
+    if (onProgress) {
+      onProgress({ current: i + 1, total: fileArray.length, fileName: file.name });
+    }
+    const subDishId = `${dishId}_img${i + 1}`;
+    const res = await uploadDishImage(file, subDishId);
+    if (res && res.success && res.url) {
+      urls.push(res.url);
+    } else {
+      errors.push(res?.error || `Upload-Fehler bei ${file.name}`);
+    }
+  }
+
+  return {
+    success: urls.length > 0,
+    urls,
+    errors
+  };
+}
+
 
 

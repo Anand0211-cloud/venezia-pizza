@@ -11,13 +11,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), emailPlugin(), sumupPlugin(), storagePlugin()],
-    envPrefix: ['VITE_', 'SUPABASE_'],
     server: {
       host: true,
       allowedHosts: 'all',
-      watch: {
-        ignored: ['**/printer/**', '**/scratch/**', '**/*.exe', '**/sunmi-pos/**', '**/*.apk', '**/public/sunmi/**', '**/*.zip']
-      }
     },
   };
 });

@@ -65,7 +65,7 @@ export default function Hero({ onOrderClick, onMenuClick, onAddToCart }) {
               <span className="follow-text">Follow Us</span>
               <div className="follow-line" />
               <div className="social-icon-bubbles">
-                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="social-bubble" aria-label="Facebook">
+                <a href="https://www.facebook.com/profile.php?id=100059933894217&mibextid=wwXIfr&rdid=IcSnReX9PW6bdAqq&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2F19TDhNZ6CN%2F%3Fmibextid%3DwwXIfr" target="_blank" rel="noopener noreferrer" className="social-bubble" aria-label="Facebook">
                   <Facebook size={12} fill="currentColor" />
                 </a>
                 <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="social-bubble" aria-label="Instagram">

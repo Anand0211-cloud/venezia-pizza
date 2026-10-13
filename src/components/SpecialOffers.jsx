@@ -6,30 +6,56 @@ import { useLiveMenu } from '../data/liveMenuState';
 export default function SpecialOffers({ onAddToCart, onShowAllOffers }) {
   const { menuItems } = useLiveMenu();
 
-  const liveOffers = specialOffersData.map((offer) => {
-    const live = menuItems.find(
-      (m) => m.id === offer.id || (m.number && m.number.toUpperCase() === offer.code.toUpperCase())
-    );
-    if (!live) return offer;
-
-    const unitPrice = typeof live.price === 'number'
-      ? live.price
-      : (live.prices?.single || offer.price);
-
-    const safeImage = (live.image && !live.image.includes('offer_a'))
-      ? live.image
-      : offer.image;
-
-    return {
-      ...offer,
-      title: offer.title || live.name,
-      description: offer.description || (live.desc ? live.desc.replace(/\n\+?\s*/g, ' • ') : offer.description),
-      price: unitPrice,
-      formattedPrice: `${unitPrice.toFixed(2).replace('.', ',')} €`,
-      image: safeImage,
-      is_in_stock: live.is_in_stock !== false
-    };
+  const dbDeals = (menuItems || []).filter(item => {
+    return item.category === 'deals' || item.id?.startsWith('A') || item.id?.startsWith('offer-');
   });
+
+  const liveOffers = dbDeals.length > 0
+    ? dbDeals.map(live => {
+        const code = live.number || live.id;
+        const unitPrice = typeof live.price === 'number'
+          ? live.price
+          : (live.prices?.single || 25.0);
+
+        const imagesList = Array.isArray(live.images) && live.images.length > 0
+          ? live.images
+          : [live.image_url || live.image || '/images/Offer1.png'];
+
+        return {
+          id: live.id,
+          code,
+          title: live.name,
+          description: live.desc || live.toppings || '',
+          price: unitPrice,
+          formattedPrice: `${unitPrice.toFixed(2).replace('.', ',')} €`,
+          image: imagesList[0],
+          is_in_stock: live.is_in_stock !== false
+        };
+      })
+    : specialOffersData.map((offer) => {
+        const live = menuItems.find(
+          (m) => m.id === offer.id || (m.number && m.number.toUpperCase() === offer.code.toUpperCase())
+        );
+        if (!live) return offer;
+
+        const unitPrice = typeof live.price === 'number'
+          ? live.price
+          : (live.prices?.single || offer.price);
+
+        const imagesList = Array.isArray(live.images) && live.images.length > 0
+          ? live.images
+          : [live.image_url || live.image || offer.image];
+
+        return {
+          ...offer,
+          title: offer.title || live.name,
+          description: offer.description || (live.desc ? live.desc.replace(/\n\+?\s*/g, ' • ') : offer.description),
+          price: unitPrice,
+          formattedPrice: `${unitPrice.toFixed(2).replace('.', ',')} €`,
+          image: imagesList[0],
+          is_in_stock: live.is_in_stock !== false
+        };
+      });
 
   return (
     <section className="section" id="angebote">

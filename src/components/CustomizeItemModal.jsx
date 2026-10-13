@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Plus, Minus, Check, ShoppingBag, Sparkles, ShieldAlert } from 'lucide-react';
+import { X, Plus, Minus, Check, ShoppingBag, Sparkles, ShieldAlert, ChevronLeft, ChevronRight, Camera } from 'lucide-react';
 import {
   standardPizzaSizes,
   calzoneSizes,
@@ -31,6 +31,7 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
   const [selectedToppings, setSelectedToppings] = useState([]);
   const [quantity, setQuantity] = useState(1);
   const [specialInstructions, setSpecialInstructions] = useState('');
+  const [activeImageIdx, setActiveImageIdx] = useState(0);
 
   // Lock background scrolling when modal is open
   useEffect(() => {
@@ -65,6 +66,7 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
       setSelectedToppings([]);
       setQuantity(1);
       setSpecialInstructions('');
+      setActiveImageIdx(0);
     }
   }, [isOpen, item?.id]);
 
@@ -182,49 +184,188 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
       }}
     >
       <div className="custom-modal-card" onClick={(e) => e.stopPropagation()}>
-        {/* Header Hero Image (Domino's/Reference Style) */}
-        <div className="custom-modal-hero">
-          <img src={item.image_url || item.image} alt={item.name} onError={(e) => { e.currentTarget.src = '/images/pizza1.png'; }} />
-          <div className="custom-modal-gradient" />
+        {/* Header Hero Image (Domino's/Reference Style) with Multi-Image Carousel */}
+        {(() => {
+          const modalImages = (Array.isArray(item.images) && item.images.length > 0)
+            ? item.images
+            : [item.image_url || item.image || '/images/pizza1.png'];
+          const currentImg = modalImages[activeImageIdx] || modalImages[0] || '/images/pizza1.png';
 
-          {/* Circular Close Button */}
-          <button
-            onClick={onClose}
-            aria-label="Schließen"
-            className="custom-modal-close-btn"
-          >
-            <X size={20} strokeWidth={2.5} />
-          </button>
+          return (
+            <div className="custom-modal-hero">
+              <img
+                src={currentImg}
+                alt={item.name}
+                onError={(e) => { e.currentTarget.src = '/images/pizza1.png'; }}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'all 0.25s ease' }}
+              />
+              <div className="custom-modal-gradient" />
 
-          {/* Overlaid Title & Info */}
-          <div className="custom-modal-hero-content">
-            <div className="custom-modal-badges">
-              {item.dietary?.includes('vegetarisch') && (
-                <span className="custom-modal-badge-veg" title="Vegetarisch">
-                  <span className="custom-modal-badge-veg-dot" />
-                </span>
+              {/* Multi-Image Controls */}
+              {modalImages.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveImageIdx(prev => (prev === 0 ? modalImages.length - 1 : prev - 1));
+                    }}
+                    aria-label="Vorheriges Bild"
+                    style={{
+                      position: 'absolute',
+                      left: '12px',
+                      top: '42%',
+                      transform: 'translateY(-50%)',
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '50%',
+                      background: 'rgba(15, 23, 42, 0.75)',
+                      color: '#ffffff',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 10,
+                      backdropFilter: 'blur(3px)',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                    }}
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveImageIdx(prev => (prev === modalImages.length - 1 ? 0 : prev + 1));
+                    }}
+                    aria-label="Nächstes Bild"
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '42%',
+                      transform: 'translateY(-50%)',
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '50%',
+                      background: 'rgba(15, 23, 42, 0.75)',
+                      color: '#ffffff',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 10,
+                      backdropFilter: 'blur(3px)',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                    }}
+                  >
+                    <ChevronRight size={20} />
+                  </button>
+
+                  {/* Multi-Photo Counter Badge */}
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '16px',
+                      left: '16px',
+                      background: 'rgba(15, 23, 42, 0.75)',
+                      color: '#ffffff',
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      padding: '3px 9px',
+                      borderRadius: '8px',
+                      zIndex: 10,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      backdropFilter: 'blur(4px)'
+                    }}
+                  >
+                    <Camera size={13} /> {activeImageIdx + 1} / {modalImages.length}
+                  </span>
+
+                  {/* Thumbnail Row Indicator */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: '12px',
+                      right: '16px',
+                      display: 'flex',
+                      gap: '6px',
+                      zIndex: 10,
+                      background: 'rgba(15, 23, 42, 0.65)',
+                      padding: '4px 8px',
+                      borderRadius: '10px',
+                      backdropFilter: 'blur(4px)'
+                    }}
+                  >
+                    {modalImages.map((img, idx) => (
+                      <div
+                        key={idx}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveImageIdx(idx);
+                        }}
+                        style={{
+                          width: '26px',
+                          height: '26px',
+                          borderRadius: '6px',
+                          overflow: 'hidden',
+                          border: idx === activeImageIdx ? '2px solid #e11d48' : '1px solid rgba(255,255,255,0.4)',
+                          cursor: 'pointer',
+                          opacity: idx === activeImageIdx ? 1 : 0.65,
+                          transition: 'all 0.18s ease'
+                        }}
+                      >
+                        <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
-              {item.number && (
-                <span className="custom-modal-badge-number">
-                  Nr. {item.number}
-                </span>
-              )}
-              {item.badge && (
-                <span className="custom-modal-badge-pill">
-                  {item.badge}
-                </span>
-              )}
+
+              {/* Circular Close Button */}
+              <button
+                onClick={onClose}
+                aria-label="Schließen"
+                className="custom-modal-close-btn"
+              >
+                <X size={20} strokeWidth={2.5} />
+              </button>
+
+              {/* Overlaid Title & Info */}
+              <div className="custom-modal-hero-content">
+                <div className="custom-modal-badges">
+                  {item.dietary?.includes('vegetarisch') && (
+                    <span className="custom-modal-badge-veg" title="Vegetarisch">
+                      <span className="custom-modal-badge-veg-dot" />
+                    </span>
+                  )}
+                  {item.number && (
+                    <span className="custom-modal-badge-number">
+                      Nr. {item.number}
+                    </span>
+                  )}
+                  {item.badge && (
+                    <span className="custom-modal-badge-pill">
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="custom-modal-title">{item.name}</h3>
+
+                {(item.toppings || item.desc) && (
+                  <p className="custom-modal-subtitle">
+                    {item.toppings || item.desc}
+                  </p>
+                )}
+              </div>
             </div>
-
-            <h3 className="custom-modal-title">{item.name}</h3>
-
-            {(item.toppings || item.desc) && (
-              <p className="custom-modal-subtitle">
-                {item.toppings || item.desc}
-              </p>
-            )}
-          </div>
-        </div>
+          );
+        })()}
 
         {/* Scrollable Content */}
         <div className="custom-modal-scroll">

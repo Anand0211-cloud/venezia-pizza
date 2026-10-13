@@ -249,29 +249,6 @@ export function applyCategoryStorageImages(categoryKey, items, availableFolders 
     };
   });
 
-  // If the storage folder has MORE images than items currently loaded,
-  // create dish cards for the remaining images so that NO VALID IMAGE IS SKIPPED!
-  if (folderFiles.length > mappedItems.length) {
-    for (let i = mappedItems.length; i < folderFiles.length; i++) {
-      const file = folderFiles[i];
-      const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
-      mappedItems.push({
-        id: `${categoryKey}-extra-${i + 1}`,
-        number: `${i + 1}`,
-        category: categoryKey,
-        name: cleanName.includes('Artboard') ? `${matchedFolder} Spezial ${i + 1}` : cleanName,
-        name_en: cleanName.includes('Artboard') ? `${matchedFolder} Special ${i + 1}` : cleanName,
-        desc: 'Frisch im Steinofen oder Wok zubereitetes Gericht nach Art des Hauses.',
-        toppings: 'Feinste aromatische Zutaten & Gewürze',
-        price: mappedItems[0]?.price || 9.50,
-        prices: { single: mappedItems[0]?.price || 9.50 },
-        image: file.publicUrl,
-        is_in_stock: true,
-        dietary: []
-      });
-    }
-  }
-
   return mappedItems;
 }
 

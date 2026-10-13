@@ -17,7 +17,6 @@ import AccountModal from './components/AccountModal';
 import AccountPage from './components/AccountPage';
 import OrderStatusPage from './components/OrderStatusPage';
 import AdminPanel from './components/AdminPanel';
-import SunmiPosPage from './components/SunmiPosPage';
 import { saveActiveOrder, playOrderChime, supabase, createOrder, subscribeToStoreSettings } from './lib/supabaseClient';
 import { sendOrderConfirmationEmail } from './lib/emailService';
 import { getSumUpCheckoutStatus } from './lib/sumupService';
@@ -28,19 +27,6 @@ export default function App() {
     const hash = (window.location.hash || '').toLowerCase();
     const pathname = (window.location.pathname || '').toLowerCase();
     const search = (window.location.search || '').toLowerCase();
-
-    if (
-      hash === '#sunmi' ||
-      hash === '#/sunmi' ||
-      hash === '#pos' ||
-      hash === '#/pos' ||
-      pathname === '/sunmi' ||
-      pathname === '/pos' ||
-      search.includes('sunmi') ||
-      search.includes('pos')
-    ) {
-      return 'sunmi';
-    }
 
     if (
       hash === '#admin' ||
@@ -381,11 +367,6 @@ export default function App() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
-
-  // If in Sunmi POS view, render dedicated Sunmi POS Terminal
-  if (currentView === 'sunmi') {
-    return <SunmiPosPage />;
-  }
 
   // If in admin view, render dedicated Admin Portal
   if (currentView === 'admin') {

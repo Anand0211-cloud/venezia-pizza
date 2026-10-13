@@ -112,6 +112,9 @@ export function getItemCanonicalCategory(item) {
     cat === 'fleischgerichte' ||
     cat === 'schnitzel' ||
     cat === 'fleisch' ||
+    cat === 'fischgerichte' ||
+    cat === 'fisch' ||
+    id.startsWith('fisch-') ||
     name.includes('schnitzel') ||
     name.includes('cordon bleu')
   ) {
@@ -176,18 +179,6 @@ export function getItemCanonicalCategory(item) {
     return 'steaks';
   }
 
-  // 16. Fischgerichte
-  if (
-    cat === 'fischgerichte' ||
-    cat === 'fisch' ||
-    name.includes('lachs') ||
-    name.includes('calamari') ||
-    name.includes('zander') ||
-    name.includes('forelle') ||
-    name.includes('garnelen')
-  ) {
-    return 'fischgerichte';
-  }
 
   // 17. Mexikanisch
   if (
@@ -314,6 +305,19 @@ export function formatMenuItemFromDb(dbItem, localMap) {
     }
   }
 
+  // Extract multiple images (synced from Supabase in prices.images or images column)
+  let rawImages = [];
+  if (Array.isArray(dbItem.prices?.images) && dbItem.prices.images.length > 0) {
+    rawImages = dbItem.prices.images;
+  } else if (Array.isArray(dbItem.images) && dbItem.images.length > 0) {
+    rawImages = dbItem.images;
+  } else if (dbItem.image_url && typeof dbItem.image_url === 'string' && dbItem.image_url.trim() !== '') {
+    rawImages = [dbItem.image_url];
+  } else if (image) {
+    rawImages = [image];
+  }
+  const cleanImagesList = rawImages.filter(img => typeof img === 'string' && img.trim() !== '');
+
   return {
     id: dbItem.id,
     number: dbItem.number || local?.number || local?.code || '',
@@ -324,8 +328,9 @@ export function formatMenuItemFromDb(dbItem, localMap) {
     desc: dbItem.desc_de || dbItem.desc || local?.desc || local?.details || '',
     prices,
     price: unitPrice,
-    image,
-    image_url: dbItem.image_url || image,
+    image: cleanImagesList[0] || image,
+    image_url: cleanImagesList[0] || dbItem.image_url || image,
+    images: cleanImagesList.length > 0 ? cleanImagesList : (image ? [image] : []),
     has_custom_image: !!(dbItem.image_url && !dbItem.image_url.includes('Artboard_')),
     badge: (dbItem.badge !== undefined && dbItem.badge !== null) ? dbItem.badge : (local?.badge ?? ''),
     dietary: dbItem.dietary || local?.dietary || [],

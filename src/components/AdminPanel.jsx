@@ -47,7 +47,9 @@ import {
   Moon,
   BellRing,
   LogOut,
-  Mail
+  Mail,
+  Star,
+  Camera
 } from 'lucide-react';
 import {
   isSupabaseConfigured,
@@ -72,7 +74,8 @@ import {
   getStoreSettings,
   updateStoreStatus,
   subscribeToStoreSettings,
-  uploadDishImage
+  uploadDishImage,
+  uploadMultipleDishImages
 } from '../lib/supabaseClient';
 import AdminLogin from './AdminLogin';
 import {
@@ -110,7 +113,6 @@ const CATEGORY_EMOJIS = {
   indisch: '🍛',
   lamm: '🍖',
   steaks: '🥩',
-  fischgerichte: '🐟',
   mexikanisch: '🌮',
   chinesisch: '🥡',
   beilagen: '🍟',
@@ -125,6 +127,7 @@ const CATEGORY_EMOJIS = {
 const FRONTEND_CATEGORIES = [
   { id: 'all', name_de: 'Alle Gerichte', name_en: 'All Dishes' },
   { id: 'pizzen', name_de: 'Pizzen', name_en: 'Pizzas' },
+  { id: 'deals', name_de: 'Spar-Menüs & Deals', name_en: 'Deals & Offers' },
   { id: 'pasta', name_de: 'Pasta', name_en: 'Pasta' },
   { id: 'gnocchi', name_de: 'Gnocchi', name_en: 'Gnocchi' },
   { id: 'pasta-al-forno', name_de: 'Pasta al Forno', name_en: 'Pasta al Forno' },
@@ -139,14 +142,12 @@ const FRONTEND_CATEGORIES = [
   { id: 'indisch', name_de: 'Indische Hauptgerichte', name_en: 'Indian Main Dishes' },
   { id: 'lamm', name_de: 'Lamm Spezialitäten', name_en: 'Lamb Specialties' },
   { id: 'steaks', name_de: 'Steaks', name_en: 'Steaks' },
-  { id: 'fischgerichte', name_de: 'Fischgerichte', name_en: 'Fish Dishes' },
   { id: 'mexikanisch', name_de: 'Mexikanische Gerichte', name_en: 'Mexican Dishes' },
   { id: 'chinesisch', name_de: 'Chinesische Gerichte', name_en: 'Chinese Dishes' },
   { id: 'beilagen', name_de: 'Extra Beilagen', name_en: 'Side Dishes' },
   { id: 'toasts', name_de: 'Toasts', name_en: 'Toasts' },
   { id: 'omelette', name_de: 'Omelette mit Käse überbacken', name_en: 'Baked Cheese Omelette' },
-  { id: 'getraenke', name_de: 'Getränke & Desserts', name_en: 'Beverages & Desserts' },
-  { id: 'deals', name_de: 'Spar-Menüs & Deals', name_en: 'Deals & Offers' }
+  { id: 'getraenke', name_de: 'Getränke & Desserts', name_en: 'Beverages & Desserts' }
 ];
 
 // Preset images available in public/images
@@ -1023,11 +1024,18 @@ const normalizeItem = (i) => {
   const isCalzone = cat === 'calzone' || (i.name && i.name.toLowerCase().includes('calzone'));
   const isPizza = cat === 'pizzen' || cat === 'pizza' || isCalzone;
 
+  const rawImages = Array.isArray(i.prices?.images) && i.prices.images.length > 0
+    ? i.prices.images
+    : (Array.isArray(i.images) && i.images.length > 0 ? i.images : (i.image_url ? [i.image_url] : []));
+  const cleanImagesList = rawImages.filter(img => typeof img === 'string' && img.trim() !== '');
+
   return {
     ...i,
     category_id: cat,
     category: cat,
     price: unitPrice,
+    images: cleanImagesList.length > 0 ? cleanImagesList : (i.image_url ? [i.image_url] : []),
+    image_url: cleanImagesList[0] || i.image_url || '',
     sizes_available: i.sizes_available ?? i.sizesAvailable ?? isPizza,
     calzone_sizes: i.calzone_sizes ?? i.calzoneSizes ?? isCalzone,
     supports_american: !!(i.supports_american ?? i.supportsAmerican),
@@ -1238,6 +1246,7 @@ export default function AdminPanel({ onBackToStore }) {
     desc: '',
     toppings: '',
     image_url: '',
+    images: [],
     price: 9.00,
     has_sizes: true,
     sizes_config: { ...DEFAULT_SIZES_CONFIG },
@@ -1533,6 +1542,7 @@ export default function AdminPanel({ onBackToStore }) {
       desc: '',
       toppings: '',
       image_url: '/images/pizza1.png',
+      images: ['/images/pizza1.png'],
       price: 9.00,
       has_sizes: true,
       sizes_config: { ...DEFAULT_SIZES_CONFIG },
@@ -2011,7 +2021,8 @@ export default function AdminPanel({ onBackToStore }) {
       name: item.name_de || item.name || '',
       desc: item.desc_de || item.desc || '',
       toppings: item.toppings_de || item.toppings || '',
-      image_url: (item.image_url && (item.image_url.startsWith('http') || item.image_url.startsWith('/images/dishes/'))) ? item.image_url : '',
+      image_url: (item.image_url && (item.image_url.startsWith('http') || item.image_url.startsWith('/images/dishes/'))) ? item.image_url : (item.images?.[0] || ''),
+      images: Array.isArray(item.images) && item.images.length > 0 ? item.images : (item.image_url ? [item.image_url] : []),
       price: unitPrice,
       has_sizes: hasSizes,
       sizes_config,
@@ -2036,13 +2047,46 @@ export default function AdminPanel({ onBackToStore }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Handle Image File Upload (Uploads directly to Supabase backend database & syncs live)
-  const handleImageFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Set an image from the list as the primary cover image
+  const handleSetPrimaryImage = (imgUrl) => {
+    setDishForm(prev => {
+      const curList = Array.isArray(prev.images) ? [...prev.images] : [];
+      const rest = curList.filter(u => u !== imgUrl);
+      const reordered = [imgUrl, ...rest];
+      return {
+        ...prev,
+        image_url: imgUrl,
+        images: reordered
+      };
+    });
+    showToast(lang === 'de' ? 'Als Hauptbild gesetzt' : 'Set as primary photo', 'info');
+  };
+
+  // Remove a photo from the dish images list
+  const handleRemoveImage = (imgUrlToRemove) => {
+    setDishForm(prev => {
+      const curList = Array.isArray(prev.images) ? [...prev.images] : [];
+      const updated = curList.filter(u => u !== imgUrlToRemove);
+      return {
+        ...prev,
+        image_url: prev.image_url === imgUrlToRemove ? (updated[0] || '') : prev.image_url,
+        images: updated
+      };
+    });
+  };
+
+  // Handle Multiple or Single Image File Upload (Uploads directly to Supabase Storage only & syncs live)
+  const handleMultipleImageUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
     setIsUploadingDishImage(true);
-    showToast(lang === 'de' ? 'Bild wird in Supabase hochgeladen...' : 'Uploading image to Supabase...', 'info');
+    showToast(
+      lang === 'de'
+        ? `${files.length} ${files.length === 1 ? 'Bild wird' : 'Bilder werden'} in Supabase Storage hochgeladen...`
+        : `Uploading ${files.length} photo(s) to Supabase Storage...`,
+      'info'
+    );
 
     try {
       // 1. Determine accurate dish ID even if editingItem is null or user entered by number/name
@@ -2068,46 +2112,50 @@ export default function AdminPanel({ onBackToStore }) {
         }
       }
 
-      const res = await uploadDishImage(file, dishIdentifier || 'dish');
+      const res = await uploadMultipleDishImages(files, dishIdentifier || 'dish');
 
-      if (res && res.success && res.url) {
-        setDishForm(prev => ({ ...prev, image_url: res.url, id: dishIdentifier || prev.id }));
+      if (res && res.success && res.urls && res.urls.length > 0) {
+        const newUrls = res.urls;
+        const currentList = Array.isArray(dishForm.images) ? [...dishForm.images] : (dishForm.image_url ? [dishForm.image_url] : []);
+        // Combine without duplicates
+        const combined = Array.from(new Set([...currentList, ...newUrls]));
+        const primaryImage = combined[0] || newUrls[0] || '';
 
-        // Directly persist to Supabase if we have a concrete dish ID
+        setDishForm(prev => ({
+          ...prev,
+          image_url: primaryImage,
+          images: combined,
+          id: dishIdentifier || prev.id
+        }));
+
+        // Directly persist to Supabase PostgreSQL database if we have a concrete dish ID
         if (isConnected && dishIdentifier && dishIdentifier !== 'dish' && !dishIdentifier.startsWith('new-')) {
           try {
+            const currentItem = menuItems.find(m => m.id === dishIdentifier);
+            const currentPrices = (currentItem?.prices && typeof currentItem.prices === 'object') ? { ...currentItem.prices } : {};
             await supabase
               .from('menu_items')
               .update({
-                image_url: res.url,
+                image_url: primaryImage,
+                prices: { ...currentPrices, images: combined },
                 updated_at: new Date().toISOString()
               })
               .eq('id', dishIdentifier);
-            console.log(`[AdminPanel] Explicitly saved image for ${dishIdentifier} to Supabase!`);
+            console.log(`[AdminPanel] Explicitly saved multiple images for ${dishIdentifier} to Supabase!`);
           } catch (upErr) {
             console.warn('[AdminPanel] Immediate save error:', upErr);
           }
         }
 
-        // Immediately update localStorage overrides so the front end gets the new image immediately
-        try {
-          const savedOverrides = JSON.parse(localStorage.getItem('venezia_admin_dishes_override') || '{}');
-          if (dishIdentifier && dishIdentifier !== 'dish') {
-            savedOverrides[dishIdentifier] = {
-              ...(savedOverrides[dishIdentifier] || {}),
-              image: res.url,
-              image_url: res.url,
-              has_custom_image: true
-            };
-            localStorage.setItem('venezia_admin_dishes_override', JSON.stringify(savedOverrides));
-          }
-        } catch (e) {}
-
         // Immediately reflect in AdminPanel menuItems list
         if (dishIdentifier && dishIdentifier !== 'dish') {
-          setMenuItems(prev => prev.map(item => (item.id === dishIdentifier ? { ...item, image_url: res.url, image: res.url, has_custom_image: true } : item)));
+          setMenuItems(prev => prev.map(item => (
+            item.id === dishIdentifier
+              ? { ...item, image_url: primaryImage, image: primaryImage, images: combined, has_custom_image: true }
+              : item
+          )));
           if (editingItem) {
-            setEditingItem(prev => ({ ...prev, image_url: res.url, image: res.url, has_custom_image: true }));
+            setEditingItem(prev => ({ ...prev, image_url: primaryImage, image: primaryImage, images: combined, has_custom_image: true }));
           }
         }
 
@@ -2116,12 +2164,12 @@ export default function AdminPanel({ onBackToStore }) {
 
         showToast(
           lang === 'de'
-            ? 'Bild erfolgreich im Supabase-Backend gespeichert!'
-            : 'Image successfully saved to Supabase Backend!',
+            ? `${newUrls.length} ${newUrls.length === 1 ? 'Bild' : 'Bilder'} erfolgreich in Supabase Storage hochgeladen & gespeichert!`
+            : `${newUrls.length} image(s) saved to Supabase Storage!`,
           'success'
         );
       } else {
-        showToast(res?.error || 'Fehler beim Hochladen', 'error');
+        showToast(res?.errors?.join(', ') || 'Fehler beim Hochladen', 'error');
       }
     } catch (err) {
       console.error('Image upload failed:', err);
@@ -2129,10 +2177,12 @@ export default function AdminPanel({ onBackToStore }) {
     } finally {
       setIsUploadingDishImage(false);
       try {
-        e.target.value = '';
+        if (e.target) e.target.value = '';
       } catch (err) {}
     }
   };
+
+  const handleImageFileUpload = handleMultipleImageUpload;
 
   // Save Dish (Add or Edit)
   const handleSaveDish = async (e) => {
@@ -2201,6 +2251,12 @@ export default function AdminPanel({ onBackToStore }) {
     prices.custom_sizes = customSizes;
     prices.custom_toppings = customToppings;
 
+    const cleanImages = Array.isArray(dishForm.images) && dishForm.images.length > 0
+      ? dishForm.images.filter(Boolean)
+      : (dishForm.image_url ? [dishForm.image_url] : []);
+    const primaryImg = cleanImages[0] || dishForm.image_url || '';
+    prices.images = cleanImages;
+
     const finalBasePrice = firstEnabledPrice !== null ? firstEnabledPrice : numPrice;
     const canonicalCat = getItemCanonicalCategory({ ...dishForm, id });
     const isCalzone = canonicalCat === 'calzone' || dishForm.category_id === 'calzone';
@@ -2209,12 +2265,12 @@ export default function AdminPanel({ onBackToStore }) {
     // Safe DB category_id mapping to respect foreign key constraint on categories(id) in Supabase
     const dbCategoryId = isDeal ? null : (
       dishForm.category_id === 'pizzen' ? 'pizza' :
-      dishForm.category_id === 'fleischgerichte' ? 'schnitzel' :
       dishForm.category_id === 'gyros' ? 'doner' :
       dishForm.category_id === 'salate' ? 'salad' :
       dishForm.category_id === 'american-food' ? 'burger-snacks' :
       dishForm.category_id === 'getraenke' ? 'dessert-drinks' :
-      (['pizza', 'calzone', 'pasta', 'doner', 'burger-snacks', 'schnitzel', 'salad', 'dessert-drinks'].includes(dishForm.category_id)
+      dishForm.category_id === 'fleischgerichte' ? 'fleischgerichte' :
+      (['pizza', 'calzone', 'pasta', 'doner', 'burger-snacks', 'salad', 'dessert-drinks', 'fleischgerichte', 'reisgerichte', 'indisch', 'lamm', 'steaks', 'mexikanisch', 'chinesisch', 'beilagen', 'toasts', 'omelette', 'auflaeufe', 'vegetarisch', 'grill-menue'].includes(dishForm.category_id)
         ? dishForm.category_id
         : (['pasta-al-forno', 'gnocchi'].includes(dishForm.category_id) ? 'pasta' : null))
     );
@@ -2231,7 +2287,7 @@ export default function AdminPanel({ onBackToStore }) {
       desc_en: dishForm.desc,
       toppings_de: dishForm.toppings,
       toppings_en: dishForm.toppings,
-      image_url: dishForm.image_url,
+      image_url: primaryImg,
       badge: dishForm.badge,
       dietary: dishForm.dietary || [],
       sizes_available: dishForm.has_sizes && !isCalzone && anySizeEnabled,
@@ -2260,8 +2316,9 @@ export default function AdminPanel({ onBackToStore }) {
     const displayCategory = dishForm.category_id;
     const formattedItem = {
       ...payload,
-      image: dishForm.image_url,
-      image_url: dishForm.image_url,
+      image: primaryImg,
+      image_url: primaryImg,
+      images: cleanImages,
       has_custom_image: true,
       category: displayCategory,
       category_id: displayCategory,
@@ -2281,10 +2338,11 @@ export default function AdminPanel({ onBackToStore }) {
 
     try {
       const savedOverrides = JSON.parse(localStorage.getItem('venezia_admin_dishes_override') || '{}');
-      const effectiveImg = dishForm.image_url || editingItem?.image_url || savedOverrides[id]?.image_url || '';
+      const effectiveImg = primaryImg || editingItem?.image_url || savedOverrides[id]?.image_url || '';
       savedOverrides[id] = {
         image: effectiveImg,
         image_url: effectiveImg,
+        images: cleanImages,
         name: dishForm.name,
         name_de: dishForm.name,
         toppings: dishForm.toppings,
@@ -7251,150 +7309,254 @@ export default function AdminPanel({ onBackToStore }) {
                       </div>
                     </div>
 
-                    {/* Image URL & Upload */}
+                    {/* Multi-Image Gallery & Supabase Storage Management Studio */}
                     <div style={{
                       background: isLight ? '#f8fafc' : '#0b0f19',
                       padding: '16px',
-                      borderRadius: '12px',
+                      borderRadius: '14px',
                       border: isLight ? '1px solid #e2e8f0' : '1px solid #1e293b',
                       display: 'flex',
-                      gap: '16px',
-                      alignItems: 'center',
-                      flexWrap: 'wrap'
+                      flexDirection: 'column',
+                      gap: '16px'
                     }}>
-                      <div style={{
-                        width: '90px',
-                        height: '90px',
-                        borderRadius: '12px',
-                        overflow: 'hidden',
-                        background: isLight ? '#ffffff' : '#131b2e',
-                        border: '2px solid #e11d48',
-                        position: 'relative',
-                        flexShrink: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        {isUploadingDishImage ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                            <RefreshCw size={24} color="#e11d48" style={{ animation: 'spin 1s linear infinite' }} />
-                            <span style={{ fontSize: '9px', fontWeight: '800', color: isLight ? '#64748b' : '#94a3b8' }}>Upload...</span>
-                          </div>
-                        ) : (
-                          <img
-                            src={dishForm.image_url || '/images/pizza1.png'}
-                            alt="Current"
-                            onError={(e) => { e.target.src = '/images/pizza1.png'; }}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
-                        )}
-                        <span style={{ position: 'absolute', bottom: '3px', right: '3px', background: 'rgba(0,0,0,0.7)', color: '#ffffff', fontSize: '9px', fontWeight: '800', padding: '1px 5px', borderRadius: '4px' }}>
-                          LIVE
-                        </span>
-                      </div>
-
-                      <div style={{ flex: 1, minWidth: '240px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: isLight ? '#475569' : '#94a3b8', marginBottom: '4px' }}>
-                            {t.form.enterImageUrl}
-                          </label>
-                          {dishForm.image_url?.startsWith('data:image') ? (
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              background: isLight ? '#f0fdf4' : 'rgba(16, 185, 129, 0.12)',
-                              border: '1.5px solid #10b981',
-                              borderRadius: '8px',
-                              padding: '8px 12px',
-                              fontSize: '12.5px',
-                              color: isLight ? '#166534' : '#6ee7b7'
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                                <CheckCircle2 size={16} color="#10b981" style={{ flexShrink: 0 }} />
-                                <span style={{ fontWeight: '700' }}>
-                                  {lang === 'de' ? 'Supabase Cloud-Bild gespeichert' : 'Supabase Cloud Image Saved'}
-                                </span>
-                                <span style={{ fontSize: '11px', opacity: 0.8, whiteSpace: 'nowrap' }}>
-                                  ({Math.max(1, Math.round((dishForm.image_url.length * 3 / 4) / 1024))} KB)
-                                </span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setDishForm({ ...dishForm, image_url: '' })}
-                                style={{
-                                  background: isLight ? '#fee2e2' : 'rgba(239, 68, 68, 0.2)',
-                                  border: '1px solid #ef4444',
-                                  borderRadius: '6px',
-                                  color: '#ef4444',
-                                  fontSize: '11px',
-                                  fontWeight: '700',
-                                  cursor: 'pointer',
-                                  padding: '3px 8px'
-                                }}
-                              >
-                                {lang === 'de' ? 'Entfernen' : 'Remove'}
-                              </button>
-                            </div>
-                          ) : (
-                            <input
-                              type="text"
-                              placeholder="/images/pizza1.png oder https://..."
-                              value={dishForm.image_url || ''}
-                              onChange={(e) => setDishForm({ ...dishForm, image_url: e.target.value })}
-                              style={{
-                                width: '100%',
-                                background: isLight ? '#ffffff' : '#131b2e',
-                                border: isLight ? '1px solid #cbd5e1' : '1px solid #334155',
-                                borderRadius: '8px',
-                                padding: '9px 12px',
-                                color: isLight ? '#0f172a' : '#ffffff',
-                                fontSize: '13px'
-                              }}
-                            />
-                          )}
-                        </div>
-
+                      {/* Top Bar: Multi-File Upload Button + Supabase badge */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                           <label style={{
-                            background: isUploadingDishImage ? (isLight ? '#f1f5f9' : '#1e293b') : (isLight ? '#ffffff' : '#1e293b'),
-                            color: isUploadingDishImage ? '#94a3b8' : (isLight ? '#0f172a' : '#f8fafc'),
-                            border: isLight ? '1px dashed #cbd5e1' : '1px dashed #475569',
-                            borderRadius: '8px',
-                            padding: '8px 14px',
-                            fontSize: '12px',
+                            background: isUploadingDishImage ? (isLight ? '#f1f5f9' : '#1e293b') : '#e11d48',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '10px',
+                            padding: '10px 18px',
+                            fontSize: '13px',
                             fontWeight: '700',
                             cursor: isUploadingDishImage ? 'not-allowed' : 'pointer',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '6px',
-                            width: 'fit-content',
+                            gap: '8px',
+                            boxShadow: '0 4px 12px rgba(225, 29, 72, 0.25)',
+                            transition: 'all 0.2s ease',
                             opacity: isUploadingDishImage ? 0.75 : 1
                           }}>
                             {isUploadingDishImage ? (
-                              <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                              <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} />
                             ) : (
-                              <Upload size={14} />
+                              <Camera size={16} />
                             )}
                             <span>
                               {isUploadingDishImage
-                                ? (lang === 'de' ? 'Wird in Supabase hochgeladen...' : 'Uploading to Supabase...')
-                                : t.form.uploadFromComputer}
+                                ? (lang === 'de' ? 'Upload in Supabase Storage läuft...' : 'Uploading to Supabase Storage...')
+                                : (lang === 'de' ? 'Mehrere Bilder hochladen (Supabase)' : 'Upload Multiple Photos (Supabase)')}
                             </span>
                             <input
                               type="file"
+                              multiple
                               accept="image/*"
                               disabled={isUploadingDishImage}
                               style={{ display: 'none' }}
-                              onChange={handleImageFileUpload}
+                              onChange={handleMultipleImageUpload}
                             />
                           </label>
 
-                          <span style={{ fontSize: '11px', color: isLight ? '#64748b' : '#94a3b8', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
-                            {lang === 'de' ? 'Automatisch mit Supabase Backend synchronisiert' : 'Auto-synced with Supabase Backend'}
+                          <span style={{ fontSize: '11.5px', color: isLight ? '#64748b' : '#94a3b8', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
+                            {lang === 'de' ? 'Direkt in Supabase Storage ("menu-dishes")' : 'Direct Supabase Storage ("menu-dishes")'}
                           </span>
                         </div>
+
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          background: isLight ? '#e2e8f0' : '#1e293b',
+                          color: isLight ? '#334155' : '#cbd5e1',
+                          padding: '4px 10px',
+                          borderRadius: '20px'
+                        }}>
+                          {Array.isArray(dishForm.images) && dishForm.images.length > 0 
+                            ? `${dishForm.images.length} ${dishForm.images.length === 1 ? 'Bild aktiv' : 'Bilder aktiv'}` 
+                            : (dishForm.image_url ? '1 Bild aktiv' : 'Kein Bild')}
+                        </span>
+                      </div>
+
+                      {/* Image Gallery Cards Strip / Grid */}
+                      {(() => {
+                        const allImgs = Array.isArray(dishForm.images) && dishForm.images.length > 0
+                          ? dishForm.images
+                          : (dishForm.image_url ? [dishForm.image_url] : []);
+
+                        if (allImgs.length === 0) {
+                          return (
+                            <div style={{
+                              padding: '24px',
+                              textAlign: 'center',
+                              borderRadius: '10px',
+                              border: isLight ? '1px dashed #cbd5e1' : '1px dashed #334155',
+                              color: isLight ? '#64748b' : '#94a3b8',
+                              fontSize: '12.5px'
+                            }}>
+                              {lang === 'de' 
+                                ? 'Noch keine Bilder hinterlegt. Klicken Sie oben auf "Mehrere Bilder hochladen" oder wählen Sie unten Presets aus.'
+                                : 'No photos added yet. Click "Upload Multiple Photos" above or choose presets below.'}
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                            gap: '12px'
+                          }}>
+                            {allImgs.map((imgUrl, idx) => {
+                              const isPrimary = idx === 0 || imgUrl === dishForm.image_url;
+                              return (
+                                <div
+                                  key={idx}
+                                  style={{
+                                    position: 'relative',
+                                    borderRadius: '10px',
+                                    overflow: 'hidden',
+                                    background: isLight ? '#ffffff' : '#131b2e',
+                                    border: isPrimary ? '2.5px solid #f59e0b' : (isLight ? '1px solid #e2e8f0' : '1px solid #334155'),
+                                    boxShadow: isPrimary ? '0 0 10px rgba(245, 158, 11, 0.35)' : 'none',
+                                    display: 'flex',
+                                    flexDirection: 'column'
+                                  }}
+                                >
+                                  {/* Thumbnail */}
+                                  <div style={{ height: '90px', width: '100%', position: 'relative', background: '#000000' }}>
+                                    <img
+                                      src={imgUrl}
+                                      alt={`Dish ${idx + 1}`}
+                                      onError={(e) => { e.target.src = '/images/pizza1.png'; }}
+                                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    />
+                                    {isPrimary ? (
+                                      <span style={{
+                                        position: 'absolute',
+                                        top: '4px',
+                                        left: '4px',
+                                        background: '#f59e0b',
+                                        color: '#000000',
+                                        fontSize: '9.5px',
+                                        fontWeight: '800',
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '3px',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                                      }}>
+                                        <Star size={10} fill="#000000" />
+                                        {lang === 'de' ? 'Hauptbild' : 'Cover'}
+                                      </span>
+                                    ) : (
+                                      <span style={{
+                                        position: 'absolute',
+                                        top: '4px',
+                                        left: '4px',
+                                        background: 'rgba(0,0,0,0.7)',
+                                        color: '#ffffff',
+                                        fontSize: '9.5px',
+                                        fontWeight: '700',
+                                        padding: '2px 6px',
+                                        borderRadius: '4px'
+                                      }}>
+                                        #{idx + 1}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Controls Footer */}
+                                  <div style={{
+                                    padding: '6px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    background: isLight ? '#f8fafc' : '#0b0f19',
+                                    borderTop: isLight ? '1px solid #f1f5f9' : '1px solid #1e293b'
+                                  }}>
+                                    {!isPrimary ? (
+                                      <button
+                                        type="button"
+                                        title={lang === 'de' ? 'Als Hauptbild setzen' : 'Set as cover photo'}
+                                        onClick={() => handleSetPrimaryImage(imgUrl)}
+                                        style={{
+                                          background: 'none',
+                                          border: isLight ? '1px solid #cbd5e1' : '1px solid #334155',
+                                          borderRadius: '6px',
+                                          padding: '3px 6px',
+                                          fontSize: '10px',
+                                          fontWeight: '700',
+                                          color: isLight ? '#334155' : '#cbd5e1',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '3px'
+                                        }}
+                                      >
+                                        <Star size={10} />
+                                        {lang === 'de' ? 'Haupt' : 'Cover'}
+                                      </button>
+                                    ) : (
+                                      <span style={{ fontSize: '10px', fontWeight: '800', color: '#f59e0b' }}>
+                                        ✓ {lang === 'de' ? 'Aktiv' : 'Active'}
+                                      </span>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      title={lang === 'de' ? 'Foto entfernen' : 'Remove photo'}
+                                      onClick={() => handleRemoveImage(imgUrl)}
+                                      style={{
+                                        background: isLight ? '#fee2e2' : 'rgba(239, 68, 68, 0.15)',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        padding: '4px 6px',
+                                        color: '#ef4444',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center'
+                                      }}
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Manual Image URL Input for custom or external links */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '11px', fontWeight: '700', color: isLight ? '#64748b' : '#94a3b8' }}>
+                          {lang === 'de' ? 'Bild-URL manuell eingeben oder bearbeiten:' : 'Manual image URL:'}
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="/images/pizza1.png oder https://..."
+                          value={dishForm.image_url || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const cur = Array.isArray(dishForm.images) ? [...dishForm.images] : [];
+                            if (val && !cur.includes(val)) {
+                              setDishForm({ ...dishForm, image_url: val, images: [val, ...cur] });
+                            } else {
+                              setDishForm({ ...dishForm, image_url: val });
+                            }
+                          }}
+                          style={{
+                            width: '100%',
+                            background: isLight ? '#ffffff' : '#131b2e',
+                            border: isLight ? '1px solid #cbd5e1' : '1px solid #334155',
+                            borderRadius: '8px',
+                            padding: '8px 12px',
+                            color: isLight ? '#0f172a' : '#ffffff',
+                            fontSize: '12px'
+                          }}
+                        />
                       </div>
                     </div>
 
@@ -7441,18 +7603,37 @@ export default function AdminPanel({ onBackToStore }) {
                         }}
                       >
                         {filteredPresets.map((preset, idx) => {
-                          const isSelected = dishForm.image_url === preset.url;
+                          const currentImgs = Array.isArray(dishForm.images) && dishForm.images.length > 0
+                            ? dishForm.images
+                            : (dishForm.image_url ? [dishForm.image_url] : []);
+                          const isSelected = currentImgs.includes(preset.url);
+                          const isPrimary = isSelected && (dishForm.image_url === preset.url || currentImgs[0] === preset.url);
+
                           return (
                             <div
                               key={idx}
-                              onClick={() => setDishForm({ ...dishForm, image_url: preset.url })}
+                              onClick={() => {
+                                const cur = Array.isArray(dishForm.images) && dishForm.images.length > 0
+                                  ? [...dishForm.images]
+                                  : (dishForm.image_url ? [dishForm.image_url] : []);
+                                if (cur.includes(preset.url)) {
+                                  handleSetPrimaryImage(preset.url);
+                                } else {
+                                  const updated = [preset.url, ...cur];
+                                  setDishForm({ ...dishForm, image_url: preset.url, images: updated });
+                                }
+                              }}
                               style={{
                                 background: isLight ? '#ffffff' : '#0b0f19',
                                 borderRadius: '10px',
                                 overflow: 'hidden',
                                 cursor: 'pointer',
-                                border: isSelected ? '2.5px solid #e11d48' : (isLight ? '1px solid #e2e8f0' : '1px solid #1e293b'),
-                                boxShadow: isSelected ? '0 0 12px rgba(225, 29, 72, 0.4)' : (isLight ? '0 1px 3px rgba(0,0,0,0.04)' : 'none'),
+                                border: isPrimary
+                                  ? '2.5px solid #f59e0b'
+                                  : (isSelected ? '2.5px solid #e11d48' : (isLight ? '1px solid #e2e8f0' : '1px solid #1e293b')),
+                                boxShadow: isPrimary
+                                  ? '0 0 10px rgba(245, 158, 11, 0.4)'
+                                  : (isSelected ? '0 0 10px rgba(225, 29, 72, 0.4)' : (isLight ? '0 1px 3px rgba(0,0,0,0.04)' : 'none')),
                                 position: 'relative',
                                 display: 'flex',
                                 flexDirection: 'column',
@@ -7465,7 +7646,23 @@ export default function AdminPanel({ onBackToStore }) {
                                   alt={preset.label}
                                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                 />
-                                {isSelected && (
+                                {isPrimary ? (
+                                  <div style={{
+                                    position: 'absolute',
+                                    top: '4px',
+                                    right: '4px',
+                                    background: '#f59e0b',
+                                    color: '#000000',
+                                    borderRadius: '50%',
+                                    width: '18px',
+                                    height: '18px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}>
+                                    <Star size={10} fill="#000000" />
+                                  </div>
+                                ) : isSelected ? (
                                   <div style={{
                                     position: 'absolute',
                                     top: '4px',
@@ -7481,7 +7678,7 @@ export default function AdminPanel({ onBackToStore }) {
                                   }}>
                                     <Check size={11} strokeWidth={3} />
                                   </div>
-                                )}
+                                ) : null}
                               </div>
                               <div style={{
                                 padding: '4px 6px',

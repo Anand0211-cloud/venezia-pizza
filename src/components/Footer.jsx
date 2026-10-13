@@ -43,7 +43,7 @@ export default function Footer({ onNavigate }) {
             <span className="footer-socials-label">Folge uns</span>
             <div className="socials">
               <a
-                href="https://facebook.com"
+                href={restaurantInfo.social?.facebook || "https://www.facebook.com/profile.php?id=100059933894217&mibextid=wwXIfr&rdid=IcSnReX9PW6bdAqq&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2F19TDhNZ6CN%2F%3Fmibextid%3DwwXIfr"}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="social-btn"
