@@ -465,13 +465,16 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
           : [item.image_url || item.image || '/images/Offer1.png'];
 
         return {
+          ...item,
           id: item.id,
           code,
           title: item.name,
           name: item.name,
           description: item.desc || item.toppings || '',
           details: item.toppings || item.desc || '',
+          toppings: item.toppings || item.desc || '',
           price: unitPrice,
+          prices: item.prices || { single: unitPrice },
           formattedPrice: `${unitPrice.toFixed(2).replace('.', ',')} €`,
           image: imagesList[0],
           image_url: imagesList[0],
@@ -487,7 +490,16 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
       const live = menuItems.find(
         (m) => m.id === offer.id || (m.number && m.number.toUpperCase() === offer.code.toUpperCase())
       );
-      if (!live) return offer;
+      if (!live) {
+        return {
+          ...offer,
+          name: offer.title,
+          prices: { single: offer.price },
+          formattedPrice: `${offer.price.toFixed(2).replace('.', ',')} €`,
+          is_in_stock: true,
+          toppings: offer.description || ''
+        };
+      }
       const unitPrice = typeof live.price === 'number'
         ? live.price
         : (live.prices?.single || offer.price);
@@ -498,10 +510,16 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
 
       return {
         ...offer,
+        ...live,
+        id: offer.id,
+        code: offer.code,
         title: offer.title || live.name,
+        name: offer.title || live.name,
         description: offer.description || (live.desc ? live.desc.replace(/\n\+?\s*/g, ' • ') : offer.description),
         details: offer.details || live.desc || live.toppings,
+        toppings: offer.details || live.desc || live.toppings,
         price: unitPrice,
+        prices: live?.prices || { single: unitPrice },
         formattedPrice: `${unitPrice.toFixed(2).replace('.', ',')} €`,
         image: imagesList[0],
         image_url: imagesList[0],
@@ -763,7 +781,12 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
               const inStock = offer.is_in_stock !== false;
               return (
                 <div key={offer.id} className="dish-card" style={{ opacity: inStock ? 1 : 0.65 }}>
-                  <DishCardMedia item={offer} isInStock={inStock} cleanBadge={offer.badge || `Angebot ${offer.code}`} />
+                  <DishCardMedia
+                    item={offer}
+                    isInStock={inStock}
+                    cleanBadge={offer.badge || `Angebot ${offer.code}`}
+                    onOpenModal={() => setCustomizingItem(offer)}
+                  />
                   <div className="dish-card-body">
                     <div className="dish-title-row">
                       <h3 className="dish-name">{offer.title}</h3>
@@ -774,22 +797,34 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
                     </p>
                     <div className="dish-card-actions">
                       {inStock ? (
-                        <button
-                          type="button"
-                          className="add-cart-btn"
-                          title="Hinzufügen"
-                          onClick={() => onAddToCart({
-                            id: offer.id,
-                            name: `${offer.code} - ${offer.title}`,
-                            price: offer.price,
-                            quantity: 1,
-                            image: offer.image,
-                            desc: offer.description.replace(/\n/g, ', ')
-                          })}
-                        >
-                          <Plus size={16} />
-                          <span>Hinzufügen</span>
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            className="customize-btn"
+                            onClick={() => setCustomizingItem(offer)}
+                            title="Zutaten, Getränke & Wünsche anpassen"
+                          >
+                            <SlidersHorizontal size={14} />
+                            <span>Anpassen</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="add-cart-btn"
+                            title="Hinzufügen"
+                            onClick={() => onAddToCart({
+                              id: offer.id,
+                              name: `${offer.code} - ${offer.title}`,
+                              price: offer.price,
+                              quantity: 1,
+                              image: offer.image,
+                              desc: (offer.details || offer.description || '').replace(/\n/g, ', ')
+                            })}
+                          >
+                            <Plus size={16} />
+                            <span>Hinzufügen</span>
+                          </button>
+                        </>
                       ) : (
                         <button
                           disabled

@@ -10,6 +10,13 @@ export default function Categories({ selectedCategory, onSelectCategory }) {
   const [canScrollRight, setCanScrollRight] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
 
+  const resolveImage = (c, match) => {
+    if (c?.image && typeof c.image === 'string' && c.image.trim() !== '') {
+      return c.image;
+    }
+    return match?.image || images.heroPizza;
+  };
+
   const [categories, setCategories] = useState(() => {
     const stored = getStoredCategories();
     return stored.map((c) => {
@@ -19,7 +26,7 @@ export default function Categories({ selectedCategory, onSelectCategory }) {
         name: c.name || c.name_de,
         sub: c.sub || match?.sub || '',
         count: c.count || c.count_badge || match?.count || 'Spezialitäten',
-        image: c.image || match?.image || images.heroPizza
+        image: resolveImage(c, match)
       };
     });
   });
@@ -35,7 +42,7 @@ export default function Categories({ selectedCategory, onSelectCategory }) {
           name: c.name || c.name_de,
           sub: c.sub || match?.sub || '',
           count: c.count || c.count_badge || match?.count || 'Spezialitäten',
-          image: c.image || match?.image || images.heroPizza
+          image: resolveImage(c, match)
         };
       });
       setCategories(mapped);
@@ -152,6 +159,10 @@ export default function Categories({ selectedCategory, onSelectCategory }) {
                     alt={cat.name}
                     className="category-oval-img"
                     loading="lazy"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = images.heroPizza;
+                    }}
                   />
                   <div className="oval-glass-overlay" />
                 </div>

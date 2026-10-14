@@ -508,10 +508,28 @@
     max-width: 175px !important;
   }
 
-  /* Hide Opening Hours and Quick Links in mobile view */
-  .footer-hours-col,
+  /* Quick Links hidden on mobile, Opening Hours visible */
   .footer-links-col {
     display: none !important;
+  }
+
+  .footer-hours-col {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .footer-hours-box {
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.09) !important;
+    border-radius: 14px !important;
+    padding: 16px 14px !important;
+  }
+
+  .hours-times {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 6px !important;
   }
 
   .footer-tagline-text {
