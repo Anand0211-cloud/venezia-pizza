@@ -554,7 +554,31 @@ export default function OrderStatusPage({
                 </h3>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-                  {(order.order_items || []).map((item, idx) => (
+                  {(order.order_items || []).map((item, idx) => {
+                    const rawToppings = Array.isArray(item.toppings_selected) && item.toppings_selected.length > 0
+                      ? item.toppings_selected
+                      : Array.isArray(item.selectedToppings) && item.selectedToppings.length > 0
+                      ? item.selectedToppings
+                      : typeof item.toppings_selected === 'string' && item.toppings_selected
+                      ? [item.toppings_selected]
+                      : [];
+
+                    let sideDishVal = item.side_dish || item.sideDish || item.selectedSide || null;
+                    let dressingVal = item.dressing || item.selectedDressing || null;
+                    const pureExtras = [];
+
+                    rawToppings.forEach(top => {
+                      const str = typeof top === 'string' ? top : (top?.name || top?.id || String(top));
+                      if (/^beilage:\s*/i.test(str)) {
+                        if (!sideDishVal) sideDishVal = str.replace(/^beilage:\s*/i, '').trim();
+                      } else if (/^dressing:\s*/i.test(str)) {
+                        if (!dressingVal) dressingVal = str.replace(/^dressing:\s*/i, '').trim();
+                      } else {
+                        pureExtras.push(str);
+                      }
+                    });
+
+                    return (
                     <div
                       key={item.id || idx}
                       style={{
@@ -577,9 +601,19 @@ export default function OrderStatusPage({
                             </span>
                           )}
                         </div>
-                        {Array.isArray(item.toppings_selected) && item.toppings_selected.length > 0 && (
+                        {sideDishVal && (
+                          <div style={{ fontSize: '11.5px', color: 'var(--red)', marginTop: '2px', fontWeight: '700' }}>
+                            🍟 Beilage: {sideDishVal}
+                          </div>
+                        )}
+                        {dressingVal && (
+                          <div style={{ fontSize: '11.5px', color: '#15803d', marginTop: '2px', fontWeight: '700' }}>
+                            🥗 Dressing: {dressingVal}
+                          </div>
+                        )}
+                        {pureExtras.length > 0 && (
                           <div style={{ fontSize: '11.5px', color: '#0284c7', marginTop: '3px', fontWeight: '600' }}>
-                            + {item.toppings_selected.map(t => typeof t === 'string' ? t : (t?.name || t?.id || String(t))).join(', ')}
+                            + {pureExtras.join(', ')}
                           </div>
                         )}
                         {item.special_instructions && (
@@ -593,7 +627,8 @@ export default function OrderStatusPage({
                         {Number(item.total_price || item.unit_price * item.quantity || 0).toFixed(2).replace('.', ',')} €
                       </strong>
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
 
                 {/* Price Breakdown */}

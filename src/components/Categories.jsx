@@ -23,8 +23,8 @@ export default function Categories({ selectedCategory, onSelectCategory }) {
       const match = categoriesData.find((cd) => cd.id === c.id);
       return {
         id: c.id,
-        name: c.name || c.name_de,
-        sub: c.sub || match?.sub || '',
+        name: c.name || c.name_de || match?.name,
+        sub: match?.sub || c.sub || '',
         count: c.count || c.count_badge || match?.count || 'Spezialitäten',
         image: resolveImage(c, match)
       };
@@ -39,8 +39,8 @@ export default function Categories({ selectedCategory, onSelectCategory }) {
         const match = categoriesData.find((cd) => cd.id === c.id);
         return {
           id: c.id,
-          name: c.name || c.name_de,
-          sub: c.sub || match?.sub || '',
+          name: c.name || c.name_de || match?.name,
+          sub: match?.sub || c.sub || '',
           count: c.count || c.count_badge || match?.count || 'Spezialitäten',
           image: resolveImage(c, match)
         };

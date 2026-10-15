@@ -5,14 +5,14 @@ export const DEFAULT_CATEGORIES = [
   { id: 'deals', name_de: 'Spar-Menüs & Deals', name: 'Spar-Menüs & Deals', sub: '& Deals', title: 'Spar-Menüs & Spezial-Angebote', icon: '🔥', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/dish_1791869896776.jpg' },
   { id: 'pasta', name_de: 'Pasta', name: 'Pasta', sub: '', title: 'Klassische Pasta Spezialitäten', icon: '🍝', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/pasta-tortellini-panna_1791831268343.jpg' },
   { id: 'gnocchi', name_de: 'Gnocchi', name: 'Gnocchi', sub: '', title: 'Gnocchi Spezialitäten', icon: '🥔', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/gnocchi-napoli_1791829866131.jpg' },
-  { id: 'pasta-al-forno', name_de: 'Pasta al Forno', name: 'Pasta al Forno', sub: 'Überbacken', title: 'Pasta al Forno (Überbackene Nudelgerichte)', icon: '🍲', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/dish-1791732749749_1791830426020.jpg' },
+  { id: 'pasta-al-forno', name_de: 'Pasta al Forno', name: 'Pasta al Forno', sub: 'Überbackene Teigwaren', title: 'Pasta al Forno (Überbackene Teigwaren)', icon: '🍲', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/dish-1791732749749_1791830426020.jpg' },
   { id: 'vegetarisch', name_de: 'Vegetarisch überbacken', name: 'Vegetarisch', sub: 'überbacken', title: 'Vegetarisch überbackene Spezialitäten', icon: '🥗', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/veg-brokkoli-auflauf_1791828927375.jpg' },
-  { id: 'auflaeufe', name_de: 'Aufläufe', name: 'Aufläufe', sub: '', title: 'Feine Aufläufe aus dem Ofen', icon: '🥘', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/auflauf-kartoffel-hack_1791826227266.jpg' },
+  { id: 'auflaeufe', name_de: 'Aufläufe', name: 'Aufläufe', sub: 'alle mit Käse überbacken', title: 'Feine Aufläufe alle mit Käse überbacken', icon: '🥘', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/auflauf-kartoffel-hack_1791826227266.jpg' },
   { id: 'reisgerichte', name_de: 'Reisgerichte', name: 'Reisgerichte', sub: 'im Ofen überbacken', title: 'Reisgerichte im Ofen überbacken', icon: '🍚', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Reisgerichte/Artboard_5.png' },
-  { id: 'fleischgerichte', name_de: 'Fleischgerichte', name: 'Fleischgerichte', sub: '& Schnitzel', title: 'Herzhafte Fleischgerichte & Schnitzel', icon: '🥩', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/fisch-lachs_1791800859098.jpg' },
-  { id: 'gyros', name_de: 'Gyros & Döner', name: 'Gyros', sub: '', title: 'Gyros & Döner Spezialitäten', icon: '🥙', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/doner-teller_1791825846772.jpg' },
+  { id: 'fleischgerichte', name_de: 'Fleischgerichte (Putenfleisch)', name: 'Fleischgerichte', sub: '(Putenfleisch)', title: 'Fleischgerichte (Putenfleisch)', icon: '🥩', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/fisch-lachs_1791800859098.jpg' },
+  { id: 'gyros', name_de: 'Gyros', name: 'Gyros', sub: '& Döner', title: 'Gyros Spezialitäten', icon: '🥙', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/doner-teller_1791825846772.jpg' },
   { id: 'salate', name_de: 'Salate', name: 'Salate', sub: '', title: 'Frische knackige Salate', icon: '🥗', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/salad-venezia_1791827518432.jpg' },
-  { id: 'grill-menue', name_de: 'Grill Menü', name: 'Grill Menü', sub: '', title: 'Köstliche Grill-Menüs vom Rost', icon: '🍖', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/dish_img1_1791916686663.jpg' },
+  { id: 'grill-menue', name_de: 'Grill Menü', name: 'Grill Menü', sub: 'mit Curry Sauce', title: 'Grill Menü mit Curry Sauce', icon: '🍖', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/dish_img1_1791916686663.jpg' },
   { id: 'american-food', name_de: 'American Food', name: 'American Food', sub: '', title: 'American Food & Burger Spezialitäten', icon: '🍔', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/Burgers/2.png' },
   { id: 'indisch', name_de: 'Indische Hauptgerichte', name: 'Indische', sub: 'Hauptgerichte', title: 'Indische Hauptgerichte & Currys', icon: '🍛', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/indisch-chicken-korma_img1_1791910847111.jpg' },
   { id: 'lamm', name_de: 'Lamm Spezialitäten', name: 'Lamm', sub: 'Spezialitäten', title: 'Zarte Lamm Spezialitäten', icon: '🍖', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/lamm-curry_img1_1791910415589.jpg' },
@@ -20,12 +20,56 @@ export const DEFAULT_CATEGORIES = [
   { id: 'mexikanisch', name_de: 'Mexikanische Gerichte', name: 'Mexikanische', sub: 'Gerichte', title: 'Mexikanische Spezialitäten', icon: '🌮', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/mex-tacos_1791797525289.jpg' },
   { id: 'chinesisch', name_de: 'Chinesische Gerichte', name: 'Chinesische', sub: 'Gerichte', title: 'Chinesische Spezialitäten aus dem Wok', icon: '🥡', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/asia-gebratene-nudeln-haehnchen_1791796580855.jpg' },
   { id: 'beilagen', name_de: 'Extra Beilagen', name: 'Extra Beilagen', sub: '', title: 'Extra Beilagen & Saucen', icon: '🍟', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/starter-chicken-dippers_1791792783090.jpg' },
-  { id: 'toasts', name_de: 'Toasts', name: 'Toasts', sub: '', title: 'Knusprige Toast Spezialitäten', icon: '🥪', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/toast-hawaii_1791834149871.jpg' },
+  { id: 'toasts', name_de: 'Toasts', name: 'Toasts', sub: 'Alle mit Salat', title: 'Toasts - Alle mit Salat', icon: '🥪', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/toast-hawaii_1791834149871.jpg' },
   { id: 'omelette', name_de: 'Omelette', name: 'Omelette', sub: 'mit Käse überbacken', title: 'Omelette mit Käse überbacken', icon: '🍳', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/omelette-natur_1791794752996.jpg' },
   { id: 'pesce-fisch', name_de: 'Pesce Fisch', name: 'Pesce Fisch', sub: '', title: 'Pesce Fisch Spezialitäten', icon: '🐟', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/dish_img1_1791914829647.jpg' },
   { id: 'manzo-vom-rind', name_de: 'Manzo Vom Rind', name: 'Manzo Vom Rind', sub: '', title: 'Manzo Vom Rind Spezialitäten', icon: '🥩', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/dish_img1_1791916317183.jpg' },
-  { id: 'getraenke', name_de: 'Getränke & Desserts', name: 'Getränke', sub: '', title: 'Erfrischende Getränke & Desserts', icon: '🥤', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/pizza-211b_1791868332409.jpg' }
+  { id: 'getraenke', name_de: 'Getränke & Desserts', name: 'Getränke', sub: 'Kein Rabatt!', title: 'Erfrischende Getränke (Kein Rabatt!)', icon: '🥤', image: 'https://myubzgnheofvuwyehnox.supabase.co/storage/v1/object/public/menu-dishes/dishes/pizza-211b_1791868332409.jpg' }
 ];
+
+export const CATEGORY_OVERRIDES = {
+  'toasts': {
+    name: 'Toasts',
+    sub: 'Alle mit Salat',
+    title: 'Toasts - Alle mit Salat'
+  },
+  'grill-menue': {
+    name: 'Grill Menü',
+    sub: 'mit Curry Sauce',
+    title: 'Grill Menü mit Curry Sauce'
+  },
+  'getraenke': {
+    name: 'Getränke',
+    sub: 'Kein Rabatt!',
+    title: 'Erfrischende Getränke (Kein Rabatt!)'
+  },
+  'auflaeufe': {
+    name: 'Aufläufe',
+    sub: 'alle mit Käse überbacken',
+    title: 'Feine Aufläufe alle mit Käse überbacken'
+  },
+  'pasta-al-forno': {
+    name: 'Pasta al Forno',
+    sub: 'Überbackene Teigwaren',
+    title: 'Pasta al Forno (Überbackene Teigwaren)'
+  }
+};
+
+export function applyCategoryOverrides(categories) {
+  if (!Array.isArray(categories)) return categories;
+  return categories.map((cat) => {
+    const override = CATEGORY_OVERRIDES[cat.id];
+    if (override) {
+      return {
+        ...cat,
+        ...override,
+        sub: override.sub !== undefined ? override.sub : cat.sub,
+        title: override.title !== undefined ? override.title : cat.title
+      };
+    }
+    return cat;
+  });
+}
 
 const STORAGE_KEY = 'venezia_categories_list';
 const SYSTEM_ID = '__system_categories__';
@@ -36,13 +80,13 @@ export function getStoredCategories() {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        return applyCategoryOverrides(parsed);
       }
     }
   } catch (e) {
     console.warn('[categoryManager] Failed to read from localStorage:', e);
   }
-  return DEFAULT_CATEGORIES;
+  return applyCategoryOverrides(DEFAULT_CATEGORIES);
 }
 
 export async function fetchCategoriesFromSupabase() {
@@ -58,10 +102,11 @@ export async function fetchCategoriesFromSupabase() {
     if (!error && data?.prices?.categories && Array.isArray(data.prices.categories)) {
       const dbCategories = data.prices.categories;
       if (dbCategories.length > 0) {
+        const enriched = applyCategoryOverrides(dbCategories);
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(dbCategories));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(enriched));
         } catch (e) {}
-        return dbCategories;
+        return enriched;
       }
     }
   } catch (err) {

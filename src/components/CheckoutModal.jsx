@@ -2371,6 +2371,16 @@ export default function CheckoutModal({
                         <div>
                           <span style={{ fontWeight: '700', marginRight: '6px' }}>{item.quantity}x</span>
                           <span>{item.name}</span>
+                          {(item.dressing || item.selectedDressing) && (
+                            <div style={{ fontSize: '11px', color: '#15803d', fontWeight: '700', marginTop: '1px' }}>
+                              🥗 Dressing: {item.dressing || item.selectedDressing}
+                            </div>
+                          )}
+                          {!(item.dressing || item.selectedDressing) && (item.side_dish || item.sideDish || item.selectedSide) && (
+                            <div style={{ fontSize: '11px', color: 'var(--red)', fontWeight: '700', marginTop: '1px' }}>
+                              Beilage: {item.side_dish || item.sideDish || item.selectedSide}
+                            </div>
+                          )}
                           {item.desc && <div style={{ fontSize: '11px', color: '#64748b' }}>{item.desc}</div>}
                         </div>
                         <span style={{ fontWeight: '700', color: '#0f172a' }}>
@@ -2770,6 +2780,16 @@ export default function CheckoutModal({
                       <div>
                         <strong>{item.quantity}x</strong> {item.item_name}
                         {item.selected_size && <span style={{ color: '#64748b', marginLeft: '4px' }}>({item.selected_size})</span>}
+                        {(item.dressing || item.selectedDressing) && (
+                          <div style={{ fontSize: '11.5px', color: '#15803d', fontWeight: '700', marginTop: '2px' }}>
+                            🥗 Dressing: {item.dressing || item.selectedDressing}
+                          </div>
+                        )}
+                        {!(item.dressing || item.selectedDressing) && (item.side_dish || item.sideDish || item.selectedSide) && (
+                          <div style={{ fontSize: '11.5px', color: 'var(--red)', fontWeight: '700', marginTop: '2px' }}>
+                            Beilage: {item.side_dish || item.sideDish || item.selectedSide}
+                          </div>
+                        )}
                         {Array.isArray(item.toppings_selected) && item.toppings_selected.length > 0 ? (
                           <div style={{ fontSize: '11.5px', color: '#0284c7', fontWeight: '600', marginTop: '2px' }}>
                             + {item.toppings_selected.map(t => typeof t === 'string' ? t : (t?.name || t?.id || String(t))).join(', ')}

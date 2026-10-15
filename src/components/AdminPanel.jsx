@@ -4653,13 +4653,28 @@ export default function AdminPanel({ onBackToStore }) {
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           {(order.order_items || []).map((item, idx) => {
-                            const toppingsList = Array.isArray(item.toppings_selected) && item.toppings_selected.length > 0
+                            const rawToppings = Array.isArray(item.toppings_selected) && item.toppings_selected.length > 0
                               ? item.toppings_selected
                               : Array.isArray(item.selectedToppings) && item.selectedToppings.length > 0
                               ? item.selectedToppings
                               : typeof item.toppings_selected === 'string' && item.toppings_selected
                               ? [item.toppings_selected]
                               : [];
+
+                            let sideDishVal = item.side_dish || item.sideDish || item.selectedSide || null;
+                            let dressingVal = item.dressing || item.selectedDressing || null;
+                            const pureExtras = [];
+
+                            rawToppings.forEach(top => {
+                              const str = typeof top === 'string' ? top : (top?.name || top?.id || String(top));
+                              if (/^beilage:\s*/i.test(str)) {
+                                if (!sideDishVal) sideDishVal = str.replace(/^beilage:\s*/i, '').trim();
+                              } else if (/^dressing:\s*/i.test(str)) {
+                                if (!dressingVal) dressingVal = str.replace(/^dressing:\s*/i, '').trim();
+                              } else {
+                                pureExtras.push(str);
+                              }
+                            });
 
                             return (
                               <div
@@ -4677,6 +4692,34 @@ export default function AdminPanel({ onBackToStore }) {
                                     {item.selected_size && (
                                       <span style={{ color: isLight ? '#0284c7' : '#38bdf8', fontSize: '11.5px', marginLeft: '4px', fontWeight: '700' }}>
                                         ({item.selected_size})
+                                      </span>
+                                    )}
+                                    {sideDishVal && (
+                                      <span style={{
+                                        marginLeft: '6px',
+                                        background: isLight ? '#fff1f2' : 'rgba(225, 29, 72, 0.2)',
+                                        color: '#e11d48',
+                                        border: isLight ? '1px solid #fecdd3' : '1px solid rgba(225, 29, 72, 0.4)',
+                                        borderRadius: '4px',
+                                        padding: '1px 5px',
+                                        fontSize: '10.5px',
+                                        fontWeight: '800'
+                                      }}>
+                                        🍟 Beilage: {sideDishVal}
+                                      </span>
+                                    )}
+                                    {dressingVal && (
+                                      <span style={{
+                                        marginLeft: '6px',
+                                        background: isLight ? '#f0fdf4' : 'rgba(22, 163, 74, 0.2)',
+                                        color: isLight ? '#15803d' : '#4ade80',
+                                        border: isLight ? '1px solid #bbf7d0' : '1px solid rgba(34, 197, 94, 0.4)',
+                                        borderRadius: '4px',
+                                        padding: '1px 5px',
+                                        fontSize: '10.5px',
+                                        fontWeight: '800'
+                                      }}>
+                                        🥗 Dressing: {dressingVal}
                                       </span>
                                     )}
                                     {item.is_american && (
@@ -4700,27 +4743,33 @@ export default function AdminPanel({ onBackToStore }) {
                                 </div>
 
                                 {/* Extra Toppings & Add-ons Badges in Order Card */}
-                                {toppingsList.length > 0 && (
+                                {pureExtras.length > 0 && (
                                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px', alignItems: 'center' }}>
                                     <span style={{ fontSize: '10.5px', fontWeight: '800', color: isLight ? '#b45309' : '#fde047' }}>
                                       + Extras:
                                     </span>
-                                    {toppingsList.map((top, tIdx) => {
-                                      const topName = typeof top === 'string' ? top : (top?.name || top?.id || String(top));
+                                    {pureExtras.map((extraName, tIdx) => {
+                                      const isGratis = extraName.includes('(gratis)');
                                       return (
                                         <span
                                           key={tIdx}
                                           style={{
-                                            background: isLight ? '#fffbeb' : 'rgba(217, 119, 6, 0.25)',
-                                            color: isLight ? '#92400e' : '#fde68a',
-                                            border: isLight ? '1px solid #fde68a' : '1px solid rgba(245, 158, 11, 0.4)',
+                                            background: isGratis
+                                              ? (isLight ? '#dcfce7' : 'rgba(22, 163, 74, 0.25)')
+                                              : (isLight ? '#fffbeb' : 'rgba(217, 119, 6, 0.25)'),
+                                            color: isGratis
+                                              ? (isLight ? '#15803d' : '#86efac')
+                                              : (isLight ? '#92400e' : '#fde68a'),
+                                            border: isGratis
+                                              ? (isLight ? '1px solid #86efac' : '1px solid rgba(34, 197, 94, 0.4)')
+                                              : (isLight ? '1px solid #fde68a' : '1px solid rgba(245, 158, 11, 0.4)'),
                                             borderRadius: '4px',
                                             padding: '1px 6px',
                                             fontSize: '10.5px',
                                             fontWeight: '700'
                                           }}
                                         >
-                                          +{topName}
+                                          +{extraName}
                                         </span>
                                       );
                                     })}
@@ -5258,7 +5307,31 @@ export default function AdminPanel({ onBackToStore }) {
                           </div>
 
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            {(editOrderForm.order_items || []).map((item, idx) => (
+                            {(editOrderForm.order_items || []).map((item, idx) => {
+                              const rawToppings = Array.isArray(item.toppings_selected) && item.toppings_selected.length > 0
+                                ? item.toppings_selected
+                                : Array.isArray(item.selectedToppings) && item.selectedToppings.length > 0
+                                ? item.selectedToppings
+                                : typeof item.toppings_selected === 'string' && item.toppings_selected
+                                ? [item.toppings_selected]
+                                : [];
+
+                              let sideDishVal = item.side_dish || item.sideDish || item.selectedSide || null;
+                              let dressingVal = item.dressing || item.selectedDressing || null;
+                              const pureExtras = [];
+
+                              rawToppings.forEach(top => {
+                                const str = typeof top === 'string' ? top : (top?.name || top?.id || String(top));
+                                if (/^beilage:\s*/i.test(str)) {
+                                  if (!sideDishVal) sideDishVal = str.replace(/^beilage:\s*/i, '').trim();
+                                } else if (/^dressing:\s*/i.test(str)) {
+                                  if (!dressingVal) dressingVal = str.replace(/^dressing:\s*/i, '').trim();
+                                } else {
+                                  pureExtras.push(str);
+                                }
+                              });
+
+                              return (
                               <div key={idx} style={{
                                 background: '#131b2e',
                                 padding: '12px',
@@ -5270,7 +5343,7 @@ export default function AdminPanel({ onBackToStore }) {
                                 gap: '12px'
                               }}>
                                 <div style={{ flex: 1 }}>
-                                  <div style={{ fontWeight: '800', fontSize: '13.5px', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <div style={{ fontWeight: '800', fontSize: '13.5px', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                     <span>{item.item_name}</span>
                                     {item.selected_size && (
                                       <span style={{
@@ -5285,14 +5358,50 @@ export default function AdminPanel({ onBackToStore }) {
                                         {item.selected_size}
                                       </span>
                                     )}
+                                    {sideDishVal && (
+                                      <span style={{
+                                        background: 'rgba(225, 29, 72, 0.2)',
+                                        color: '#fb7185',
+                                        border: '1px solid rgba(225, 29, 72, 0.4)',
+                                        padding: '1px 6px',
+                                        borderRadius: '4px',
+                                        fontSize: '10.5px',
+                                        fontWeight: '800'
+                                      }}>
+                                        🍟 Beilage: {sideDishVal}
+                                      </span>
+                                    )}
+                                    {dressingVal && (
+                                      <span style={{
+                                        background: 'rgba(22, 163, 74, 0.2)',
+                                        color: '#4ade80',
+                                        border: '1px solid rgba(34, 197, 94, 0.4)',
+                                        padding: '1px 6px',
+                                        borderRadius: '4px',
+                                        fontSize: '10.5px',
+                                        fontWeight: '800'
+                                      }}>
+                                        🥗 Dressing: {dressingVal}
+                                      </span>
+                                    )}
                                   </div>
-                                  {Array.isArray(item.toppings_selected) && item.toppings_selected.length > 0 && (
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '3px' }}>
-                                      {item.toppings_selected.map((top, tIdx) => {
-                                        const topName = typeof top === 'string' ? top : (top?.name || top?.id || String(top));
+                                  {pureExtras.length > 0 && (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                                      {pureExtras.map((extraName, tIdx) => {
+                                        const isGratis = extraName.includes('(gratis)');
                                         return (
-                                          <span key={tIdx} style={{ background: '#1e293b', color: '#fde68a', fontSize: '10.5px', padding: '1px 5px', borderRadius: '4px', border: '1px solid #334155' }}>
-                                            +{topName}
+                                          <span
+                                            key={tIdx}
+                                            style={{
+                                              background: isGratis ? 'rgba(22, 163, 74, 0.2)' : '#1e293b',
+                                              color: isGratis ? '#86efac' : '#fde68a',
+                                              fontSize: '10.5px',
+                                              padding: '1px 5px',
+                                              borderRadius: '4px',
+                                              border: isGratis ? '1px solid rgba(34, 197, 94, 0.4)' : '1px solid #334155'
+                                            }}
+                                          >
+                                            +{extraName}
                                           </span>
                                         );
                                       })}
@@ -5375,7 +5484,8 @@ export default function AdminPanel({ onBackToStore }) {
                                   <Trash2 size={14} />
                                 </button>
                               </div>
-                            ))}
+                            );
+                          })}
 
                             {(!editOrderForm.order_items || editOrderForm.order_items.length === 0) && (
                               <div style={{ textAlign: 'center', padding: '16px', color: '#f87171', fontSize: '12.5px' }}>
@@ -5608,7 +5718,31 @@ export default function AdminPanel({ onBackToStore }) {
                           </div>
 
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            {(selectedOrder.order_items || []).map((item, idx) => (
+                            {(selectedOrder.order_items || []).map((item, idx) => {
+                              const rawToppings = Array.isArray(item.toppings_selected) && item.toppings_selected.length > 0
+                                ? item.toppings_selected
+                                : Array.isArray(item.selectedToppings) && item.selectedToppings.length > 0
+                                ? item.selectedToppings
+                                : typeof item.toppings_selected === 'string' && item.toppings_selected
+                                ? [item.toppings_selected]
+                                : [];
+
+                              let sideDishVal = item.side_dish || item.sideDish || item.selectedSide || null;
+                              let dressingVal = item.dressing || item.selectedDressing || null;
+                              const pureExtras = [];
+
+                              rawToppings.forEach(top => {
+                                const str = typeof top === 'string' ? top : (top?.name || top?.id || String(top));
+                                if (/^beilage:\s*/i.test(str)) {
+                                  if (!sideDishVal) sideDishVal = str.replace(/^beilage:\s*/i, '').trim();
+                                } else if (/^dressing:\s*/i.test(str)) {
+                                  if (!dressingVal) dressingVal = str.replace(/^dressing:\s*/i, '').trim();
+                                } else {
+                                  pureExtras.push(str);
+                                }
+                              });
+
+                              return (
                               <div key={idx} style={{
                                 background: isLight ? '#ffffff' : '#131b2e',
                                 padding: '12px',
@@ -5619,13 +5753,12 @@ export default function AdminPanel({ onBackToStore }) {
                                 gap: '6px'
                               }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                  <div>
+                                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
                                     <span style={{ fontWeight: '800', fontSize: '14px', color: isLight ? '#0f172a' : '#f8fafc' }}>
                                       <strong style={{ color: '#e11d48' }}>{item.quantity}x</strong> {item.item_name}
                                     </span>
                                     {item.selected_size && (
                                       <span style={{
-                                        marginLeft: '8px',
                                         background: isLight ? '#f1f5f9' : '#0b0f19',
                                         color: isLight ? '#0284c7' : '#38bdf8',
                                         border: isLight ? '1px solid #cbd5e1' : '1px solid #0284c7',
@@ -5637,9 +5770,34 @@ export default function AdminPanel({ onBackToStore }) {
                                         {item.selected_size}
                                       </span>
                                     )}
+                                    {sideDishVal && (
+                                      <span style={{
+                                        background: isLight ? '#fff1f2' : 'rgba(225, 29, 72, 0.2)',
+                                        color: '#e11d48',
+                                        border: isLight ? '1px solid #fecdd3' : '1px solid rgba(225, 29, 72, 0.4)',
+                                        padding: '2px 7px',
+                                        borderRadius: '4px',
+                                        fontSize: '11.5px',
+                                        fontWeight: '800'
+                                      }}>
+                                        🍟 Beilage: {sideDishVal}
+                                      </span>
+                                    )}
+                                    {dressingVal && (
+                                      <span style={{
+                                        background: isLight ? '#f0fdf4' : 'rgba(22, 163, 74, 0.2)',
+                                        color: isLight ? '#15803d' : '#4ade80',
+                                        border: isLight ? '1px solid #bbf7d0' : '1px solid rgba(34, 197, 94, 0.4)',
+                                        padding: '2px 7px',
+                                        borderRadius: '4px',
+                                        fontSize: '11.5px',
+                                        fontWeight: '800'
+                                      }}>
+                                        🥗 Dressing: {dressingVal}
+                                      </span>
+                                    )}
                                     {item.is_american && (
                                       <span style={{
-                                        marginLeft: '6px',
                                         background: isLight ? '#fef9c3' : 'rgba(253, 224, 71, 0.15)',
                                         color: isLight ? '#854d0e' : '#fde047',
                                         padding: '2px 6px',
@@ -5658,53 +5816,49 @@ export default function AdminPanel({ onBackToStore }) {
                                 </div>
 
                                 {/* Selected Extra Toppings & Add-ons */}
-                                {(() => {
-                                  const tops = Array.isArray(item.toppings_selected) && item.toppings_selected.length > 0
-                                    ? item.toppings_selected
-                                    : Array.isArray(item.selectedToppings) && item.selectedToppings.length > 0
-                                    ? item.selectedToppings
-                                    : typeof item.toppings_selected === 'string' && item.toppings_selected
-                                    ? [item.toppings_selected]
-                                    : [];
-                                  if (tops.length === 0) return null;
-                                  return (
-                                    <div style={{
-                                      fontSize: '12px',
-                                      display: 'flex',
-                                      flexWrap: 'wrap',
-                                      alignItems: 'center',
-                                      gap: '5px',
-                                      marginTop: '5px',
-                                      background: isLight ? '#fffbeb' : 'rgba(217, 119, 6, 0.15)',
-                                      padding: '6px 10px',
-                                      borderRadius: '6px',
-                                      border: isLight ? '1px solid #fde68a' : '1px solid rgba(217, 119, 6, 0.3)'
-                                    }}>
-                                      <span style={{ fontWeight: '800', color: isLight ? '#92400e' : '#fde68a', fontSize: '11.5px' }}>
-                                        {t.orders.extrasLabel}:
-                                      </span>
-                                      {tops.map((top, tIdx) => {
-                                        const topName = typeof top === 'string' ? top : (top?.name || top?.id || String(top));
-                                        return (
-                                          <span
-                                            key={tIdx}
-                                            style={{
-                                              background: isLight ? '#fef3c7' : '#1e293b',
-                                              color: isLight ? '#92400e' : '#fde68a',
-                                              border: isLight ? '1.5px solid #f59e0b' : '1px solid #d97706',
-                                              padding: '2px 8px',
-                                              borderRadius: '5px',
-                                              fontWeight: '800',
-                                              fontSize: '11.5px'
-                                            }}
-                                          >
-                                            +{topName}
-                                          </span>
-                                        );
-                                      })}
-                                    </div>
-                                  );
-                                })()}
+                                {pureExtras.length > 0 && (
+                                  <div style={{
+                                    fontSize: '12px',
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    marginTop: '5px',
+                                    background: isLight ? '#fffbeb' : 'rgba(217, 119, 6, 0.15)',
+                                    padding: '6px 10px',
+                                    borderRadius: '6px',
+                                    border: isLight ? '1px solid #fde68a' : '1px solid rgba(217, 119, 6, 0.3)'
+                                  }}>
+                                    <span style={{ fontWeight: '800', color: isLight ? '#92400e' : '#fde68a', fontSize: '11.5px' }}>
+                                      {t.orders.extrasLabel}:
+                                    </span>
+                                    {pureExtras.map((extraName, tIdx) => {
+                                      const isGratis = extraName.includes('(gratis)');
+                                      return (
+                                        <span
+                                          key={tIdx}
+                                          style={{
+                                            background: isGratis
+                                              ? (isLight ? '#dcfce7' : 'rgba(22, 163, 74, 0.25)')
+                                              : (isLight ? '#fef3c7' : '#1e293b'),
+                                            color: isGratis
+                                              ? (isLight ? '#15803d' : '#86efac')
+                                              : (isLight ? '#92400e' : '#fde68a'),
+                                            border: isGratis
+                                              ? (isLight ? '1.5px solid #86efac' : '1px solid rgba(34, 197, 94, 0.5)')
+                                              : (isLight ? '1.5px solid #f59e0b' : '1px solid #d97706'),
+                                            padding: '2px 8px',
+                                            borderRadius: '5px',
+                                            fontWeight: '800',
+                                            fontSize: '11.5px'
+                                          }}
+                                        >
+                                          +{extraName}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                )}
 
                                 {item.special_instructions && (
                                   <div style={{ fontSize: '12px', color: isLight ? '#b45309' : '#fde047', fontStyle: 'italic' }}>
@@ -5712,7 +5866,8 @@ export default function AdminPanel({ onBackToStore }) {
                                   </div>
                                 )}
                               </div>
-                            ))}
+                            );
+                          })}
                           </div>
 
                           {/* Financial Totals */}

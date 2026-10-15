@@ -62,6 +62,44 @@ export default function CartDrawer({ isOpen, onClose, cartItems, onUpdateQty, on
                 <img src={item.image_url || item.image} alt={item.name} className="cart-item-img" onError={(e) => { e.currentTarget.src = '/images/pizza1.png'; }} />
                 <div className="cart-item-info">
                   <div className="cart-item-title">{item.name}</div>
+                  {(item.dressing || item.selectedDressing) && (
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: '#f0fdf4',
+                      color: '#15803d',
+                      border: '1px solid #bbf7d0',
+                      borderRadius: '6px',
+                      padding: '2px 7px',
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      marginTop: '3px',
+                      marginBottom: '3px'
+                    }}>
+                      <span>🥗 Dressing:</span>
+                      <strong>{item.dressing || item.selectedDressing}</strong>
+                    </div>
+                  )}
+                  {!(item.dressing || item.selectedDressing) && (item.side_dish || item.sideDish || item.selectedSide) && (
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: '#fff1f2',
+                      color: 'var(--red)',
+                      border: '1px solid #fecdd3',
+                      borderRadius: '6px',
+                      padding: '2px 7px',
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      marginTop: '3px',
+                      marginBottom: '3px'
+                    }}>
+                      <span>Beilage:</span>
+                      <strong>{item.side_dish || item.sideDish || item.selectedSide}</strong>
+                    </div>
+                  )}
                   {item.desc && <div className="cart-item-desc">{item.desc}</div>}
                   <div className="cart-item-price">{(item.price * item.quantity).toFixed(2).replace('.', ',')} €</div>
 

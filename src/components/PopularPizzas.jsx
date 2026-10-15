@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Plus, SlidersHorizontal, ChevronLeft, ChevronRight, Camera } from 'lucide-react';
 import { popularPizzasData, standardPizzaSizes, calzoneSizes, allMenuItems } from '../data/menuData';
-import { useLiveMenu, formatMenuItemFromDb } from '../data/liveMenuState';
+import { useLiveMenu, formatMenuItemFromDb, isPizzaVeneziaCustom, isDealItem } from '../data/liveMenuState';
 import { getMenuItems, subscribeToMenuItems } from '../lib/supabaseClient.js';
 import CustomizeItemModal from './CustomizeItemModal';
 
@@ -315,6 +315,10 @@ export default function PopularPizzas({ onAddToCart, onShowAllMenu }) {
 
   // Handle direct quick-add with selected size
   const handleQuickAdd = (item) => {
+    if (isPizzaVeneziaCustom(item) || isDealItem(item)) {
+      setCustomizingItem(item);
+      return;
+    }
     const sizeOptions = getItemSizeOptions(item);
     const sizeKey = selectedSizes[item.id] || (sizeOptions.length > 0 ? sizeOptions[0].key : 'single');
     const sizeObj = sizeOptions.find((s) => s.key === sizeKey);
@@ -434,7 +438,13 @@ export default function PopularPizzas({ onAddToCart, onShowAllMenu }) {
                       <button
                         type="button"
                         className="add-cart-btn"
-                        onClick={() => handleQuickAdd(item)}
+                        onClick={() => {
+                          if (isPizzaVeneziaCustom(item) || isDealItem(item)) {
+                            setCustomizingItem(item);
+                          } else {
+                            handleQuickAdd(item);
+                          }
+                        }}
                         title="Hinzufügen"
                       >
                         <Plus size={16} />

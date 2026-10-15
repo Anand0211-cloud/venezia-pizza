@@ -44,7 +44,7 @@ import {
   specialOffersData,
   restaurantInfo
 } from '../data/menuData';
-import { useLiveMenu, formatMenuItemFromDb, getItemCanonicalCategory } from '../data/liveMenuState';
+import { useLiveMenu, formatMenuItemFromDb, getItemCanonicalCategory, isSideDishCategory, isSaladCategory, getSideDishType, isDealItem, isPizzaVeneziaCustom } from '../data/liveMenuState';
 import {
   subscribeToStorageFolders,
   loadStorageFolders,
@@ -52,6 +52,8 @@ import {
   DEFAULT_STORAGE_FOLDERS
 } from '../lib/categoryStorageService';
 import CustomizeItemModal from './CustomizeItemModal';
+import SideDishModal from './SideDishModal';
+import SaladDressingModal from './SaladDressingModal';
 import { supabase, isSupabaseConfigured, getMenuItems, subscribeToMenuItems } from '../lib/supabaseClient.js';
 import { getStoredCategories, fetchCategoriesFromSupabase, subscribeToCategories } from '../lib/categoryManager.js';
 
@@ -292,6 +294,8 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
   const [searchQuery, setSearchQuery] = useState('');
   const [dietaryFilter, setDietaryFilter] = useState('all'); // 'all' | 'veg' | 'non-veg'
   const [customizingItem, setCustomizingItem] = useState(null);
+  const [sideDishModalItem, setSideDishModalItem] = useState(null);
+  const [saladDressingModalItem, setSaladDressingModalItem] = useState(null);
   const [selectedSizes, setSelectedSizes] = useState({}); // { [itemId]: sizeKey }
 
   // Horizontal scroll state & refs for categories tab slider line
@@ -558,6 +562,19 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
 
   // Handle direct quick-add (e.g. standard size or selected size)
   const handleQuickAdd = (item) => {
+    if (isDealItem(item) || isPizzaVeneziaCustom(item)) {
+      setCustomizingItem(item);
+      return;
+    }
+    if (isSideDishCategory(item)) {
+      setSideDishModalItem(item);
+      return;
+    }
+    if (isSaladCategory(item)) {
+      setSaladDressingModalItem(item);
+      return;
+    }
+
     const sizeOptions = getItemSizeOptions(item);
     const hasSizes = sizeOptions.length > 0;
     const sizeKey = selectedSizes[item.id] || (sizeOptions.length > 0 ? sizeOptions[0].key : 'single');
@@ -588,7 +605,21 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
     }));
   };
 
-  const currentCategoryObj = cleanCategories.find((c) => c.id === activeCategory);
+  const displayCategories = useMemo(() => {
+    return (cleanCategories || []).map((cat) => {
+      const match = categoriesData.find((cd) => cd.id === cat.id);
+      return {
+        ...match,
+        ...cat,
+        id: cat.id,
+        name: cat.name || cat.name_de || match?.name || cat.id,
+        sub: match?.sub || cat.sub || '',
+        title: cat.title || match?.title || cat.name || ''
+      };
+    });
+  }, [cleanCategories]);
+
+  const currentCategoryObj = displayCategories.find((c) => c.id === activeCategory);
 
   return (
     <div className="menu-page-container" id="speisekarte">
@@ -631,7 +662,7 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
             onScroll={updateTabScrollState}
             id="categories-tab-list"
           >
-            {cleanCategories.map((cat) => {
+            {displayCategories.map((cat) => {
               const isActive = activeCategory === cat.id;
               return (
                 <button
@@ -728,15 +759,8 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
                     {inStock ? (
                       <button
                         className="mini-offer-add-btn"
-                        onClick={() => onAddToCart({
-                          id: offer.id,
-                          name: `${offer.code} - ${offer.title}`,
-                          price: offer.price,
-                          quantity: 1,
-                          image: offer.image,
-                          desc: offer.description.replace(/\n/g, ', ')
-                        })}
-                        title="Hinzufügen"
+                        onClick={() => setCustomizingItem(offer)}
+                        title="Hinzufügen & Wunschzutaten anpassen"
                       >
                         <Plus size={15} />
                       </button>
@@ -760,6 +784,98 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
             <h2 className="section-category-title">
               {currentCategoryObj?.title || currentCategoryObj?.name || 'Speisekarte'}
             </h2>
+            {(activeCategory === 'indisch' || activeCategory === 'lamm') && (
+              <div
+                className="section-category-sidedish-banner"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)',
+                  color: 'var(--red)',
+                  border: '1.5px solid #fecdd3',
+                  borderRadius: '10px',
+                  padding: '6px 14px',
+                  fontSize: '14px',
+                  fontWeight: '800',
+                  marginTop: '6px',
+                  marginBottom: '8px',
+                  boxShadow: '0 2px 8px rgba(225, 29, 72, 0.08)'
+                }}
+              >
+                <span>🍚</span>
+                <span>Alle Gerichte mit Reis oder Pizzabrot</span>
+              </div>
+            )}
+            {(activeCategory === 'fleischgerichte' || activeCategory === 'gyros') && (
+              <div
+                className="section-category-sidedish-banner"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)',
+                  color: 'var(--red)',
+                  border: '1.5px solid #fecdd3',
+                  borderRadius: '10px',
+                  padding: '6px 14px',
+                  fontSize: '14px',
+                  fontWeight: '800',
+                  marginTop: '6px',
+                  marginBottom: '8px',
+                  boxShadow: '0 2px 8px rgba(225, 29, 72, 0.08)'
+                }}
+              >
+                <span>🍟</span>
+                <span>Alle Gerichte mit Pommes frites, Bratkartoffeln, Kartoffelsalat oder Kroketten und kleinem Salat.</span>
+              </div>
+            )}
+            {(activeCategory === 'manzo-vom-rind' || activeCategory === 'pesce-fisch') && (
+              <div
+                className="section-category-sidedish-banner"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)',
+                  color: 'var(--red)',
+                  border: '1.5px solid #fecdd3',
+                  borderRadius: '10px',
+                  padding: '6px 14px',
+                  fontSize: '14px',
+                  fontWeight: '800',
+                  marginTop: '6px',
+                  marginBottom: '8px',
+                  boxShadow: '0 2px 8px rgba(225, 29, 72, 0.08)'
+                }}
+              >
+                <span>{activeCategory === 'pesce-fisch' ? '🐟' : '🥩'}</span>
+                <span>Alle Gerichte mit Pommes frites, Bratkartoffeln oder Kroketten und kleinem Salat.</span>
+              </div>
+            )}
+            {(activeCategory === 'salate' || activeCategory === 'salad') && (
+              <div
+                className="section-category-sidedish-banner"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                  color: '#15803d',
+                  border: '1.5px solid #bbf7d0',
+                  borderRadius: '10px',
+                  padding: '6px 14px',
+                  fontSize: '14px',
+                  fontWeight: '800',
+                  marginTop: '6px',
+                  marginBottom: '8px',
+                  boxShadow: '0 2px 8px rgba(22, 163, 74, 0.08)'
+                }}
+              >
+                <span>🥗</span>
+                <span>Mit Essig &amp; Öl, Sahne-Kräuter oder Joghurt-Dressing.</span>
+              </div>
+            )}
             <p className="section-category-count">
               {activeCategory === 'deals'
                 ? `${liveDeals.length} Spar-Angebote verfügbar`
@@ -812,14 +928,7 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
                             type="button"
                             className="add-cart-btn"
                             title="Hinzufügen"
-                            onClick={() => onAddToCart({
-                              id: offer.id,
-                              name: `${offer.code} - ${offer.title}`,
-                              price: offer.price,
-                              quantity: 1,
-                              image: offer.image,
-                              desc: (offer.details || offer.description || '').replace(/\n/g, ', ')
-                            })}
+                            onClick={() => setCustomizingItem(offer)}
                           >
                             <Plus size={16} />
                             <span>Hinzufügen</span>
@@ -887,7 +996,15 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
                     item={item}
                     isInStock={isInStock}
                     cleanBadge={cleanBadge}
-                    onOpenModal={() => setCustomizingItem(item)}
+                    onOpenModal={() => {
+                      if (isSideDishCategory(item)) {
+                        setSideDishModalItem(item);
+                      } else if (isSaladCategory(item)) {
+                        setSaladDressingModalItem(item);
+                      } else {
+                        setCustomizingItem(item);
+                      }
+                    }}
                   />
 
                   {/* Body Content */}
@@ -928,6 +1045,72 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
                       </div>
                     )}
 
+                    {/* Side dish indicator badge */}
+                    {(() => {
+                      const sideType = getSideDishType(item);
+                      if (sideType === 'indian_lamb') {
+                        return (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            background: '#fef3c7',
+                            color: '#92400e',
+                            border: '1px solid #fde68a',
+                            borderRadius: '6px',
+                            padding: '3px 8px',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            marginBottom: '10px'
+                          }}>
+                            <span>🍚</span>
+                            <span>Inkl. Reis oder Pizzabrot</span>
+                          </div>
+                        );
+                      }
+                      if (sideType === 'meat_gyros' || sideType === 'manzo_pesce') {
+                        return (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            background: '#fef3c7',
+                            color: '#92400e',
+                            border: '1px solid #fde68a',
+                            borderRadius: '6px',
+                            padding: '3px 8px',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            marginBottom: '10px'
+                          }}>
+                            <span>🍟</span>
+                            <span>Inkl. Beilage nach Wahl &amp; kleiner Salat</span>
+                          </div>
+                        );
+                      }
+                      if (isSaladCategory(item)) {
+                        return (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            background: '#f0fdf4',
+                            color: '#15803d',
+                            border: '1px solid #bbf7d0',
+                            borderRadius: '6px',
+                            padding: '3px 8px',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            marginBottom: '10px'
+                          }}>
+                            <span>🥗</span>
+                            <span>Mit Essig &amp; Öl, Sahne-Kräuter oder Joghurt-Dressing</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
                     {/* Card Actions */}
                     <div className="dish-card-actions">
                       {isInStock ? (
@@ -935,8 +1118,16 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
                           <button
                             type="button"
                             className="customize-btn"
-                            onClick={() => setCustomizingItem(item)}
-                            title="Zutaten, Größe, American Crust oder Extras anpassen"
+                            onClick={() => {
+                              if (isSideDishCategory(item)) {
+                                setSideDishModalItem(item);
+                              } else if (isSaladCategory(item)) {
+                                setSaladDressingModalItem(item);
+                              } else {
+                                setCustomizingItem(item);
+                              }
+                            }}
+                            title={isSideDishCategory(item) ? "Beilage wählen" : isSaladCategory(item) ? "Dressing wählen" : "Zutaten, Größe, American Crust oder Extras anpassen"}
                           >
                             <SlidersHorizontal size={14} />
                             <span>Anpassen</span>
@@ -945,7 +1136,17 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
                           <button
                             type="button"
                             className="add-cart-btn"
-                            onClick={() => handleQuickAdd(item)}
+                            onClick={() => {
+                              if (isDealItem(item) || isPizzaVeneziaCustom(item)) {
+                                setCustomizingItem(item);
+                              } else if (isSideDishCategory(item)) {
+                                setSideDishModalItem(item);
+                              } else if (isSaladCategory(item)) {
+                                setSaladDressingModalItem(item);
+                              } else {
+                                handleQuickAdd(item);
+                              }
+                            }}
                             title="Hinzufügen"
                           >
                             <Plus size={16} />
@@ -1005,6 +1206,26 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
           item={customizingItem}
           isOpen={true}
           onClose={() => setCustomizingItem(null)}
+          onAddToCart={onAddToCart}
+        />
+      )}
+
+      {/* Modal for Indian & Lamb Side Dish Selection */}
+      {sideDishModalItem && (
+        <SideDishModal
+          item={sideDishModalItem}
+          isOpen={true}
+          onClose={() => setSideDishModalItem(null)}
+          onAddToCart={onAddToCart}
+        />
+      )}
+
+      {/* Modal for Salad Dressing Selection */}
+      {saladDressingModalItem && (
+        <SaladDressingModal
+          item={saladDressingModalItem}
+          isOpen={true}
+          onClose={() => setSaladDressingModalItem(null)}
           onAddToCart={onAddToCart}
         />
       )}

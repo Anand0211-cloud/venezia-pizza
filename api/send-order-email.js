@@ -48,7 +48,8 @@ export default async function handler(req, res) {
     const itemsHtml = items.map(item => `
       <li style="margin-bottom: 6px;">
         <strong>${item.quantity}x ${item.item_name || item.name}</strong> 
-        ${item.selected_size ? `(${item.selected_size})` : ''} - 
+        ${item.selected_size ? `(${item.selected_size})` : ''}
+        ${item.dressing ? `<span style="color: #15803d; font-weight: 700;">[Dressing: ${item.dressing}]</span>` : item.side_dish ? `<span style="color: #e11d48; font-weight: 700;">[Beilage: ${item.side_dish}]</span>` : ''} - 
         ${Number(item.total_price || (item.unit_price * item.quantity) || 0).toFixed(2).replace('.', ',')} €
       </li>
     `).join('');

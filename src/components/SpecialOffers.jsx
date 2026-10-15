@@ -150,15 +150,8 @@ export default function SpecialOffers({ onAddToCart, onShowAllOffers }) {
 
                       <button
                         className="small-order"
-                        onClick={() =>
-                          onAddToCart({
-                            id: offer.id,
-                            name: `${offer.code} - ${offer.title}`,
-                            price: offer.price,
-                            image: offer.image,
-                            desc: (offer.details || offer.description || '').replace(/\n/g, ', ')
-                          })
-                        }
+                        onClick={() => setCustomizingOffer(offer)}
+                        title="Wunschzutaten & Extras anpassen"
                       >
                         <Plus size={14} style={{ marginRight: '4px' }} />
                         Hinzufügen

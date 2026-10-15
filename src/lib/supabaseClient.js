@@ -254,6 +254,56 @@ export function broadcastOrderUpdate(orderId, details = {}) {
   }
 }
 
+export function normalizeOrderItem(it) {
+  if (!it) return it;
+  let sideDish = it.side_dish || it.sideDish || it.selectedSide || '';
+  let dressing = it.dressing || it.selectedDressing || '';
+
+  const rawToppings = Array.isArray(it.toppings_selected)
+    ? it.toppings_selected
+    : Array.isArray(it.selectedToppings)
+    ? it.selectedToppings
+    : typeof it.toppings_selected === 'string' && it.toppings_selected
+    ? [it.toppings_selected]
+    : [];
+
+  for (const t of rawToppings) {
+    const str = typeof t === 'string' ? t.trim() : (t?.name || t?.id || '');
+    if (!sideDish && /^beilage:\s*/i.test(str)) {
+      sideDish = str.replace(/^beilage:\s*/i, '').trim();
+    }
+    if (!dressing && /^dressing:\s*/i.test(str)) {
+      dressing = str.replace(/^dressing:\s*/i, '').trim();
+    }
+  }
+
+  const textToScan = `${it.special_instructions || ''} ${it.specialInstructions || ''} ${it.desc || ''}`;
+  if (!sideDish) {
+    const m = textToScan.match(/Beilage:\s*([^•\n\]]+)/i);
+    if (m && m[1]) sideDish = m[1].trim();
+  }
+  if (!dressing) {
+    const m = textToScan.match(/Dressing:\s*([^•\n\]]+)/i);
+    if (m && m[1]) dressing = m[1].trim();
+  }
+
+  if (sideDish && /^dressing:\s*/i.test(sideDish)) {
+    if (!dressing) dressing = sideDish.replace(/^dressing:\s*/i, '').trim();
+    sideDish = '';
+  }
+
+  return {
+    ...it,
+    side_dish: sideDish,
+    sideDish: sideDish,
+    selectedSide: sideDish,
+    dressing: dressing,
+    selectedDressing: dressing,
+    toppings_selected: rawToppings,
+    selectedToppings: rawToppings
+  };
+}
+
 export function getLocalOrders() {
   if (typeof window === 'undefined') return [];
   try {
@@ -263,7 +313,10 @@ export function getLocalOrders() {
     return (Array.isArray(list) ? list : []).filter(o => 
       !o.order_number?.startsWith('ACC-') && 
       !(o.note && o.note.includes('Kundenkonto Registrierung'))
-    );
+    ).map(o => ({
+      ...o,
+      order_items: (o.order_items || []).map(normalizeOrderItem)
+    }));
   } catch {
     return [];
   }
@@ -385,7 +438,10 @@ export async function getOrders() {
     const fetchedList = (data || []).filter(o => 
       !o.order_number?.startsWith('ACC-') && 
       !(o.note && o.note.includes('Kundenkonto Registrierung'))
-    );
+    ).map(o => ({
+      ...o,
+      order_items: (o.order_items || []).map(normalizeOrderItem)
+    }));
     // Merge with any recent local orders that may not be in DB yet
     const combined = [...fetchedList];
     for (const loc of localOrders) {
@@ -448,10 +504,50 @@ export async function createOrder(orderPayload, items) {
       }
     }
 
+    // 4. Resolve Side Dish
+    let sideDish = item.side_dish || item.sideDish || item.selectedSide || '';
+    if (!sideDish && item.desc && typeof item.desc === 'string') {
+      const sideMatch = item.desc.match(/Beilage:\s*([^•\n]+)/i);
+      if (sideMatch && sideMatch[1]) {
+        sideDish = sideMatch[1].trim();
+      }
+    }
+
+    // 5. Resolve Dressing
+    let dressing = item.dressing || item.selectedDressing || '';
+    if (!dressing && item.desc && typeof item.desc === 'string') {
+      const dressingMatch = item.desc.match(/Dressing:\s*([^•\n]+)/i);
+      if (dressingMatch && dressingMatch[1]) {
+        dressing = dressingMatch[1].trim();
+      }
+    }
+
+    // Disambiguate if dressing was stored under side_dish or formatted with prefix
+    if (sideDish && /^dressing:\s*/i.test(sideDish)) {
+      if (!dressing) dressing = sideDish.replace(/^dressing:\s*/i, '').trim();
+      sideDish = '';
+    }
+    if (dressing) {
+      dressing = dressing.replace(/^dressing:\s*/i, '').trim();
+    }
+    if (sideDish) {
+      sideDish = sideDish.replace(/^beilage:\s*/i, '').trim();
+    }
+
+    // Ensure cleanToppings includes Beilage and Dressing so they are saved into Supabase order_items table JSONB!
+    if (sideDish && !cleanToppings.some(t => /^beilage:\s*/i.test(t))) {
+      cleanToppings.unshift(`Beilage: ${sideDish}`);
+    }
+    if (dressing && !cleanToppings.some(t => /^dressing:\s*/i.test(t))) {
+      cleanToppings.unshift(`Dressing: ${dressing}`);
+    }
+
     return {
       menu_item_id: item.menu_item_id || item.id || '',
       item_name: item.name || item.item_name || 'Gericht',
       selected_size: item.selected_size || item.selectedSize || '',
+      side_dish: sideDish,
+      dressing: dressing,
       is_american: isAmerican,
       toppings_selected: cleanToppings,
       special_instructions: specialInstructions,

@@ -8,6 +8,7 @@ import {
   extraToppingPriceBySize,
   pizzaExtraToppingsList
 } from '../data/menuData';
+import { isSideDishCategory, getSideDishType, isDealItem, isPizzaVeneziaCustom } from '../data/liveMenuState';
 import './CustomizeItemModal.css';
 
 export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart }) {
@@ -29,6 +30,7 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
   const [selectedSize, setSelectedSize] = useState(null);
   const [isAmericanStyle, setIsAmericanStyle] = useState(false);
   const [selectedToppings, setSelectedToppings] = useState([]);
+  const [sideDish, setSideDish] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [activeImageIdx, setActiveImageIdx] = useState(0);
@@ -64,6 +66,7 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
       setSelectedSize(sizeOptions.length > 0 ? sizeOptions[0] : null);
       setIsAmericanStyle(false);
       setSelectedToppings([]);
+      setSideDish('');
       setQuantity(1);
       setSpecialInstructions('');
       setActiveImageIdx(0);
@@ -114,10 +117,19 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
     ? fullToppingsPool.filter(t => allowedList.includes(t.id) || registeredCustomToppings.some(ct => ct.id === t.id && allowedList.includes(ct.id)))
     : fullToppingsPool;
 
-  const toppingsTotal = selectedToppings.reduce((sum, t) => {
-    const cost = (typeof t.price === 'number' && t.price > 0) ? t.price : singleToppingCost;
-    return sum + cost;
-  }, 0);
+  const isDeal = isDealItem(item);
+  const isCustomPizza = isPizzaVeneziaCustom(item);
+  const has5FreeToppings = isDeal || isCustomPizza;
+
+  // Extra toppings cost calculation
+  // For deals and Pizza Nr. 46 (Pizza Venezia): up to 5 ingredients free, starting from 6th charge €2.50 per additional ingredient
+  const dealExtraCount = Math.max(0, selectedToppings.length - 5);
+  const toppingsTotal = has5FreeToppings
+    ? dealExtraCount * 2.50
+    : selectedToppings.reduce((sum, t) => {
+        const cost = (typeof t.price === 'number' && t.price > 0) ? t.price : singleToppingCost;
+        return sum + cost;
+      }, 0);
 
   const finalUnitPrice = basePrice + americanCost + toppingsTotal;
   const totalPrice = finalUnitPrice * quantity;
@@ -131,8 +143,18 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
   };
 
   const handleConfirm = () => {
+    if (isSideDishCategory(item) && !sideDish) {
+      alert('Bitte wählen Sie eine Beilage aus.');
+      return;
+    }
+
+    const sideType = getSideDishType(item);
+    const isMeatOrGyros = sideType === 'meat_gyros';
+    const isManzoPesce = sideType === 'manzo_pesce';
+    const hasIncludedSalad = isMeatOrGyros || isManzoPesce;
+
     let customName = item.number ? `Nr. ${item.number} ${item.name}` : item.name;
-    if (activeSize) {
+    if (activeSize && !isSideDishCategory(item)) {
       customName += ` (${activeSize.name}${activeSize.dim ? ' ' + activeSize.dim : ''})`;
     }
     if (isAmericanStyle) {
@@ -141,23 +163,61 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
 
     const customDescParts = [];
     if (item.toppings) customDescParts.push(item.toppings);
+    else if (item.desc) customDescParts.push(item.desc);
+    if (sideDish) {
+      customDescParts.push(`Beilage: ${sideDish}`);
+      if (hasIncludedSalad) {
+        customDescParts.push('Inkl. Kleiner Salat');
+      }
+    }
     if (isAmericanStyle) customDescParts.push('American Style mit Käserand (Mozzarella)');
     if (selectedToppings.length > 0) {
-      customDescParts.push(`Extra: ${selectedToppings.map(t => t.name).join(', ')} (+${toppingsTotal.toFixed(2).replace('.', ',')} €)`);
+      if (has5FreeToppings) {
+        const freeToppings = selectedToppings.slice(0, 5);
+        const extraToppings = selectedToppings.slice(5);
+        if (extraToppings.length > 0) {
+          customDescParts.push(`5 Zutaten gratis: ${freeToppings.map(t => t.name).join(', ')}`);
+          customDescParts.push(`Zusatz-Extras (+${toppingsTotal.toFixed(2).replace('.', ',')} €): ${extraToppings.map(t => t.name).join(', ')}`);
+        } else {
+          customDescParts.push(`Wunschzutaten (${freeToppings.length}/5 gratis): ${freeToppings.map(t => t.name).join(', ')}`);
+        }
+      } else {
+        customDescParts.push(`Extra: ${selectedToppings.map(t => t.name).join(', ')} (+${toppingsTotal.toFixed(2).replace('.', ',')} €)`);
+      }
     }
+
     if (specialInstructions) {
       customDescParts.push(`Hinweis: ${specialInstructions}`);
     }
 
-    const toppingNames = selectedToppings.map(t => typeof t === 'string' ? t : (t.name || t.id));
+    const toppingNames = selectedToppings.map((t, idx) => {
+      const name = typeof t === 'string' ? t : (t.name || t.id);
+      if (has5FreeToppings) {
+        return idx < 5 ? `${name} (gratis)` : `${name} (+2,50 €)`;
+      }
+      return name;
+    });
+    if (sideDish && !toppingNames.some(t => String(t).startsWith('Beilage:'))) {
+      toppingNames.unshift(`Beilage: ${sideDish}`);
+    }
+    if (hasIncludedSalad && !toppingNames.includes('Kleiner Salat')) {
+      toppingNames.push('Kleiner Salat');
+    }
+
+    const savedSideLabel = sideDish
+      ? (hasIncludedSalad ? `${sideDish} (inkl. Kleiner Salat)` : sideDish)
+      : '';
 
     const cartItem = {
-      id: `${item.id}-${currentSizeKey}-${isAmericanStyle ? 'amer' : 'std'}-${selectedToppings.map(t => t.id).sort().join('-')}-${Date.now()}`,
+      id: `${item.id}-${sideDish ? sideDish.toLowerCase() : currentSizeKey}-${isAmericanStyle ? 'amer' : 'std'}-${selectedToppings.map(t => t.id).sort().join('-')}-${Date.now()}`,
       name: customName,
       price: finalUnitPrice,
       quantity: quantity,
       image: item.image_url || item.image,
       desc: customDescParts.join(' • '),
+      side_dish: savedSideLabel,
+      sideDish: savedSideLabel,
+      selectedSide: savedSideLabel,
       menu_item_id: item.id || '',
       selectedSize: activeSize ? `${activeSize.name}${activeSize.dim ? ' (' + activeSize.dim + ')' : ''}` : '',
       selected_size: activeSize ? `${activeSize.name}${activeSize.dim ? ' (' + activeSize.dim + ')' : ''}` : '',
@@ -406,6 +466,100 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
             </div>
           )}
 
+          {/* Side Dish Picker for Indian, Lamb, Meat & Gyros */}
+          {isSideDishCategory(item) && (
+            <div style={{ marginBottom: '16px' }}>
+              <div className="custom-modal-section-title">
+                <span>Beilage wählen (Alle Optionen 0,00 €)</span>
+                <span className="custom-modal-section-tag" style={{ background: '#fee2e2', color: '#dc2626' }}>Pflichtfeld</span>
+              </div>
+
+              {(getSideDishType(item) === 'meat_gyros' || getSideDishType(item) === 'manzo_pesce') && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  background: '#f0fdf4',
+                  border: '1.5px solid #86efac',
+                  borderRadius: '12px',
+                  padding: '10px 12px',
+                  marginTop: '6px',
+                  marginBottom: '10px',
+                  fontSize: '12px',
+                  color: '#15803d',
+                  fontWeight: '700'
+                }}>
+                  <span>🥗</span>
+                  <span>Kleiner Salat wird zu jedem Gericht automatisch serviert (inklusive).</span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+                {(getSideDishType(item) === 'manzo_pesce'
+                  ? [
+                      { id: 'pommes', name: 'Pommes frites', icon: '🍟', desc: 'Goldgelb & knusprig frittiert' },
+                      { id: 'bratkartoffeln', name: 'Bratkartoffeln', icon: '🥔', desc: 'Herzhaft gebraten' },
+                      { id: 'kroketten', name: 'Kroketten', icon: '🧆', desc: 'Knusprig panierte Kartoffelkroketten' }
+                    ]
+                  : getSideDishType(item) === 'meat_gyros'
+                  ? [
+                      { id: 'pommes', name: 'Pommes frites', icon: '🍟', desc: 'Goldgelb & knusprig frittiert' },
+                      { id: 'bratkartoffeln', name: 'Bratkartoffeln', icon: '🥔', desc: 'Herzhaft gebraten' },
+                      { id: 'kartoffelsalat', name: 'Kartoffelsalat', icon: '🥗', desc: 'Hausgemachter Kartoffelsalat' },
+                      { id: 'kroketten', name: 'Kroketten', icon: '🧆', desc: 'Knusprig panierte Kartoffelkroketten' }
+                    ]
+                  : [
+                      { id: 'reis', name: 'Reis', icon: '🍚', desc: 'Feiner Basmati-Duftreis' },
+                      { id: 'pizzabrot', name: 'Pizzabrot', icon: '🥖', desc: 'Ofenfrisches Pizzabrot' }
+                    ]
+                ).map((opt) => {
+                  const isSel = sideDish === opt.name;
+                  return (
+                    <div
+                      key={opt.id}
+                      onClick={() => setSideDish(opt.name)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 14px',
+                        borderRadius: '12px',
+                        border: isSel ? '2px solid var(--red)' : '1.5px solid #e2e8f0',
+                        background: isSel ? '#fff1f2' : '#f8fafc',
+                        cursor: 'pointer',
+                        transition: 'all 0.18s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '50%',
+                          border: isSel ? '2px solid var(--red)' : '2px solid #94a3b8',
+                          background: isSel ? 'var(--red)' : '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          {isSel && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#fff' }} />}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '14px', fontWeight: '800', color: isSel ? 'var(--red)' : '#0f172a' }}>
+                            {opt.icon} {opt.name}
+                          </div>
+                          <div style={{ fontSize: '11.5px', color: '#64748b' }}>{opt.desc}</div>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '12px', fontWeight: '800', color: '#16a34a', background: '#dcfce7', padding: '2px 7px', borderRadius: '6px' }}>
+                        0,00 €
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* American Style Crust Option */}
           {item.supportsAmerican && (
             <div>
@@ -443,18 +597,67 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
           {availableToppings.length > 0 && (
             <div>
               <div className="custom-modal-section-title">
-                <span>2. Wunschzutaten &amp; Extras</span>
-                <span className="custom-modal-section-tag">
-                  {selectedToppings.length > 0
-                    ? `${selectedToppings.length} gewählt (+${toppingsTotal.toFixed(2).replace('.', ',')} €)`
-                    : `+${singleToppingCost.toFixed(2).replace('.', ',')} € je Zutat`}
+                <span>{has5FreeToppings ? (hasSizes ? '2. Wunschzutaten & Extras' : 'Wunschzutaten & Extras') : (hasSizes ? '2. Wunschzutaten & Extras' : 'Wunschzutaten & Extras')}</span>
+                <span
+                  className="custom-modal-section-tag"
+                  style={has5FreeToppings ? {
+                    background: selectedToppings.length > 5 ? '#fef2f2' : '#f0fdf4',
+                    color: selectedToppings.length > 5 ? '#dc2626' : '#15803d',
+                    border: `1px solid ${selectedToppings.length > 5 ? '#fecaca' : '#bbf7d0'}`
+                  } : {}}
+                >
+                  {has5FreeToppings ? (
+                    selectedToppings.length === 0
+                      ? 'Bis zu 5 Zutaten gratis inklusive!'
+                      : selectedToppings.length <= 5
+                      ? `${selectedToppings.length}/5 gratis gewählt (0,00 €)`
+                      : `5 gratis + ${selectedToppings.length - 5} extra (+${toppingsTotal.toFixed(2).replace('.', ',')} €)`
+                  ) : (
+                    selectedToppings.length > 0
+                      ? `${selectedToppings.length} gewählt (+${toppingsTotal.toFixed(2).replace('.', ',')} €)`
+                      : `+${singleToppingCost.toFixed(2).replace('.', ',')} € je Zutat`
+                  )}
                 </span>
               </div>
+
+              {/* Informative Deal & Custom Pizza Banner */}
+              {has5FreeToppings && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                  border: '1.5px solid #86efac',
+                  borderRadius: '12px',
+                  padding: '10px 14px',
+                  marginTop: '6px',
+                  marginBottom: '12px',
+                  fontSize: '12.5px',
+                  color: '#15803d',
+                  fontWeight: '600'
+                }}>
+                  <span style={{ fontSize: '20px', flexShrink: 0 }}>{isCustomPizza ? '🍕' : '🎁'}</span>
+                  <div>
+                    <strong style={{ color: '#166534', display: 'block', fontSize: '13px', marginBottom: '2px' }}>
+                      {isCustomPizza ? 'Wunschpizza Nr. 46: Bis zu 5 Wunschzutaten kostenlos!' : 'Spar-Menü Vorteil: Bis zu 5 Wunschzutaten kostenlos!'}
+                    </strong>
+                    <span>
+                      {selectedToppings.length < 5
+                        ? `Sie haben ${selectedToppings.length} von 5 kostenlosen Zutaten gewählt (noch ${5 - selectedToppings.length} gratis). Ab der 6. Zutat: 2,50 € je Zutat.`
+                        : selectedToppings.length === 5
+                        ? `Alle 5 kostenlosen Zutaten ausgewählt. Jede weitere Zutat kostet 2,50 € Aufpreis.`
+                        : `5 Zutaten gratis + ${selectedToppings.length - 5} zusätzliche Zutat(en) für je 2,50 € (+${toppingsTotal.toFixed(2).replace('.', ',')} €).`}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <div className="custom-toppings-scroll">
                 {availableToppings.map((topping) => {
                   const isChecked = selectedToppings.some((t) => t.id === topping.id);
-                  const cost = typeof topping.price === 'number' && topping.price > 0 ? topping.price : singleToppingCost;
+                  const selectedIdx = selectedToppings.findIndex((t) => t.id === topping.id);
+                  const standardCost = typeof topping.price === 'number' && topping.price > 0 ? topping.price : singleToppingCost;
+
                   return (
                     <button
                       key={topping.id}
@@ -469,9 +672,60 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
                         <span className="custom-topping-name">{topping.name}</span>
                       </div>
 
-                      <span className="custom-topping-price notranslate">
-                        +{cost.toFixed(2).replace('.', ',')} €
-                      </span>
+                      {has5FreeToppings ? (
+                        isChecked ? (
+                          selectedIdx < 5 ? (
+                            <span style={{
+                              fontSize: '11.5px',
+                              fontWeight: '800',
+                              color: '#15803d',
+                              background: '#dcfce7',
+                              border: '1px solid #86efac',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              Gratis (0,00 €)
+                            </span>
+                          ) : (
+                            <span style={{
+                              fontSize: '11.5px',
+                              fontWeight: '800',
+                              color: '#dc2626',
+                              background: '#fee2e2',
+                              border: '1px solid #fecaca',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              +2,50 € (Aufpreis)
+                            </span>
+                          )
+                        ) : (
+                          selectedToppings.length < 5 ? (
+                            <span style={{
+                              fontSize: '11.5px',
+                              fontWeight: '700',
+                              color: '#15803d',
+                              background: '#f0fdf4',
+                              border: '1px solid #dcfce7',
+                              padding: '2px 7px',
+                              borderRadius: '6px',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              Inklusive (0,00 €)
+                            </span>
+                          ) : (
+                            <span className="custom-topping-price notranslate" style={{ color: '#dc2626', fontWeight: '800' }}>
+                              +2,50 €
+                            </span>
+                          )
+                        )
+                      ) : (
+                        <span className="custom-topping-price notranslate">
+                          +{standardCost.toFixed(2).replace('.', ',')} €
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -485,10 +739,18 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
           {/* Summary line */}
           <div className="custom-footer-summary">
             <span className="custom-footer-summary-text">
-              Auswahl: <span className="custom-footer-summary-highlight">{activeSize?.name || 'Standard'}</span>
-              {activeSize?.dim ? ` (${activeSize.dim})` : ''}
+              Auswahl: <span className="custom-footer-summary-highlight">{isDeal ? (item.title || item.name) : (activeSize?.name || 'Standard')}</span>
+              {activeSize?.dim && !isDeal ? ` (${activeSize.dim})` : ''}
               {isAmericanStyle ? ' • American Crust' : ''}
-              {selectedToppings.length > 0 ? ` • +${selectedToppings.length} Extras` : ''}
+              {isDeal ? (
+                selectedToppings.length > 0 ? (
+                  selectedToppings.length <= 5
+                    ? ` • ${selectedToppings.length} Zutaten (gratis)`
+                    : ` • 5 gratis + ${selectedToppings.length - 5} extra (+${toppingsTotal.toFixed(2).replace('.', ',')} €)`
+                ) : ''
+              ) : (
+                selectedToppings.length > 0 ? ` • +${selectedToppings.length} Extras` : ''
+              )}
             </span>
             <span className="custom-footer-summary-price notranslate">
               {finalUnitPrice.toFixed(2).replace('.', ',')} € / Stk.
@@ -520,10 +782,16 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
             <button
               type="button"
               onClick={handleConfirm}
-              className="custom-submit-btn"
+              disabled={isSideDishCategory(item) && !sideDish}
+              className={`custom-submit-btn ${isSideDishCategory(item) && !sideDish ? 'disabled' : ''}`}
+              style={isSideDishCategory(item) && !sideDish ? { background: '#cbd5e1', cursor: 'not-allowed' } : {}}
             >
               <ShoppingBag size={17} />
-              <span className="notranslate">In den Warenkorb • {totalPrice.toFixed(2).replace('.', ',')} €</span>
+              <span className="notranslate">
+                {isSideDishCategory(item) && !sideDish
+                  ? 'Bitte Beilage wählen'
+                  : `In den Warenkorb • ${totalPrice.toFixed(2).replace('.', ',')} €`}
+              </span>
             </button>
           </div>
         </div>

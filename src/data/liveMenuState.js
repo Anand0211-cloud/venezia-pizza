@@ -45,6 +45,8 @@ export function getItemCanonicalCategory(item) {
   if (cat === 'beilagen') return 'beilagen';
   if (cat === 'chinesisch') return 'chinesisch';
   if (cat === 'indisch') return 'indisch';
+  if (cat === 'manzo-vom-rind' || cat === 'manzo' || cat === 'rind') return 'manzo-vom-rind';
+  if (cat === 'pesce-fisch' || cat === 'pesce' || cat === 'fisch') return 'pesce-fisch';
 
   // 1. Pizzas & Calzones (only pizza/calzone)
   if (
@@ -580,6 +582,152 @@ export function useLiveMenu() {
     loading: state.loading,
     refreshMenu: () => fetchLiveMenuGlobal(true)
   };
+}
+
+export function getSideDishType(item) {
+  if (!item) return null;
+  const canonical = getItemCanonicalCategory(item);
+  if (canonical === 'chinesisch') return null;
+
+  const cat = String(item.category_id || item.category || '').toLowerCase().trim();
+  if (cat === 'chinesisch' || cat === 'chinese' || cat === 'asia') return null;
+
+  const id = String(item.id || '').toLowerCase();
+  if (id.startsWith('asia-') || id.startsWith('chinesisch-')) return null;
+
+  const name = String(item.name_de || item.name || item.title || '').toLowerCase();
+  if (
+    name.includes('gebratene nudeln') ||
+    name.includes('chop suey') ||
+    name.includes('bami goreng') ||
+    name.includes('nasi goreng') ||
+    name.includes('süß-sauer')
+  ) {
+    return null;
+  }
+
+  if (canonical === 'indisch' || canonical === 'lamm') return 'indian_lamb';
+  if (canonical === 'fleischgerichte' || canonical === 'gyros') return 'meat_gyros';
+  if (canonical === 'manzo-vom-rind' || canonical === 'pesce-fisch') return 'manzo_pesce';
+
+  if (cat === 'indisch' || cat === 'lamm' || cat === 'indian' || cat === 'lamb') return 'indian_lamb';
+  if (
+    cat === 'fleischgerichte' ||
+    cat === 'gyros' ||
+    cat === 'schnitzel' ||
+    cat === 'doner' ||
+    cat === 'döner'
+  ) {
+    return 'meat_gyros';
+  }
+  if (
+    cat === 'manzo-vom-rind' ||
+    cat === 'manzo' ||
+    cat === 'rind' ||
+    cat === 'pesce-fisch' ||
+    cat === 'pesce' ||
+    cat === 'fisch'
+  ) {
+    return 'manzo_pesce';
+  }
+
+  if (
+    name.includes('chicken curry') ||
+    name.includes('chicken korma') ||
+    name.includes('tikka masala') ||
+    name.includes('palak paneer') ||
+    name.includes('lammkotelett') ||
+    name.includes('lamm curry') ||
+    name.includes('lamm korma') ||
+    name.includes('lammfleisch')
+  ) {
+    return 'indian_lamb';
+  }
+
+  if (
+    name.includes('schnitzel') ||
+    name.includes('cordon bleu') ||
+    name.includes('gyros') ||
+    name.includes('putenschnitzel') ||
+    name.includes('putenfleisch')
+  ) {
+    return 'meat_gyros';
+  }
+
+  if (
+    name.includes('manzo') ||
+    name.includes('rindfleisch') ||
+    name.includes('pesce') ||
+    name.includes('lachsfilet') ||
+    name.includes('zanderfilet') ||
+    name.includes('calamari') ||
+    name.includes('forelle') ||
+    name.includes('garnelen')
+  ) {
+    return 'manzo_pesce';
+  }
+
+  return null;
+}
+
+export function isSideDishCategory(item) {
+  if (!item) return false;
+  const canonical = getItemCanonicalCategory(item);
+  if (canonical === 'chinesisch') return false;
+  const cat = String(item.category_id || item.category || '').toLowerCase().trim();
+  if (cat === 'chinesisch' || cat === 'chinese' || cat === 'asia') return false;
+  return !!getSideDishType(item);
+}
+
+export function isSaladCategory(item) {
+  if (!item) return false;
+  if (getSideDishType(item)) return false;
+
+  const canonical = getItemCanonicalCategory(item);
+  if (canonical === 'salate') return true;
+
+  const cat = String(item.category_id || item.category || '').toLowerCase().trim();
+  if (cat === 'salate' || cat === 'salad') return true;
+
+  const id = String(item.id || '').toLowerCase();
+  if (id.startsWith('salad-') || id.startsWith('salat-')) return true;
+
+  return false;
+}
+
+export function isDealItem(item) {
+  if (!item) return false;
+  const cat = String(item.category_id || item.category || '').toLowerCase().trim();
+  if (cat === 'deals' || cat.includes('spar') || cat.includes('angebot')) return true;
+
+  const id = String(item.id || '').trim();
+  if (id.startsWith('A') || id.startsWith('offer-')) return true;
+
+  const code = String(item.code || '').trim();
+  if (code.startsWith('A')) return true;
+
+  const name = String(item.name || item.title || '').toLowerCase();
+  if (name.includes('spar-menü') || name.includes('sparmenü') || name.includes('familienpizza angebot') || name.includes('partypizza angebot')) return true;
+
+  const canonical = getItemCanonicalCategory(item);
+  if (canonical === 'deals') return true;
+
+  return false;
+}
+
+export function isPizzaVeneziaCustom(item) {
+  if (!item) return false;
+  const num = String(item.number || '').trim();
+  if (num === '46') return true;
+
+  const id = String(item.id || '').toLowerCase().trim();
+  if (id === 'pizza-46' || id.startsWith('pizza-46-') || id === '46') return true;
+
+  const name = String(item.name || item.title || '').toLowerCase();
+  if (name.includes('pizza venezia') && (name.includes('wunsch') || name.includes('46') || name.includes('custom') || name.includes('selbst'))) return true;
+  if (name === 'pizza venezia (wunschpizza)' || name === 'pizza venezia') return true;
+
+  return false;
 }
 
 
