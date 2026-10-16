@@ -600,16 +600,52 @@ export function useLiveMenu() {
 
 export function getSideDishType(item) {
   if (!item) return null;
-  const canonical = getItemCanonicalCategory(item);
-  if (canonical === 'chinesisch') return null;
-
-  const cat = String(item.category_id || item.category || '').toLowerCase().trim();
-  if (cat === 'chinesisch' || cat === 'chinese' || cat === 'asia') return null;
 
   const id = String(item.id || '').toLowerCase();
+  const name = String(item.name_de || item.name || item.title || '').toLowerCase();
+  const num = String(item.number || '').trim();
+
+  // Exclude "Pizza Gyros" / "Pizza Gyrosa" (No. 33) specifically - it is a pizza and must never have side dishes
+  if (
+    id === 'pizza-33' ||
+    (num === '33' && (id.startsWith('pizza') || name.includes('pizza'))) ||
+    name === 'pizza gyros' ||
+    name === 'pizza gyrosa' ||
+    name.startsWith('pizza gyros') ||
+    name.startsWith('pizza gyrosa')
+  ) {
+    return null;
+  }
+
+  // Exclude Pasta & Noodle dishes (Tortellini, Spaghetti, Rigatoni, etc. - e.g. No. 58 Tortellini mit Putenfleisch)
+  const canonical = getItemCanonicalCategory(item);
+  const cat = String(item.category_id || item.category || '').toLowerCase().trim();
+  if (
+    canonical === 'pasta' ||
+    canonical === 'pasta-al-forno' ||
+    canonical === 'gnocchi' ||
+    cat === 'pasta' ||
+    cat === 'pasta-al-forno' ||
+    cat === 'gnocchi' ||
+    id.startsWith('pasta-') ||
+    id === 'gnocchi-al-forno' ||
+    num === '58' ||
+    name.startsWith('tortellini') ||
+    name.startsWith('spaghetti') ||
+    name.startsWith('rigatoni') ||
+    name.startsWith('tagliatelle') ||
+    name.startsWith('penne') ||
+    name.startsWith('maccheroni') ||
+    name.includes('tortellini mit putenfleisch')
+  ) {
+    return null;
+  }
+
+  if (canonical === 'chinesisch') return null;
+  if (cat === 'chinesisch' || cat === 'chinese' || cat === 'asia') return null;
+
   if (id.startsWith('asia-') || id.startsWith('chinesisch-')) return null;
 
-  const name = String(item.name_de || item.name || item.title || '').toLowerCase();
   if (
     name.includes('gebratene nudeln') ||
     name.includes('chop suey') ||
@@ -686,9 +722,48 @@ export function getSideDishType(item) {
 
 export function isSideDishCategory(item) {
   if (!item) return false;
+
+  const id = String(item.id || '').toLowerCase();
+  const name = String(item.name_de || item.name || item.title || '').toLowerCase();
+  const num = String(item.number || '').trim();
+
+  // Exclude "Pizza Gyros" / "Pizza Gyrosa" (No. 33) specifically
+  if (
+    id === 'pizza-33' ||
+    (num === '33' && (id.startsWith('pizza') || name.includes('pizza'))) ||
+    name === 'pizza gyros' ||
+    name === 'pizza gyrosa' ||
+    name.startsWith('pizza gyros') ||
+    name.startsWith('pizza gyrosa')
+  ) {
+    return false;
+  }
+
+  // Exclude Pasta & Noodle dishes (Tortellini, Spaghetti, Rigatoni, etc. - e.g. No. 58 Tortellini mit Putenfleisch)
   const canonical = getItemCanonicalCategory(item);
-  if (canonical === 'chinesisch') return false;
   const cat = String(item.category_id || item.category || '').toLowerCase().trim();
+  if (
+    canonical === 'pasta' ||
+    canonical === 'pasta-al-forno' ||
+    canonical === 'gnocchi' ||
+    cat === 'pasta' ||
+    cat === 'pasta-al-forno' ||
+    cat === 'gnocchi' ||
+    id.startsWith('pasta-') ||
+    id === 'gnocchi-al-forno' ||
+    num === '58' ||
+    name.startsWith('tortellini') ||
+    name.startsWith('spaghetti') ||
+    name.startsWith('rigatoni') ||
+    name.startsWith('tagliatelle') ||
+    name.startsWith('penne') ||
+    name.startsWith('maccheroni') ||
+    name.includes('tortellini mit putenfleisch')
+  ) {
+    return false;
+  }
+
+  if (canonical === 'chinesisch') return false;
   if (cat === 'chinesisch' || cat === 'chinese' || cat === 'asia') return false;
   return !!getSideDishType(item);
 }
