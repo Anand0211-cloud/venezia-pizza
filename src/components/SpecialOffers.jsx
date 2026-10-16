@@ -14,7 +14,8 @@ export default function SpecialOffers({ onAddToCart, onShowAllOffers }) {
 
   const liveOffers = dbDeals.length > 0
     ? dbDeals.map(live => {
-        const code = live.number || live.id;
+        const isInternalId = !live.number || String(live.number).toLowerCase().startsWith('dish-') || String(live.number).toLowerCase().startsWith('offer-');
+        const code = isInternalId ? 'Angebot' : live.number;
         const unitPrice = typeof live.price === 'number'
           ? live.price
           : (live.prices?.single || 25.0);
@@ -38,6 +39,7 @@ export default function SpecialOffers({ onAddToCart, onShowAllOffers }) {
           image: imagesList[0],
           image_url: imagesList[0],
           images: imagesList,
+          badge: isInternalId ? 'Angebot' : (live.badge || `Angebot ${code}`),
           is_in_stock: live.is_in_stock !== false,
           category: 'deals'
         };
@@ -116,7 +118,7 @@ export default function SpecialOffers({ onAddToCart, onShowAllOffers }) {
                 onClick={() => inStock && setCustomizingOffer(offer)}
                 style={{ cursor: inStock ? 'pointer' : 'default' }}
               >
-                <span className="offer-badge">{offer.code}</span>
+                <span className="offer-badge">{offer.code && !String(offer.code).toLowerCase().startsWith('dish-') && !String(offer.code).toLowerCase().startsWith('offer-') ? offer.code : 'Angebot'}</span>
                 <img src={offer.image} alt={offer.title} loading="lazy" />
                 {!inStock && (
                   <span

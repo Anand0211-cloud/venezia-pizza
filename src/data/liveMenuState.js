@@ -320,9 +320,23 @@ export function formatMenuItemFromDb(dbItem, localMap) {
   }
   const cleanImagesList = rawImages.filter(img => typeof img === 'string' && img.trim() !== '');
 
+  const rawNumber = dbItem.number || local?.number || local?.code || '';
+  const cleanNumber = (String(rawNumber).toLowerCase().startsWith('dish-') || String(rawNumber).toLowerCase().startsWith('offer-'))
+    ? ''
+    : rawNumber;
+
+  let rawBadge = (dbItem.badge !== undefined && dbItem.badge !== null) ? dbItem.badge : (local?.badge ?? '');
+  let sanitizedBadge = rawBadge;
+  if (typeof sanitizedBadge === 'string' && (sanitizedBadge.toLowerCase().includes('dish-') || sanitizedBadge.toLowerCase().includes('offer-'))) {
+    sanitizedBadge = sanitizedBadge.replace(/\b(dish|offer)-[a-zA-Z0-9_\-]+/gi, '').trim();
+    if (!sanitizedBadge || sanitizedBadge.toLowerCase() === 'angebot' || sanitizedBadge.toLowerCase() === 'offer') {
+      sanitizedBadge = isDeal ? 'Angebot' : '';
+    }
+  }
+
   return {
     id: dbItem.id,
-    number: dbItem.number || local?.number || local?.code || '',
+    number: cleanNumber,
     category,
     name: dbItem.name_de || dbItem.name || local?.name || local?.title || '',
     name_en: dbItem.name_en || local?.name_en || local?.name || '',
@@ -334,7 +348,7 @@ export function formatMenuItemFromDb(dbItem, localMap) {
     image_url: cleanImagesList[0] || dbItem.image_url || image,
     images: cleanImagesList.length > 0 ? cleanImagesList : (image ? [image] : []),
     has_custom_image: !!(dbItem.image_url && !dbItem.image_url.includes('Artboard_')),
-    badge: (dbItem.badge !== undefined && dbItem.badge !== null) ? dbItem.badge : (local?.badge ?? ''),
+    badge: sanitizedBadge,
     dietary: dbItem.dietary || local?.dietary || [],
     sizesAvailable,
     calzoneSizes,
@@ -726,6 +740,37 @@ export function isPizzaVeneziaCustom(item) {
   const name = String(item.name || item.title || '').toLowerCase();
   if (name.includes('pizza venezia') && (name.includes('wunsch') || name.includes('46') || name.includes('custom') || name.includes('selbst'))) return true;
   if (name === 'pizza venezia (wunschpizza)' || name === 'pizza venezia') return true;
+
+  return false;
+}
+
+export function isA1Familienpizza(item) {
+  if (!item) return false;
+  const id = String(item.id || '').trim().toUpperCase();
+  const code = String(item.code || '').trim().toUpperCase();
+  const num = String(item.number || '').trim().toUpperCase();
+  const name = String(item.name || item.title || '').toLowerCase().trim();
+
+  if (id === 'A1' || id === 'OFFER-A1' || id.startsWith('A1-')) return true;
+  if (code === 'A1' || num === 'A1') return true;
+  if (name.includes('familienpizza') && name.includes('angebot')) return true;
+  if (name.includes('familienpizza angebot') || name.includes('sparmenü a1') || name.includes('spar-menü a1')) return true;
+
+  return false;
+}
+
+export function isA2Partypizza(item) {
+  if (!item) return false;
+  const id = String(item.id || '').trim().toUpperCase();
+  const code = String(item.code || '').trim().toUpperCase();
+  const num = String(item.number || '').trim().toUpperCase();
+  const name = String(item.name || item.title || '').toLowerCase().trim();
+
+  if (id === 'A2' || id === 'OFFER-A2' || id.startsWith('A2-')) return true;
+  if (code === 'A2' || num === 'A2') return true;
+  if (name.includes('partypizza') && (name.includes('angebot') || name.includes('offer') || name.includes('hit'))) return true;
+  if (name.includes('party pizza') && (name.includes('angebot') || name.includes('offer') || name.includes('hit'))) return true;
+  if (name.includes('partypizza angebot') || name.includes('sparmenü a2') || name.includes('spar-menü a2')) return true;
 
   return false;
 }

@@ -208,9 +208,9 @@ function DishCardMedia({ item, isInStock = true, cleanBadge = '', onOpenModal = 
         </>
       )}
 
-      {item.number && (
+      {item.number && !String(item.number).toLowerCase().startsWith('dish-') && !String(item.number).toLowerCase().startsWith('offer-') && (
         <span className="dish-badge" style={{ background: 'var(--red)', fontWeight: '900', zIndex: 3 }}>
-          Nr. {item.number}
+          {String(item.number).toUpperCase().startsWith('A') ? item.number : `Nr. ${item.number}`}
         </span>
       )}
 
@@ -220,11 +220,22 @@ function DishCardMedia({ item, isInStock = true, cleanBadge = '', onOpenModal = 
         </span>
       )}
 
-      {cleanBadge && isInStock && (
-        <span className={`dish-badge ${item.badge?.includes('Scharf') ? 'spicy' : ''}`} style={{ left: item.number ? '70px' : '10px', zIndex: 3 }}>
-          {cleanBadge}
-        </span>
-      )}
+      {(() => {
+        let displayBadge = cleanBadge || '';
+        if (displayBadge.includes('dish-') || displayBadge.includes('offer-')) {
+          displayBadge = displayBadge.replace(/\b(dish|offer)-[a-zA-Z0-9_\-]+/gi, '').trim();
+          if (!displayBadge || displayBadge.toLowerCase() === 'angebot' || displayBadge.toLowerCase() === 'offer') {
+            displayBadge = 'Angebot';
+          }
+        }
+        if (!displayBadge || !isInStock) return null;
+        const hasNumberBadge = item.number && !String(item.number).toLowerCase().startsWith('dish-') && !String(item.number).toLowerCase().startsWith('offer-');
+        return (
+          <span className={`dish-badge ${item.badge?.includes('Scharf') ? 'spicy' : ''}`} style={{ left: hasNumberBadge ? '70px' : '10px', zIndex: 3 }}>
+            {displayBadge}
+          </span>
+        );
+      })()}
 
       {item.dietary?.includes('vegetarisch') && (
         <span className="diet-pill veg" title="Vegetarisch" style={{ zIndex: 3 }}>
@@ -459,7 +470,8 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
     const dbDeals = (menuItems || []).filter(item => getItemCanonicalCategory(item) === 'deals');
     if (dbDeals.length > 0) {
       return dbDeals.map((item) => {
-        const code = item.number || item.id;
+        const isInternalId = !item.number || String(item.number).toLowerCase().startsWith('dish-') || String(item.number).toLowerCase().startsWith('offer-');
+        const code = isInternalId ? '' : item.number;
         const unitPrice = typeof item.price === 'number'
           ? item.price
           : (item.prices?.single || 25.0);
@@ -468,10 +480,19 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
           ? item.images
           : [item.image_url || item.image || '/images/Offer1.png'];
 
+        let badgeText = item.badge || '';
+        if (badgeText.includes('dish-') || badgeText.includes('offer-')) {
+          badgeText = '';
+        }
+        if (!badgeText) {
+          badgeText = code ? `Angebot ${code}` : 'Angebot';
+        }
+
         return {
           ...item,
           id: item.id,
-          code,
+          code: code || 'Angebot',
+          number: code,
           title: item.name,
           name: item.name,
           description: item.desc || item.toppings || '',
@@ -483,7 +504,7 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
           image: imagesList[0],
           image_url: imagesList[0],
           images: imagesList,
-          badge: item.badge || `Angebot ${code}`,
+          badge: badgeText,
           is_in_stock: item.is_in_stock !== false
         };
       });
@@ -900,7 +921,7 @@ export default function MenuPage({ onAddToCart, onOpenCart, selectedInitialCateg
                   <DishCardMedia
                     item={offer}
                     isInStock={inStock}
-                    cleanBadge={offer.badge || `Angebot ${offer.code}`}
+                    cleanBadge={offer.badge && !offer.badge.includes('dish-') ? offer.badge : (offer.code && !offer.code.startsWith('dish-') && offer.code !== 'Angebot' ? `Angebot ${offer.code}` : 'Angebot')}
                     onOpenModal={() => setCustomizingItem(offer)}
                   />
                   <div className="dish-card-body">

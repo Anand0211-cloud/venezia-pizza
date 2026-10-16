@@ -8,7 +8,7 @@ import {
   extraToppingPriceBySize,
   pizzaExtraToppingsList
 } from '../data/menuData';
-import { isSideDishCategory, getSideDishType, isDealItem, isPizzaVeneziaCustom } from '../data/liveMenuState';
+import { isSideDishCategory, getSideDishType, isDealItem, isPizzaVeneziaCustom, isA1Familienpizza, isA2Partypizza, getItemCanonicalCategory } from '../data/liveMenuState';
 import './CustomizeItemModal.css';
 
 export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart }) {
@@ -120,12 +120,42 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
   const isDeal = isDealItem(item);
   const isCustomPizza = isPizzaVeneziaCustom(item);
   const has5FreeToppings = isDeal || isCustomPizza;
+  const isA1 = isA1Familienpizza(item);
+  const isA2 = isA2Partypizza(item);
+
+  const canonicalCategory = getItemCanonicalCategory(item);
+  const rawCat = String(item?.category_id || item?.category || item?.prices?.frontend_category || item?.frontend_category || '').toLowerCase().trim();
+  const isPasta = canonicalCategory === 'pasta' || rawCat === 'pasta';
 
   // Extra toppings cost calculation
-  // For deals and Pizza Nr. 46 (Pizza Venezia): up to 5 ingredients free, starting from 6th charge €2.50 per additional ingredient
+  // For Pizza Nr. 46 (Pizza Venezia): first 5 ingredients free in all sizes; starting from 6th: Small €2.50, Large €3.00, Family €4.00, Party €5.00
+  // For A1 "Familienpizza Angebot": first 5 ingredients free, starting from 6th charge €4.00 per additional ingredient
+  // For A2 "Partypizza Angebot": first 5 ingredients free, starting from 6th charge €5.00 per additional ingredient
+  // For other deals: up to 5 ingredients free, starting from 6th charge €2.50 per additional ingredient
+  let dealExtraPrice = 2.50;
+  if (isCustomPizza) {
+    const sizeNorm = String(currentSizeKey || '').toLowerCase();
+    if (sizeNorm.includes('party')) {
+      dealExtraPrice = 5.00;
+    } else if (sizeNorm.includes('famil') || sizeNorm.includes('33')) {
+      dealExtraPrice = 4.00;
+    } else if (sizeNorm.includes('larg') || sizeNorm.includes('gro') || sizeNorm.includes('30')) {
+      dealExtraPrice = 3.00;
+    } else if (sizeNorm.includes('small') || sizeNorm.includes('klein') || sizeNorm.includes('26')) {
+      dealExtraPrice = 2.50;
+    } else {
+      dealExtraPrice = extraToppingPriceBySize[currentSizeKey] || 2.50;
+    }
+  } else if (isA2) {
+    dealExtraPrice = 5.00;
+  } else if (isA1) {
+    dealExtraPrice = 4.00;
+  }
+  const dealExtraPriceFormatted = dealExtraPrice.toFixed(2).replace('.', ',');
+
   const dealExtraCount = Math.max(0, selectedToppings.length - 5);
   const toppingsTotal = has5FreeToppings
-    ? dealExtraCount * 2.50
+    ? dealExtraCount * dealExtraPrice
     : selectedToppings.reduce((sum, t) => {
         const cost = (typeof t.price === 'number' && t.price > 0) ? t.price : singleToppingCost;
         return sum + cost;
@@ -193,7 +223,7 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
     const toppingNames = selectedToppings.map((t, idx) => {
       const name = typeof t === 'string' ? t : (t.name || t.id);
       if (has5FreeToppings) {
-        return idx < 5 ? `${name} (gratis)` : `${name} (+2,50 €)`;
+        return idx < 5 ? `${name} (gratis)` : `${name} (+${dealExtraPriceFormatted} €)`;
       }
       return name;
     });
@@ -403,16 +433,26 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
                       <span className="custom-modal-badge-veg-dot" />
                     </span>
                   )}
-                  {item.number && (
+                  {item.number && !String(item.number).toLowerCase().startsWith('dish-') && !String(item.number).toLowerCase().startsWith('offer-') && (
                     <span className="custom-modal-badge-number">
-                      Nr. {item.number}
+                      {String(item.number).toUpperCase().startsWith('A') ? item.number : `Nr. ${item.number}`}
                     </span>
                   )}
-                  {item.badge && (
-                    <span className="custom-modal-badge-pill">
-                      {item.badge}
-                    </span>
-                  )}
+                  {(() => {
+                    let b = item.badge || '';
+                    if (b.includes('dish-') || b.includes('offer-')) {
+                      b = b.replace(/\b(dish|offer)-[a-zA-Z0-9_\-]+/gi, '').trim();
+                      if (!b || b.toLowerCase() === 'angebot' || b.toLowerCase() === 'offer') {
+                        b = isDeal ? 'Angebot' : '';
+                      }
+                    }
+                    if (!b) return null;
+                    return (
+                      <span className="custom-modal-badge-pill">
+                        {b}
+                      </span>
+                    );
+                  })()}
                 </div>
 
                 <h3 className="custom-modal-title">{item.name}</h3>
@@ -598,26 +638,28 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
             <div>
               <div className="custom-modal-section-title">
                 <span>{has5FreeToppings ? (hasSizes ? '2. Wunschzutaten & Extras' : 'Wunschzutaten & Extras') : (hasSizes ? '2. Wunschzutaten & Extras' : 'Wunschzutaten & Extras')}</span>
-                <span
-                  className="custom-modal-section-tag"
-                  style={has5FreeToppings ? {
-                    background: selectedToppings.length > 5 ? '#fef2f2' : '#f0fdf4',
-                    color: selectedToppings.length > 5 ? '#dc2626' : '#15803d',
-                    border: `1px solid ${selectedToppings.length > 5 ? '#fecaca' : '#bbf7d0'}`
-                  } : {}}
-                >
-                  {has5FreeToppings ? (
-                    selectedToppings.length === 0
-                      ? 'Bis zu 5 Zutaten gratis inklusive!'
-                      : selectedToppings.length <= 5
-                      ? `${selectedToppings.length}/5 gratis gewählt (0,00 €)`
-                      : `5 gratis + ${selectedToppings.length - 5} extra (+${toppingsTotal.toFixed(2).replace('.', ',')} €)`
-                  ) : (
-                    selectedToppings.length > 0
-                      ? `${selectedToppings.length} gewählt (+${toppingsTotal.toFixed(2).replace('.', ',')} €)`
-                      : `+${singleToppingCost.toFixed(2).replace('.', ',')} € je Zutat`
-                  )}
-                </span>
+                {(!isPasta || selectedToppings.length > 0) && (
+                  <span
+                    className="custom-modal-section-tag"
+                    style={has5FreeToppings ? {
+                      background: selectedToppings.length > 5 ? '#fef2f2' : '#f0fdf4',
+                      color: selectedToppings.length > 5 ? '#dc2626' : '#15803d',
+                      border: `1px solid ${selectedToppings.length > 5 ? '#fecaca' : '#bbf7d0'}`
+                    } : {}}
+                  >
+                    {has5FreeToppings ? (
+                      selectedToppings.length === 0
+                        ? 'Bis zu 5 Zutaten gratis inklusive!'
+                        : selectedToppings.length <= 5
+                        ? `${selectedToppings.length}/5 gratis gewählt (0,00 €)`
+                        : `5 gratis + ${selectedToppings.length - 5} extra (+${toppingsTotal.toFixed(2).replace('.', ',')} €)`
+                    ) : (
+                      selectedToppings.length > 0
+                        ? `${selectedToppings.length} gewählt (+${toppingsTotal.toFixed(2).replace('.', ',')} €)`
+                        : `+${singleToppingCost.toFixed(2).replace('.', ',')} € je Zutat`
+                    )}
+                  </span>
+                )}
               </div>
 
               {/* Informative Deal & Custom Pizza Banner */}
@@ -643,10 +685,10 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
                     </strong>
                     <span>
                       {selectedToppings.length < 5
-                        ? `Sie haben ${selectedToppings.length} von 5 kostenlosen Zutaten gewählt (noch ${5 - selectedToppings.length} gratis). Ab der 6. Zutat: 2,50 € je Zutat.`
+                        ? `Sie haben ${selectedToppings.length} von 5 kostenlosen Zutaten gewählt (noch ${5 - selectedToppings.length} gratis). Ab der 6. Zutat: ${dealExtraPriceFormatted} € je Zutat.`
                         : selectedToppings.length === 5
-                        ? `Alle 5 kostenlosen Zutaten ausgewählt. Jede weitere Zutat kostet 2,50 € Aufpreis.`
-                        : `5 Zutaten gratis + ${selectedToppings.length - 5} zusätzliche Zutat(en) für je 2,50 € (+${toppingsTotal.toFixed(2).replace('.', ',')} €).`}
+                        ? `Alle 5 kostenlosen Zutaten ausgewählt. Jede weitere Zutat kostet ${dealExtraPriceFormatted} € Aufpreis.`
+                        : `5 Zutaten gratis + ${selectedToppings.length - 5} zusätzliche Zutat(en) für je ${dealExtraPriceFormatted} € (+${toppingsTotal.toFixed(2).replace('.', ',')} €).`}
                     </span>
                   </div>
                 </div>
@@ -698,7 +740,7 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
                               borderRadius: '6px',
                               whiteSpace: 'nowrap'
                             }}>
-                              +2,50 € (Aufpreis)
+                              +{dealExtraPriceFormatted} € (Aufpreis)
                             </span>
                           )
                         ) : (
@@ -717,7 +759,7 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
                             </span>
                           ) : (
                             <span className="custom-topping-price notranslate" style={{ color: '#dc2626', fontWeight: '800' }}>
-                              +2,50 €
+                              +{dealExtraPriceFormatted} €
                             </span>
                           )
                         )
