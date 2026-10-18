@@ -99,6 +99,14 @@ export default function Footer({ onNavigate }) {
                     <span>03741 522861</span>
                     <span style={{ fontSize: '10px', color: '#fca5a5', background: 'rgba(239, 68, 68, 0.2)', padding: '1px 6px', borderRadius: '10px' }}>Tel 2</span>
                   </a>
+                  <a
+                    href="tel:03741522862"
+                    style={{ color: '#ffffff', fontWeight: '700', fontSize: '13.5px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    aria-label="Fax 03741 522862"
+                  >
+                    <span>03741 522862</span>
+                    <span style={{ fontSize: '10px', color: '#fca5a5', background: 'rgba(239, 68, 68, 0.2)', padding: '1px 6px', borderRadius: '10px' }}>Fax</span>
+                  </a>
                 </div>
               </div>
             </div>

@@ -475,6 +475,9 @@ const translations = {
       section5Subtitle: 'Extras für Kunden im Warenkorb wählbar',
       enableAll: 'Alle aktivieren',
       deselectAll: 'Alle abwählen',
+      removeAllExtras: 'Alle Extras entfernen',
+      clearAllCustomExtras: 'Eigene Extras bereinigen',
+      noExtrasBadge: 'Keine Zusatzbeläge: Für dieses Gericht werden im Bestellfenster keine Extras angezeigt.',
       searchExtraTopping: 'Extra-Zutat suchen...',
       saveChangesFor: 'Änderungen für "{name}" speichern',
       livePreviewTitle: 'Live-Vorschau Speisekarte',
@@ -739,6 +742,9 @@ const translations = {
       section5Subtitle: 'extras selectable by customers in cart',
       enableAll: 'Enable All',
       deselectAll: 'Deselect All',
+      removeAllExtras: 'Remove All Extras',
+      clearAllCustomExtras: 'Clear Custom Extras',
+      noExtrasBadge: 'No extra toppings: Customers will see no extras for this dish in the modal.',
       searchExtraTopping: 'Search extra topping...',
       saveChangesFor: 'Save Changes for "{name}"',
       livePreviewTitle: 'Live Menu Preview',
@@ -1324,6 +1330,14 @@ export default function AdminPanel({ onBackToStore }) {
       return [];
     }
   });
+  const [deletedCustomToppingIds, setDeletedCustomToppingIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem('venezia_deleted_custom_toppings');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch (e) {
+      return new Set();
+    }
+  });
   const [showAddCustomToppingModal, setShowAddCustomToppingModal] = useState(false);
   const [newToppingName, setNewToppingName] = useState('');
   const [newToppingPrice, setNewToppingPrice] = useState('2.50');
@@ -1370,6 +1384,123 @@ export default function AdminPanel({ onBackToStore }) {
     setNewToppingPrice('2.50');
     setShowAddCustomToppingModal(false);
     showToast(lang === 'de' ? `Extra-Zutat "${name}" angelegt!` : `Extra topping "${name}" added!`, 'success');
+  };
+
+  const handleDeleteCustomTopping = async (toppingId) => {
+    // 1. Immediately record in deleted set so allToppingsCatalog excludes it instantly
+    setDeletedCustomToppingIds(prev => {
+      const updated = new Set(prev);
+      updated.add(toppingId);
+      try {
+        localStorage.setItem('venezia_deleted_custom_toppings', JSON.stringify(Array.from(updated)));
+      } catch (e) {}
+      return updated;
+    });
+
+    // 2. Remove from dishForm
+    setDishForm(prev => ({
+      ...prev,
+      allowed_toppings: (prev.allowed_toppings || []).filter(id => id !== toppingId),
+      custom_toppings: (prev.custom_toppings || []).filter(ct => ct.id !== toppingId)
+    }));
+
+    // 3. Remove from customToppingsList & localStorage
+    setCustomToppingsList(prev => {
+      const updated = prev.filter(ct => ct.id !== toppingId);
+      try {
+        localStorage.setItem('venezia_custom_toppings', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    // 4. Remove from editingItem so re-renders cannot restore it
+    setEditingItem(prev => {
+      if (!prev) return prev;
+      const curPrices = prev.prices || {};
+      return {
+        ...prev,
+        custom_toppings: (prev.custom_toppings || []).filter(ct => ct.id !== toppingId),
+        allowed_toppings: (prev.allowed_toppings || []).filter(id => id !== toppingId),
+        prices: {
+          ...curPrices,
+          custom_toppings: (curPrices.custom_toppings || []).filter(ct => ct.id !== toppingId),
+          allowed_toppings: (curPrices.allowed_toppings || []).filter(id => id !== toppingId)
+        }
+      };
+    });
+
+    // 5. Remove from menuItems state
+    setMenuItems(prev => prev.map(item => {
+      const hasCustom = item.custom_toppings?.some(ct => ct.id === toppingId) || item.prices?.custom_toppings?.some(ct => ct.id === toppingId);
+      const hasAllowed = item.allowed_toppings?.includes(toppingId) || item.prices?.allowed_toppings?.includes(toppingId);
+      if (!hasCustom && !hasAllowed) return item;
+
+      const cleanCustom = (item.custom_toppings || item.prices?.custom_toppings || []).filter(ct => ct.id !== toppingId);
+      const cleanAllowed = (item.allowed_toppings || item.prices?.allowed_toppings || []).filter(id => id !== toppingId);
+      return {
+        ...item,
+        custom_toppings: cleanCustom,
+        allowed_toppings: cleanAllowed,
+        prices: {
+          ...(item.prices || {}),
+          custom_toppings: cleanCustom,
+          allowed_toppings: cleanAllowed
+        }
+      };
+    }));
+
+    // 6. Delete from Supabase in background
+    if (isConnected) {
+      try {
+        const dishesToUpdate = menuItems.filter(item =>
+          item.prices?.custom_toppings?.some(ct => ct.id === toppingId) ||
+          item.prices?.allowed_toppings?.includes(toppingId)
+        );
+        for (const d of dishesToUpdate) {
+          const cleanCustom = (d.prices?.custom_toppings || []).filter(ct => ct.id !== toppingId);
+          const cleanAllowed = (d.prices?.allowed_toppings || []).filter(id => id !== toppingId);
+          await supabase
+            .from('menu_items')
+            .update({
+              prices: {
+                ...(d.prices || {}),
+                custom_toppings: cleanCustom,
+                allowed_toppings: cleanAllowed
+              },
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', d.id);
+        }
+      } catch (err) {
+        console.warn('Error purging custom topping from Supabase:', err);
+      }
+    }
+
+    notifyMenuUpdated();
+    showToast(lang === 'de' ? 'Extra-Zutat dauerhaft gelöscht' : 'Extra topping permanently deleted', 'info');
+  };
+
+  const handleClearAllCustomToppings = () => {
+    if (!window.confirm(lang === 'de' ? 'Möchten Sie wirklich alle erstellten Extra-Zutaten löschen?' : 'Are you sure you want to delete all custom extra ingredients?')) return;
+    const allCustomIds = customToppingsList.map(ct => ct.id);
+    setDeletedCustomToppingIds(prev => {
+      const next = new Set([...prev, ...allCustomIds]);
+      try {
+        localStorage.setItem('venezia_deleted_custom_toppings', JSON.stringify(Array.from(next)));
+      } catch (e) {}
+      return next;
+    });
+    setCustomToppingsList([]);
+    try {
+      localStorage.removeItem('venezia_custom_toppings');
+    } catch (e) {}
+    setDishForm(prev => ({
+      ...prev,
+      allowed_toppings: (prev.allowed_toppings || []).filter(id => !allCustomIds.includes(id)),
+      custom_toppings: []
+    }));
+    notifyMenuUpdated();
+    showToast(lang === 'de' ? 'Alle eigenen Extra-Zutaten gelöscht' : 'All custom extras deleted', 'success');
   };
 
   // Custom Portion Sizes Helpers
@@ -2299,7 +2430,9 @@ export default function AdminPanel({ onBackToStore }) {
       ? dishForm.allowed_toppings
       : pizzaExtraToppingsList.map(t => t.id);
     prices.custom_sizes = customSizes;
-    prices.custom_toppings = customToppings;
+    prices.custom_toppings = (!dishForm.allowed_toppings || dishForm.allowed_toppings.length === 0)
+      ? []
+      : customToppings.filter(ct => (dishForm.allowed_toppings || []).includes(ct.id));
 
     const cleanImages = Array.isArray(dishForm.images) && dishForm.images.length > 0
       ? dishForm.images.filter(Boolean)
@@ -6697,9 +6830,23 @@ export default function AdminPanel({ onBackToStore }) {
             ? PRESET_IMAGES
             : PRESET_IMAGES.filter(p => p.category === presetFilterCategory || (presetFilterCategory === 'pizza' && !p.category));
 
+          const combinedCustomMap = new Map();
+          (customToppingsList || []).forEach(ct => {
+            if (ct?.id && !deletedCustomToppingIds.has(ct.id)) combinedCustomMap.set(ct.id, ct);
+          });
+          (dishForm.custom_toppings || []).forEach(ct => {
+            if (ct?.id && !deletedCustomToppingIds.has(ct.id)) combinedCustomMap.set(ct.id, ct);
+          });
+          (editingItem?.custom_toppings || []).forEach(ct => {
+            if (ct?.id && !deletedCustomToppingIds.has(ct.id)) combinedCustomMap.set(ct.id, ct);
+          });
+          (editingItem?.prices?.custom_toppings || []).forEach(ct => {
+            if (ct?.id && !deletedCustomToppingIds.has(ct.id)) combinedCustomMap.set(ct.id, ct);
+          });
+
           const allToppingsCatalog = [
             ...pizzaExtraToppingsList,
-            ...customToppingsList.map(ct => ({
+            ...Array.from(combinedCustomMap.values()).map(ct => ({
               id: ct.id,
               name: ct.name,
               price: ct.price,
@@ -8246,7 +8393,7 @@ export default function AdminPanel({ onBackToStore }) {
                             {t.form.section5Title}
                           </h3>
                           <p style={{ fontSize: '12px', color: isLight ? '#64748b' : '#94a3b8', margin: '2px 0 0' }}>
-                            {dishForm.allowed_toppings?.length || 0} / {pizzaExtraToppingsList.length} {t.form.section5Subtitle}
+                            {(dishForm.allowed_toppings || []).filter(id => allToppingsCatalog.some(t => t.id === id)).length} / {allToppingsCatalog.length} {t.form.section5Subtitle}
                           </p>
                         </div>
                       </div>
@@ -8307,6 +8454,46 @@ export default function AdminPanel({ onBackToStore }) {
                         >
                           <span style={{ color: isLight ? '#0f172a' : '#94a3b8', fontWeight: '700' }}>{t.form.deselectAll}</span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDishForm(prev => ({ ...prev, allowed_toppings: [], custom_toppings: [] }));
+                            showToast(lang === 'de' ? 'Alle Zusatzbeläge für dieses Gericht entfernt!' : 'All extra toppings removed from this dish!', 'success');
+                          }}
+                          style={{
+                            background: isLight ? '#fee2e2' : 'rgba(239, 68, 68, 0.15)',
+                            color: isLight ? '#b91c1c' : '#f87171',
+                            border: isLight ? '1px solid #fecaca' : '1px solid rgba(239, 68, 68, 0.3)',
+                            borderRadius: '8px',
+                            padding: '7px 14px',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <span>{t.form.removeAllExtras}</span>
+                        </button>
+                        {customToppingsList.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={handleClearAllCustomToppings}
+                            style={{
+                              background: 'transparent',
+                              color: isLight ? '#94a3b8' : '#64748b',
+                              border: isLight ? '1px dashed #cbd5e1' : '1px dashed #334155',
+                              borderRadius: '8px',
+                              padding: '7px 12px',
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                            title={lang === 'de' ? 'Löscht alle selbst erstellten Extra-Zutaten aus der Liste' : 'Deletes all custom created extra toppings from list'}
+                          >
+                            <span>{t.form.clearAllCustomExtras}</span>
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -8395,6 +8582,26 @@ export default function AdminPanel({ onBackToStore }) {
                       />
                     </div>
 
+                    {/* Info Notice when 0 extras are allowed */}
+                    {(dishForm.allowed_toppings || []).length === 0 && (
+                      <div style={{
+                        background: isLight ? '#f0fdf4' : 'rgba(16, 185, 129, 0.1)',
+                        border: isLight ? '1.5px solid #86efac' : '1.5px solid rgba(16, 185, 129, 0.3)',
+                        borderRadius: '8px',
+                        padding: '10px 14px',
+                        marginBottom: '12px',
+                        fontSize: '12.5px',
+                        fontWeight: '600',
+                        color: isLight ? '#15803d' : '#4ade80',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <Check size={16} strokeWidth={2.5} />
+                        <span>{t.form.noExtrasBadge}</span>
+                      </div>
+                    )}
+
                     <div
                       className="admin-studio-toppings-grid"
                       style={{
@@ -8434,7 +8641,7 @@ export default function AdminPanel({ onBackToStore }) {
                               boxShadow: isLight ? '0 1px 2px rgba(0,0,0,0.03)' : 'none'
                             }}
                           >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', flex: 1 }}>
                               <span>{localizedToppingName}</span>
                               {isCustom && (
                                 <span style={{ fontSize: '9.5px', background: '#8b5cf6', color: '#ffffff', padding: '1px 5px', borderRadius: '4px', fontWeight: '800' }}>
@@ -8442,29 +8649,53 @@ export default function AdminPanel({ onBackToStore }) {
                                 </span>
                               )}
                             </div>
-                            {isAllowed ? (
-                              <div style={{
-                                background: '#10b981',
-                                color: '#ffffff',
-                                borderRadius: '50%',
-                                width: '18px',
-                                height: '18px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0
-                              }}>
-                                <Check size={11} strokeWidth={3} />
-                              </div>
-                            ) : (
-                              <div style={{
-                                border: isLight ? '1.5px solid #cbd5e1' : '1.5px solid #475569',
-                                borderRadius: '50%',
-                                width: '18px',
-                                height: '18px',
-                                flexShrink: 0
-                              }} />
-                            )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {isCustom && (
+                                <button
+                                  type="button"
+                                  title={lang === 'de' ? 'Diese Extra-Zutat löschen' : 'Delete this extra'}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteCustomTopping(topping.id);
+                                  }}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: isLight ? '#ef4444' : '#f87171',
+                                    cursor: 'pointer',
+                                    padding: '2px',
+                                    borderRadius: '4px',
+                                    display: 'flex',
+                                    alignItems: 'center'
+                                  }}
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
+                              {isAllowed ? (
+                                <div style={{
+                                  background: '#10b981',
+                                  color: '#ffffff',
+                                  borderRadius: '50%',
+                                  width: '18px',
+                                  height: '18px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0
+                                }}>
+                                  <Check size={11} strokeWidth={3} />
+                                </div>
+                              ) : (
+                                <div style={{
+                                  border: isLight ? '1.5px solid #cbd5e1' : '1.5px solid #475569',
+                                  borderRadius: '50%',
+                                  width: '18px',
+                                  height: '18px',
+                                  flexShrink: 0
+                                }} />
+                              )}
+                            </div>
                           </div>
                         );
                       })}

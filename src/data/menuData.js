@@ -2263,11 +2263,14 @@ export const restaurantInfo = {
   phoneCall: 'tel:03741522860',
   phoneSecondary: '03741 522861',
   phoneSecondaryCall: 'tel:03741522861',
+  fax: '03741 522862',
+  faxCall: 'tel:03741522862',
   mobile: '0160 1177240',
   mobileCall: 'tel:01601177240',
   allPhones: [
     { type: 'telephone', label: 'Telefon', number: '03741 522860', call: 'tel:03741522860' },
     { type: 'telephone', label: 'Telefon', number: '03741 522861', call: 'tel:03741522861' },
+    { type: 'fax', label: 'Fax', number: '03741 522862', call: 'tel:03741522862' },
     { type: 'mobile', label: 'Mobil', number: '0160 1177240', call: 'tel:01601177240' }
   ],
   address: 'Martin-Luther-Straße 68, 08525 Plauen',

@@ -111,7 +111,7 @@ export default function CustomizeItemModal({ item, isOpen, onClose, onAddToCart 
 
   const allowedList = Array.isArray(item.allowed_toppings)
     ? item.allowed_toppings
-    : (item.prices?.allowed_toppings || null);
+    : (Array.isArray(item.prices?.allowed_toppings) ? item.prices.allowed_toppings : null);
 
   const availableToppings = allowedList !== null
     ? fullToppingsPool.filter(t => allowedList.includes(t.id) || registeredCustomToppings.some(ct => ct.id === t.id && allowedList.includes(ct.id)))
