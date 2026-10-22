@@ -83,7 +83,10 @@ import {
   updateStoreStatus,
   subscribeToStoreSettings,
   uploadDishImage,
-  uploadMultipleDishImages
+  uploadMultipleDishImages,
+  deleteOrder,
+  clearAllOrders,
+  isValidOrderRecord
 } from '../lib/supabaseClient';
 import AdminLogin from './AdminLogin';
 import {
@@ -1892,14 +1895,11 @@ export default function AdminPanel({ onBackToStore }) {
           console.warn('Promise.allSettled notice:', e);
         }
 
-        if (fetchedOrders && fetchedOrders.length > 0) {
-          const cleanOrders = fetchedOrders.filter(o => 
-            !o.order_number?.startsWith('ACC-') && 
-            !(o.note && o.note.includes('Kundenkonto Registrierung'))
-          );
+        if (fetchedOrders) {
+          const cleanOrders = fetchedOrders.filter(isValidOrderRecord);
           setOrders(cleanOrders);
         } else {
-          setOrders(prev => prev.length > 0 ? prev : DEMO_ORDERS);
+          setOrders([]);
         }
 
         if (fetchedMenu && fetchedMenu.length > 0) {
@@ -1913,15 +1913,8 @@ export default function AdminPanel({ onBackToStore }) {
         }
       } else {
         const localOrders = await getOrders();
-        const cleanLocal = (localOrders || []).filter(o => 
-          !o.order_number?.startsWith('ACC-') && 
-          !(o.note && o.note.includes('Kundenkonto Registrierung'))
-        );
-        if (cleanLocal.length > 0) {
-          setOrders(cleanLocal);
-        } else {
-          setOrders(DEMO_ORDERS);
-        }
+        const cleanLocal = (localOrders || []).filter(isValidOrderRecord);
+        setOrders(cleanLocal);
         setMenuItems(fallbackList);
       }
     } catch (err) {
@@ -1945,8 +1938,17 @@ export default function AdminPanel({ onBackToStore }) {
     const unsubOrders = subscribeToOrders((payload) => {
       if (!payload) return;
       const rec = payload.new || payload.old;
-      if (rec?.order_number?.startsWith('ACC-') || (rec?.note && rec.note.includes('Kundenkonto Registrierung'))) {
-        return; // Discard dummy account registration records completely
+      if (!isValidOrderRecord(rec)) {
+        if (payload.new && !isValidOrderRecord(payload.new)) {
+          setOrders(prev => prev.filter(o => String(o.id) !== String(payload.new.id) && o.order_number !== payload.new.order_number));
+          setSelectedOrder(prev => (prev && (String(prev.id) === String(payload.new.id) || prev.order_number === payload.new.order_number)) ? null : prev);
+        }
+        return; // Discard dummy account registration and deleted records completely
+      }
+      if (payload.eventType === 'DELETE' && payload.old) {
+        setOrders(prev => prev.filter(o => String(o.id) !== String(payload.old.id) && o.order_number !== payload.old.order_number));
+        setSelectedOrder(prev => (prev && (String(prev.id) === String(payload.old.id) || prev.order_number === payload.old.order_number)) ? null : prev);
+        return;
       }
       if (payload.eventType === 'UPDATE' && payload.new) {
         setOrders(prev => prev.map(o => {
@@ -2080,6 +2082,44 @@ export default function AdminPanel({ onBackToStore }) {
       console.warn('handleAssignDriver error:', err);
     }
     showToast(lang === 'de' ? `${t.orders.assignedDriver} aktualisiert` : `${t.orders.assignedDriver} updated`);
+  };
+
+  // Delete Individual Order
+  const handleDeleteOrder = async (orderId, orderNum) => {
+    const confirmMsg = lang === 'de'
+      ? `Bestellung #${orderNum || orderId} wirklich endgültig löschen?`
+      : `Are you sure you want to permanently delete order #${orderNum || orderId}?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      setOrders(prev => prev.filter(o => String(o.id) !== String(orderId) && o.order_number !== orderId));
+      if (selectedOrder && (String(selectedOrder.id) === String(orderId) || selectedOrder.order_number === orderId)) {
+        setSelectedOrder(null);
+      }
+      await deleteOrder(orderId);
+      showToast(lang === 'de' ? `Bestellung #${orderNum || orderId} gelöscht` : `Order #${orderNum || orderId} deleted`, 'success');
+    } catch (err) {
+      console.error('Delete order failed:', err);
+      showToast(lang === 'de' ? 'Fehler beim Löschen der Bestellung' : 'Failed to delete order', 'error');
+    }
+  };
+
+  // Clear Entire Order History / All Test Orders
+  const handleClearOrderHistory = async () => {
+    const confirmMsg = lang === 'de'
+      ? 'Möchten Sie die gesamte Bestellhistorie wirklich löschen? Alle Testbestellungen werden bereinigt, um von vorne zu beginnen.'
+      : 'Are you sure you want to delete all order history? All test orders will be cleaned to start from fresh.';
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      setOrders([]);
+      setSelectedOrder(null);
+      await clearAllOrders();
+      showToast(lang === 'de' ? 'Bestellhistorie erfolgreich bereinigt!' : 'Order history cleared successfully!', 'success');
+    } catch (err) {
+      console.error('Clear order history failed:', err);
+      showToast(lang === 'de' ? 'Fehler beim Bereinigen der Bestellhistorie' : 'Failed to clear order history', 'error');
+    }
   };
 
   // Payment Status & Gateway Test Simulation
@@ -5117,6 +5157,36 @@ export default function AdminPanel({ onBackToStore }) {
                             <span>{lang === 'de' ? 'Bestellung stornieren' : 'Cancel Order'}</span>
                           </button>
                         )}
+
+                        {/* DELETE ORDER BUTTON (for removing individual orders / history) */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteOrder(order.id, order.order_number);
+                          }}
+                          style={{
+                            background: isLight ? '#fef2f2' : 'rgba(239, 68, 68, 0.08)',
+                            color: '#dc2626',
+                            border: '1px solid rgba(239, 68, 68, 0.25)',
+                            borderRadius: '8px',
+                            padding: '6px 10px',
+                            fontWeight: '600',
+                            fontSize: '11.5px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '5px',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = isLight ? '#fee2e2' : 'rgba(239, 68, 68, 0.2)'}
+                          onMouseLeave={e => e.currentTarget.style.background = isLight ? '#fef2f2' : 'rgba(239, 68, 68, 0.08)'}
+                          title={lang === 'de' ? 'Bestellung endgültig löschen' : 'Delete order permanently'}
+                        >
+                          <Trash2 size={12} />
+                          <span>{lang === 'de' ? 'Löschen' : 'Delete'}</span>
+                        </button>
                       </div>
                     </div>
                   );
@@ -5264,6 +5334,29 @@ export default function AdminPanel({ onBackToStore }) {
                       >
                         <Printer size={15} />
                         <span>{t.orders.print}</span>
+                      </button>
+
+                      {/* Modal Delete Order Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteOrder(selectedOrder.id, selectedOrder.order_number)}
+                        style={{
+                          background: isLight ? '#fef2f2' : 'rgba(239, 68, 68, 0.12)',
+                          color: '#dc2626',
+                          border: isLight ? '1px solid #fecaca' : '1px solid rgba(239, 68, 68, 0.3)',
+                          borderRadius: '8px',
+                          padding: '7px 12px',
+                          fontSize: '12.5px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                        title={lang === 'de' ? 'Bestellung löschen' : 'Delete Order'}
+                      >
+                        <Trash2 size={14} />
+                        <span>{lang === 'de' ? 'Löschen' : 'Delete'}</span>
                       </button>
 
                       <button

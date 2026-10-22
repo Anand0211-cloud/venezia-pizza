@@ -304,16 +304,23 @@ export function normalizeOrderItem(it) {
   };
 }
 
+export function isValidOrderRecord(o) {
+  if (!o) return false;
+  const num = String(o.order_number || '');
+  if (num.startsWith('ACC-') || num.startsWith('DEL-') || num.startsWith('DELETED-')) return false;
+  if (o.status === 'deleted') return false;
+  const note = String(o.note || '');
+  if (note.includes('Kundenkonto Registrierung') || note.includes('[DELETED]')) return false;
+  return true;
+}
+
 export function getLocalOrders() {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem('venezia_local_orders');
     if (!raw) return [];
     const list = JSON.parse(raw);
-    return (Array.isArray(list) ? list : []).filter(o => 
-      !o.order_number?.startsWith('ACC-') && 
-      !(o.note && o.note.includes('Kundenkonto Registrierung'))
-    ).map(o => ({
+    return (Array.isArray(list) ? list : []).filter(isValidOrderRecord).map(o => ({
       ...o,
       order_items: (o.order_items || []).map(normalizeOrderItem)
     }));
@@ -325,10 +332,7 @@ export function getLocalOrders() {
 export function saveLocalOrders(orders) {
   if (typeof window === 'undefined') return;
   try {
-    const cleanOrders = (Array.isArray(orders) ? orders : []).filter(o => 
-      !o.order_number?.startsWith('ACC-') && 
-      !(o.note && o.note.includes('Kundenkonto Registrierung'))
-    );
+    const cleanOrders = (Array.isArray(orders) ? orders : []).filter(isValidOrderRecord);
     localStorage.setItem('venezia_local_orders', JSON.stringify(cleanOrders.slice(0, 100)));
   } catch (err) {
     console.warn('Failed to save local orders:', err);
@@ -358,7 +362,7 @@ export function getActiveOrder() {
     const raw = localStorage.getItem('venezia_active_order');
     if (!raw) return null;
     const order = JSON.parse(raw);
-    if (!order || order.order_number?.startsWith('ACC-') || (order.note && order.note.includes('Kundenkonto Registrierung'))) {
+    if (!order || !isValidOrderRecord(order)) {
       localStorage.removeItem('venezia_active_order');
       return null;
     }
@@ -435,17 +439,14 @@ export async function getOrders() {
       return localOrders;
     }
 
-    const fetchedList = (data || []).filter(o => 
-      !o.order_number?.startsWith('ACC-') && 
-      !(o.note && o.note.includes('Kundenkonto Registrierung'))
-    ).map(o => ({
+    const fetchedList = (data || []).filter(isValidOrderRecord).map(o => ({
       ...o,
       order_items: (o.order_items || []).map(normalizeOrderItem)
     }));
     // Merge with any recent local orders that may not be in DB yet
     const combined = [...fetchedList];
     for (const loc of localOrders) {
-      if (loc.order_number?.startsWith('ACC-') || (loc.note && loc.note.includes('Kundenkonto Registrierung'))) {
+      if (!isValidOrderRecord(loc)) {
         continue;
       }
       if (!combined.some(o => String(o.id) === String(loc.id) || o.order_number === loc.order_number)) {
@@ -455,7 +456,7 @@ export async function getOrders() {
     return combined;
   } catch (err) {
     console.warn('Exception in getOrders, returning local store:', err);
-    return localOrders.filter(o => !o.order_number?.startsWith('ACC-') && !(o.note && o.note.includes('Kundenkonto Registrierung')));
+    return localOrders.filter(isValidOrderRecord);
   }
 }
 
@@ -862,6 +863,129 @@ export async function updateOrderDetails(orderId, orderPayload, items) {
   return { success: true, order: updatedOrder };
 }
 
+export async function deleteOrder(orderId) {
+  if (!orderId) return { success: false, error: 'No order ID provided' };
+
+  // 1. Remove from local storage
+  if (typeof window !== 'undefined') {
+    try {
+      const local = getLocalOrders().filter(o => String(o.id) !== String(orderId) && o.order_number !== orderId);
+      saveLocalOrders(local);
+      const active = getActiveOrder();
+      if (active && (String(active.id) === String(orderId) || active.order_number === orderId)) {
+        saveActiveOrder(null);
+      }
+    } catch (e) {
+      console.warn('Error clearing order from localStorage:', e);
+    }
+  }
+
+  if (!supabase) return { success: true };
+
+  // 2. Try hard DELETE in Supabase first (if DELETE policy exists)
+  try {
+    await supabase.from('order_items').delete().eq('order_id', orderId);
+    const { data: delData, error: delError } = await supabase
+      .from('orders')
+      .delete()
+      .eq('id', orderId)
+      .select();
+
+    if (!delError && delData && delData.length > 0) {
+      return { success: true, hardDeleted: true };
+    }
+  } catch (e) {
+    console.warn('Direct delete attempt failed, falling back to soft delete:', e);
+  }
+
+  // 3. Fallback: Mark as deleted so it is excluded everywhere
+  try {
+    const { data: current } = await supabase.from('orders').select('order_number, note').eq('id', orderId).single();
+    const currentNum = current?.order_number || '';
+    const newNum = currentNum.startsWith('DEL-') ? currentNum : `DEL-${currentNum}`;
+    const currentNote = current?.note || '';
+    const newNote = currentNote.includes('[DELETED]') ? currentNote : `[DELETED] ${currentNote}`;
+
+    const { error: updError } = await supabase
+      .from('orders')
+      .update({
+        status: 'deleted',
+        order_number: newNum,
+        note: newNote,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', orderId);
+
+    if (updError) throw updError;
+    return { success: true, softDeleted: true };
+  } catch (err) {
+    console.error('Error deleting order:', err);
+    throw err;
+  }
+}
+
+export async function clearAllOrders() {
+  // 1. Clear local storage
+  if (typeof window !== 'undefined') {
+    try {
+      saveLocalOrders([]);
+      saveActiveOrder(null);
+    } catch (e) {
+      console.warn('Error clearing local storage:', e);
+    }
+  }
+
+  if (!supabase) return { success: true, cleared: 0 };
+
+  // 2. Try hard delete first
+  try {
+    const { data: toDel } = await supabase
+      .from('orders')
+      .select('id')
+      .not('order_number', 'like', 'ACC-%');
+
+    if (toDel && toDel.length > 0) {
+      const ids = toDel.map(o => o.id);
+      for (let i = 0; i < ids.length; i += 20) {
+        const chunk = ids.slice(i, i + 20);
+        await supabase.from('order_items').delete().in('order_id', chunk);
+        await supabase.from('orders').delete().in('id', chunk);
+      }
+    }
+  } catch (e) {
+    console.warn('Direct bulk delete failed, proceeding with fallback:', e);
+  }
+
+  // 3. Mark all test orders as deleted
+  try {
+    const { data: remaining } = await supabase
+      .from('orders')
+      .select('id, order_number, note')
+      .not('order_number', 'like', 'ACC-%')
+      .not('order_number', 'like', 'DEL-%');
+
+    if (remaining && remaining.length > 0) {
+      for (const ord of remaining) {
+        const newNum = `DEL-${ord.order_number || ord.id.slice(0, 8)}`;
+        const newNote = `[DELETED] ${ord.note || ''}`;
+        await supabase
+          .from('orders')
+          .update({
+            status: 'deleted',
+            order_number: newNum,
+            note: newNote,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', ord.id);
+      }
+    }
+  } catch (err) {
+    console.error('Error marking orders as deleted:', err);
+  }
+
+  return { success: true };
+}
+
 // ============================================================
 // DRIVERS API
 // ============================================================
@@ -971,8 +1095,8 @@ export function subscribeToOrders(callback) {
           (payload) => {
             try {
               const rec = payload.new || payload.old;
-              if (rec?.order_number?.startsWith('ACC-') || (rec?.note && rec.note.includes('Kundenkonto Registrierung'))) {
-                return; // Discard dummy account registration records completely
+              if (!isValidOrderRecord(rec)) {
+                return; // Discard dummy account registration and deleted records completely
               }
               if (callback) callback(payload);
             } catch (e) {
@@ -2059,12 +2183,7 @@ export async function getCustomerOrderHistory(emailOrPhone, phoneParam) {
         return [];
       }
 
-      return (data || []).filter(o => {
-        if (o.order_number?.startsWith('ACC-') || (o.note && o.note.includes('Kundenkonto Registrierung'))) {
-          return false;
-        }
-        return true;
-      });
+      return (data || []).filter(isValidOrderRecord);
     } catch (err) {
       console.warn('Exception fetching customer order history:', err);
       return [];
