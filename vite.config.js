@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { emailPlugin } from './server/emailPlugin.js'
 import { sumupPlugin } from './server/sumupPlugin.js'
 import { storagePlugin } from './server/storagePlugin.js'
+import { printerPlugin } from './server/printerPlugin.js'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -10,7 +11,7 @@ export default defineConfig(({ mode }) => {
   Object.assign(process.env, env);
 
   return {
-    plugins: [react(), emailPlugin(), sumupPlugin(), storagePlugin()],
+    plugins: [react(), emailPlugin(), sumupPlugin(), storagePlugin(), printerPlugin()],
     server: {
       host: true,
       allowedHosts: 'all',

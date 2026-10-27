@@ -6089,22 +6089,31 @@ body {
   }
 
   .checkout-modal-card,
-  .checkout-modal-card * {
+  .checkout-modal-card *,
+  .admin-order-modal-card,
+  .admin-order-modal-card * {
     visibility: visible;
   }
 
-  .checkout-modal-overlay {
+  .checkout-modal-overlay,
+  .admin-order-modal-overlay {
     position: static;
     background: none !important;
     backdrop-filter: none !important;
     padding: 0 !important;
   }
 
-  .checkout-modal-card {
+  .checkout-modal-card,
+  .admin-order-modal-card {
+    position: absolute;
+    top: 0;
+    left: 0;
     box-shadow: none !important;
     border: none !important;
     width: 100% !important;
     max-width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 }
 

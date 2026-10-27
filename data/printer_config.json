@@ -1,0 +1,9 @@
+{
+  "printerName": "Generic / Text Only (Copy 1)",
+  "paperWidth": 80,
+  "autoPrint": true,
+  "cutPaper": true,
+  "openDrawer": false,
+  "copies": 1,
+  "authToken": "da2377b1f5dcbbe08fa551445c6e19e3"
+}

@@ -61,6 +61,7 @@ import {
 } from '../lib/categoryManager';
 import {
   isSupabaseConfigured,
+  supabase,
   getOrders,
   updateOrderStatus,
   updateOrderPrepTime,
@@ -89,6 +90,8 @@ import {
   isValidOrderRecord
 } from '../lib/supabaseClient';
 import AdminLogin from './AdminLogin';
+import ThermalPrinterModal from './ThermalPrinterModal';
+import { getPrinterStatus, printOrderThermal } from '../lib/printerService';
 import {
   allMenuItems as defaultMenuItems,
   specialOffersData,
@@ -1352,6 +1355,12 @@ export default function AdminPanel({ onBackToStore }) {
   const [addDishToOrderSize, setAddDishToOrderSize] = useState('');
   const [addDishToOrderQty, setAddDishToOrderQty] = useState(1);
 
+  // Thermal Printer Integration States (Zjiang ZJ-8330-L)
+  const [isPrinterModalOpen, setIsPrinterModalOpen] = useState(false);
+  const [printerStatus, setPrinterStatus] = useState(null);
+  const [printingOrderId, setPrintingOrderId] = useState(null);
+  const [printedOrderIds, setPrintedOrderIds] = useState(new Set());
+
   const handleAddQuickTopping = (toppingName) => {
     setDishForm(prev => {
       const current = (prev.toppings || '').trim();
@@ -1994,6 +2003,31 @@ export default function AdminPanel({ onBackToStore }) {
         showToast(lang === 'de'
           ? `🔔 Neue Bestellung: #${payload.new.order_number} (${payload.new.customer_name})`
           : `🔔 New Order: #${payload.new.order_number} (${payload.new.customer_name})`, 'success');
+
+        // Automatic Thermal Receipt Printing Trigger (Zjiang ZJ-8330-L)
+        const incomingOrder = payload.new;
+        setTimeout(async () => {
+          try {
+            let orderToPrint = incomingOrder;
+            if (!orderToPrint.order_items || orderToPrint.order_items.length === 0) {
+              if (supabase) {
+                const { data: dbItems } = await supabase.from('order_items').select('*').eq('order_id', incomingOrder.id);
+                if (dbItems && dbItems.length > 0) {
+                  orderToPrint = { ...incomingOrder, order_items: dbItems };
+                }
+              }
+            }
+            const printRes = await printOrderThermal(orderToPrint, { force: false });
+            if (printRes && printRes.printed) {
+              setPrintedOrderIds(prev => new Set([...prev, incomingOrder.id, incomingOrder.order_number]));
+              showToast(lang === 'de'
+                ? `🖨️ Bon für #${incomingOrder.order_number} automatisch gedruckt!`
+                : `🖨️ Receipt for #${incomingOrder.order_number} automatically printed!`, 'success');
+            }
+          } catch (pErr) {
+            console.warn('[AutoPrint] Notice:', pErr.message);
+          }
+        }, 600);
       } else {
         loadData(false);
       }
@@ -2146,6 +2180,63 @@ export default function AdminPanel({ onBackToStore }) {
     }
 
     showToast(lang === 'de' ? `Zahlung aktualisiert: ${newPaymentStatus.toUpperCase()}` : `Payment updated: ${newPaymentStatus.toUpperCase()}`);
+  };
+
+  // Thermal Printer Status & Manual/Automatic Print Execution (Zjiang ZJ-8330-L)
+  const checkPrinterStatus = async () => {
+    try {
+      const res = await getPrinterStatus();
+      setPrinterStatus(res);
+    } catch (_) {}
+  };
+
+  useEffect(() => {
+    checkPrinterStatus();
+    const pInterval = setInterval(checkPrinterStatus, 8000);
+    return () => clearInterval(pInterval);
+  }, []);
+
+  const handlePrintThermalReceipt = async (order, force = true) => {
+    if (!order) return;
+    const orderKey = order.id || order.order_number;
+    setPrintingOrderId(orderKey);
+    try {
+      showToast(lang === 'de'
+        ? `🖨️ Bon für #${order.order_number || order.id} wird gesendet...`
+        : `🖨️ Sending receipt #${order.order_number || order.id} to thermal printer...`, 'info');
+
+      // Ensure full order items are loaded
+      let completeOrder = order;
+      if (!completeOrder.order_items || completeOrder.order_items.length === 0) {
+        if (supabase) {
+          try {
+            const { data: dbItems } = await supabase.from('order_items').select('*').eq('order_id', order.id);
+            if (dbItems && dbItems.length > 0) {
+              completeOrder = { ...order, order_items: dbItems };
+            }
+          } catch (_) {}
+        }
+      }
+
+      const res = await printOrderThermal(completeOrder, { force });
+      if (res && (res.success || res.printed)) {
+        setPrintedOrderIds(prev => new Set([...prev, order.id, order.order_number]));
+        showToast(lang === 'de'
+          ? `✓ Bon für #${order.order_number || order.id} erfolgreich gedruckt!`
+          : `✓ Receipt for #${order.order_number || order.id} printed!`, 'success');
+      } else if (res && res.reason === 'already_printed') {
+        showToast(lang === 'de'
+          ? `Bestellung #${order.order_number} wurde bereits gedruckt.`
+          : `Order #${order.order_number} already printed.`, 'info');
+      } else {
+        throw new Error(res?.error || 'Druck fehlgeschlagen');
+      }
+    } catch (err) {
+      console.error('Thermal print error:', err);
+      showToast(`⚠️ Druckerfehler: ${err.message}`, 'error');
+    } finally {
+      setPrintingOrderId(null);
+    }
   };
 
   // Menu Stock Toggle - Instant Zero Delay Live Update
@@ -3687,6 +3778,47 @@ export default function AdminPanel({ onBackToStore }) {
             </button>
           </div>
 
+          {/* Thermal Printer Status Button (Zjiang ZJ-8330-L) */}
+          <button
+            type="button"
+            onClick={() => setIsPrinterModalOpen(true)}
+            title={lang === 'de' ? 'Zjiang ZJ-8330-L Thermodrucker verwalten & Testdruck' : 'Manage ZJ-8330-L thermal printer & test print'}
+            style={{
+              background: printerStatus?.isPrinterFound
+                ? (isLight ? '#f0fdf4' : 'rgba(16, 185, 129, 0.15)')
+                : (isLight ? '#fff1f2' : 'rgba(225, 29, 72, 0.15)'),
+              border: printerStatus?.isPrinterFound
+                ? (isLight ? '1.5px solid #86efac' : '1.5px solid rgba(16, 185, 129, 0.4)')
+                : (isLight ? '1.5px solid #fecaca' : '1.5px solid rgba(225, 29, 72, 0.4)'),
+              color: printerStatus?.isPrinterFound
+                ? (isLight ? '#15803d' : '#4ade80')
+                : (isLight ? '#be123c' : '#fb7185'),
+              borderRadius: '10px',
+              padding: '6px 13px',
+              fontSize: '12px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '7px',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Printer size={15} />
+            <span>
+              {printerStatus?.isPrinterFound
+                ? (printerStatus?.config?.autoPrint !== false ? 'Drucker: Auto-Bon AN' : 'Drucker: Bereit')
+                : 'Drucker: Getrennt'}
+            </span>
+            <div style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: printerStatus?.isPrinterFound ? '#10b981' : '#e11d48',
+              boxShadow: printerStatus?.isPrinterFound ? '0 0 6px #10b981' : '0 0 6px #e11d48'
+            }} />
+          </button>
+
           {/* Shop Online / Offline Toggle Control */}
           <div style={{
             display: 'flex',
@@ -4079,6 +4211,30 @@ export default function AdminPanel({ onBackToStore }) {
                 EN
               </button>
             </div>
+
+            {/* Mobile Thermal Printer Button */}
+            <button
+              type="button"
+              onClick={() => setIsPrinterModalOpen(true)}
+              title="ZJ-8330-L Drucker"
+              style={{
+                background: printerStatus?.isPrinterFound
+                  ? (isLight ? '#f0fdf4' : 'rgba(16, 185, 129, 0.15)')
+                  : (isLight ? '#fff1f2' : 'rgba(225, 29, 72, 0.15)'),
+                border: printerStatus?.isPrinterFound
+                  ? (isLight ? '1px solid #86efac' : '1px solid rgba(16, 185, 129, 0.4)')
+                  : (isLight ? '1px solid #fecaca' : '1px solid rgba(225, 29, 72, 0.4)'),
+                color: printerStatus?.isPrinterFound ? '#10b981' : '#e11d48',
+                borderRadius: '8px',
+                padding: '6px 9px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <Printer size={14} />
+            </button>
           </div>
         </div>
 
@@ -4998,30 +5154,74 @@ export default function AdminPanel({ onBackToStore }) {
 
                       {/* Detail Button & Status Advancement */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: 'auto' }}>
-                        {/* View Full Details Button */}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedOrder(order)}
-                          style={{
-                            background: isLight ? '#0284c7' : '#1e293b',
-                            color: '#ffffff',
-                            border: isLight ? 'none' : '1px solid #0284c7',
-                            borderRadius: '8px',
-                            padding: '9px 14px',
-                            fontSize: '12.5px',
-                            fontWeight: '800',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '7px',
-                            boxShadow: isLight ? '0 2px 6px rgba(2, 132, 199, 0.25)' : 'none',
-                            transition: 'all 0.2s ease'
-                          }}
-                        >
-                          <Eye size={15} color={isLight ? '#ffffff' : '#38bdf8'} />
-                          <span style={{ color: isLight ? '#ffffff' : '#38bdf8', fontWeight: '800' }}>{t.orders.viewDetailsGateway}</span>
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          {/* View Full Details Button */}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedOrder(order)}
+                            style={{
+                              flex: 1,
+                              background: isLight ? '#0284c7' : '#1e293b',
+                              color: '#ffffff',
+                              border: isLight ? 'none' : '1px solid #0284c7',
+                              borderRadius: '8px',
+                              padding: '9px 12px',
+                              fontSize: '12.5px',
+                              fontWeight: '800',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              boxShadow: isLight ? '0 2px 6px rgba(2, 132, 199, 0.25)' : 'none',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            <Eye size={15} color={isLight ? '#ffffff' : '#38bdf8'} />
+                            <span style={{ color: isLight ? '#ffffff' : '#38bdf8', fontWeight: '800' }}>{t.orders.viewDetailsGateway}</span>
+                          </button>
+
+                          {/* Print Thermal Receipt Button */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePrintThermalReceipt(order, true);
+                            }}
+                            disabled={printingOrderId === (order.id || order.order_number)}
+                            title={lang === 'de' ? 'Bon auf ZJ-8330-L Thermodrucker drucken' : 'Print receipt on thermal printer'}
+                            style={{
+                              background: printedOrderIds.has(order.id) || printedOrderIds.has(order.order_number)
+                                ? (isLight ? '#f0fdf4' : 'rgba(16, 185, 129, 0.15)')
+                                : (isLight ? '#f8fafc' : '#131b2e'),
+                              color: printedOrderIds.has(order.id) || printedOrderIds.has(order.order_number)
+                                ? '#10b981'
+                                : (isLight ? '#0f172a' : '#cbd5e1'),
+                              border: printedOrderIds.has(order.id) || printedOrderIds.has(order.order_number)
+                                ? '1px solid #10b981'
+                                : (isLight ? '1px solid #cbd5e1' : '1px solid #334155'),
+                              borderRadius: '8px',
+                              padding: '9px 13px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              flexShrink: 0
+                            }}
+                          >
+                            <Printer size={15} color={printedOrderIds.has(order.id) || printedOrderIds.has(order.order_number) ? '#10b981' : '#e11d48'} />
+                            <span>
+                              {printingOrderId === (order.id || order.order_number)
+                                ? (lang === 'de' ? 'Druckt...' : 'Printing...')
+                                : (printedOrderIds.has(order.id) || printedOrderIds.has(order.order_number)
+                                    ? (lang === 'de' ? 'Gedruckt ✓' : 'Printed ✓')
+                                    : (lang === 'de' ? 'Bon' : 'Receipt'))}
+                            </span>
+                          </button>
+                        </div>
 
                         <div style={{ display: 'flex', gap: '8px' }}>
                           {order.status === 'new' && (
@@ -5318,22 +5518,37 @@ export default function AdminPanel({ onBackToStore }) {
                       </button>
 
                       <button
-                        onClick={() => window.print()}
+                        type="button"
+                        onClick={(e) => {
+                          if (e.shiftKey) {
+                            window.print();
+                          } else {
+                            handlePrintThermalReceipt(selectedOrder, true);
+                          }
+                        }}
+                        disabled={printingOrderId === (selectedOrder.id || selectedOrder.order_number)}
                         style={{
-                          background: isLight ? '#ffffff' : '#1e293b',
-                          color: isLight ? '#0f172a' : '#cbd5e1',
-                          border: isLight ? '1px solid #cbd5e1' : '1px solid #334155',
+                          background: '#e11d48',
+                          color: '#ffffff',
+                          border: 'none',
                           borderRadius: '8px',
-                          padding: '7px 12px',
+                          padding: '7px 14px',
                           fontSize: '12.5px',
+                          fontWeight: '700',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '6px'
+                          gap: '6px',
+                          boxShadow: '0 2px 6px rgba(225, 29, 72, 0.3)'
                         }}
+                        title={lang === 'de' ? 'Bon direkt auf ZJ-8330-L drucken (Shift-Klick für Browser-Druck)' : 'Print receipt on thermal printer (Shift-click for browser print)'}
                       >
                         <Printer size={15} />
-                        <span>{t.orders.print}</span>
+                        <span>
+                          {printingOrderId === (selectedOrder.id || selectedOrder.order_number)
+                            ? (lang === 'de' ? 'Druckt...' : 'Printing...')
+                            : (lang === 'de' ? 'Bon drucken' : 'Print Receipt')}
+                        </span>
                       </button>
 
                       {/* Modal Delete Order Button */}
@@ -9448,6 +9663,15 @@ export default function AdminPanel({ onBackToStore }) {
           <span>{toast.message}</span>
         </div>
       )}
+
+      {/* Thermal Printer Management Modal (Zjiang ZJ-8330-L) */}
+      <ThermalPrinterModal
+        isOpen={isPrinterModalOpen}
+        onClose={() => setIsPrinterModalOpen(false)}
+        isLight={isLight}
+        lang={lang}
+        onToast={showToast}
+      />
     </div>
   );
 }

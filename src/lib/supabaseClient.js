@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { sendOrderConfirmationEmail, sendOrderDeliveredEmail } from './emailService.js';
+import { printOrderThermal } from './printerService.js';
 
 const supabaseUrl =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
@@ -651,6 +652,13 @@ export async function createOrder(orderPayload, items) {
 
   // Broadcast to other tabs & listeners
   broadcastNewOrder(completeOrder);
+
+  // Dispatch automatic thermal receipt print on local printer if service is reachable
+  try {
+    printOrderThermal(completeOrder, { force: false }).catch(() => {
+      // Non-blocking: will also be caught by Admin dashboard or background service listener
+    });
+  } catch (_) {}
 
   // Asynchronously dispatch order confirmation email via SMTP backend
   if (completeOrder.customer_email) {
